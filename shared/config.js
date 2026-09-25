@@ -35,6 +35,7 @@ function defaultConfig() {
         cloudBase: "",
         wizardDone: false,
         ads: { enabled: true, minSec: 120, maxSec: 180 },
+        ttsPort: parseInt(process.env.AF_TTS_PORT, 10) || 8000,
         brands: [
             { key: "brand1", name: "TOYOTA", color: "#EB0A1E", models: models.brand1 },
             { key: "brand2", name: "LEXUS",  color: "#B0B0B0", models: models.brand2 }

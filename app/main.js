@@ -26,6 +26,7 @@ const BASE_DIR = app.isPackaged
 const ENGINE_PATH = path.join(APP_DIR, '..', 'video_server.js');
 const TTS_PATH = path.join(APP_DIR, '..', 'tts_server.py');
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
+const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8000;
 
 let engineProcess = null;
 let ttsProcess = null;
@@ -101,10 +102,10 @@ function startEngine() {
 function startTTS() {
     if (!fs.existsSync(TTS_PATH)) { log('TTS server script missing, skipping.'); return; }
     const python = process.env.AF_PYTHON || 'python';
-    log(`starting TTS server (${python} ${TTS_PATH})`);
+    log(`starting TTS server (${python} ${TTS_PATH}) on port ${TTS_PORT}`);
     ttsProcess = spawn(python, [TTS_PATH], {
         cwd: path.dirname(TTS_PATH),
-        env: { ...process.env, AF_DATA_DIR: BASE_DIR },
+        env: { ...process.env, AF_DATA_DIR: BASE_DIR, AF_TTS_PORT: String(TTS_PORT) },
         stdio: ['ignore', 'pipe', 'pipe']
     });
     ttsProcess.stdout.on('data', d => log(`tts: ${d.toString().trim()}`));

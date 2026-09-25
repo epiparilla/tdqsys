@@ -331,4 +331,14 @@ async def speak_unit(unit: str, voice: str = "af_heart", speed: float = 1.0):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Prefer config value (data.json), then AF_TTS_PORT env, then 8000.
+    port = 8000
+    try:
+        if os.path.exists(DATA_FILE):
+            import json
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                doc = json.load(f)
+            port = int((doc.get("config") or {}).get("ttsPort") or os.environ.get("AF_TTS_PORT", "8000"))
+    except Exception:
+        port = int(os.environ.get("AF_TTS_PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
