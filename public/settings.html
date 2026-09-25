@@ -170,31 +170,6 @@
     <!-- ============ EDIT FORM ============ -->
     <form id="settings-form" autocomplete="off" style="opacity:0.55; pointer-events:none;">
 
-        <!-- Site identity -->
-        <div class="settings-card">
-            <h2>Site Identity</h2>
-            <div class="field-row">
-                <div class="field">
-                    <label>Site code (used for cloud sync)</label>
-                    <input type="text" id="cfg-site" placeholder="auto-01">
-                </div>
-                <div class="field">
-                    <label>Hostname (LAN address, without http://)</label>
-                    <input type="text" id="cfg-hostname" placeholder="autofocus.local">
-                </div>
-            </div>
-            <div class="field">
-                <label>Cloud base URL (Cloudflare Pages project; leave empty for offline-only)</label>
-                <input type="url" id="cfg-cloudbase" placeholder="https://autofocus-queue.pages.dev">
-            </div>
-            <div class="field-row">
-                <div class="field">
-                    <label>Voice (TTS) port</label>
-                    <input type="number" id="cfg-tts-port" min="1" max="65535">
-                </div>
-            </div>
-        </div>
-
         <!-- Advertising -->
         <div class="settings-card">
             <h2>Advertising (TV Display)</h2>
@@ -243,11 +218,10 @@
             <h2>Welcome to AutoFocus</h2>
             <p>First-time setup. Let's customize your queue system before the crew starts using it.</p>
             <pre class="wizard-steps">
-  1) Set your site code &amp; hostname
-  2) Pick brand colors &amp; car models
-  3) Choose ad interval &amp; import videos
+  1) Pick brand colors &amp; car models
+  2) Choose ad interval &amp; import videos
             </pre>
-            <p style="font-size:0.85rem;">You can change everything later from the settings page (locked, read-only until you enter edit mode).</p>
+            <p style="font-size:0.85rem;">System identity (site, hostname, cloud sync) is pre-configured. You can change everything else later from the settings page (locked, read-only until you enter edit mode).</p>
             <div class="modal-actions">
                 <button class="btn-primary settings-btn" onclick="closeWizard()">Get Started</button>
             </div>
@@ -510,10 +484,6 @@
         // ---------------------------------------------------------------
         function hydrateForm() {
             const c = stateDoc.config || {};
-            set('cfg-site', c.site || '');
-            set('cfg-hostname', c.hostname || '');
-            set('cfg-cloudbase', c.cloudBase || '');
-            set('cfg-tts-port', c.ttsPort != null ? c.ttsPort : 8000);
             const ads = c.ads || {};
             set('cfg-ads-min', ads.minSec != null ? ads.minSec : 120);
             set('cfg-ads-max', ads.maxSec != null ? ads.maxSec : 180);
@@ -527,10 +497,10 @@
         function collectConfig() {
             const config = {
                 schemaVersion: 2,
-                site: val('cfg-site').trim() || 'auto-01',
-                hostname: val('cfg-hostname').trim() || 'autofocus.local',
-                cloudBase: val('cfg-cloudbase').trim(),
-                ttsPort: Math.max(1, parseInt(val('cfg-tts-port'), 10) || 8000),
+                site: 'auto-01',
+                hostname: 'tdqsys.local',
+                cloudBase: 'https://tdqsys.pages.dev',
+                ttsPort: 8001,
                 wizardDone: true,
                 ads: {
                     enabled: document.getElementById('cfg-ads-enabled').checked,
@@ -701,7 +671,6 @@
         // ---------------------------------------------------------------
         async function importVideos(files) {
             const status = document.getElementById('import-status');
-            const nameField = document.getElementById('cfg-hostname');
             const base = afIsLocal() ? `http://${afHostname()}` : '';
             if (!afIsLocal()) {
                 status.textContent = 'Video import requires being on the local machine.';

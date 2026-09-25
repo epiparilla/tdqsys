@@ -40,7 +40,7 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
-const HOSTNAME = () => (localData.config && localData.config.hostname) || 'autofocus.local';
+const HOSTNAME = () => (localData.config && localData.config.hostname) || 'tdqsys.local';
 const CLOUD_BASE = () => (localData.config && localData.config.cloudBase) || '';
 const SITE = () => (localData.config && localData.config.site) || 'auto-01';
 

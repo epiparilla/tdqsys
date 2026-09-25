@@ -26,7 +26,7 @@ const BASE_DIR = app.isPackaged
 const ENGINE_PATH = path.join(APP_DIR, '..', 'video_server.js');
 const TTS_PATH = path.join(APP_DIR, '..', 'tts_server.py');
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
-const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8000;
+const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8001;
 
 let engineProcess = null;
 let ttsProcess = null;

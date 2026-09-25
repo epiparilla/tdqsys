@@ -18,15 +18,15 @@ A real-time test drive queue management system for Toyota/Lexus dealerships. It 
 │ client       │ tts_server   │                               │
 │              │   (Python)   │                               │
 ├──────────────┴──────────────┴───────────────────────────────┤
-│  Ports: Node.js → 80  │  TTS → 8000  │  Cloudflare → 443   │
+│  Ports: Node.js → 8081  │  TTS → 8001  │  Cloudflare → 443   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Three Layers
 
 1. **Local Backend** (TV Laptop)
-   - `video_server.js` — Node.js HTTP server on port 80. Serves videos (HTTP 206 range), queue data API, and static frontend files. Acts as the offline hub.
-   - `tts_server.py` — Python FastAPI server on port 8000. Uses Kokoro ONNX TTS model to generate voice announcements with zero-latency pre-cached audio splicing.
+   - `video_server.js` — Node.js HTTP server on port 8081. Serves videos (HTTP 206 range), queue data API, and static frontend files. Acts as the offline hub.
+   - `tts_server.py` — Python FastAPI server on port 8001. Uses Kokoro ONNX TTS model to generate voice announcements with zero-latency pre-cached audio splicing.
 
 2. **Frontend Pages**
    - `dashboard.html` — Facilitator control panel (mobile-friendly). Increment/decrement queues per vehicle model, re-announce, reset all.
@@ -72,7 +72,7 @@ Autofocus cloud/
 │   ├── data.js                      # GET /api/data (reads from KV)
 │   └── save.js                      # POST /api/save (writes to KV)
 │
-├── tts_server.py                    # FastAPI TTS server (Kokoro ONNX, port 8000)
+├── tts_server.py                    # FastAPI TTS server (Kokoro ONNX, port 8001)
 ├── video_server.js                  # Node.js video + data server (port 80)
 ├── data.json                        # Local queue state backup
 ├── wrangler.toml                    # Cloudflare Wrangler configuration
@@ -158,7 +158,7 @@ wscript start_all_systems.vbs
 This will:
 1. Kill any stale `node.exe` / `python.exe` processes
 2. Start `video_server.js` on port 80 (invisible)
-3. Start `tts_server.py` on port 8000 (visible console shows pre-rendering progress)
+3. Start `tts_server.py` on port 8001 (visible console shows pre-rendering progress)
 4. Wait 6 seconds, then open `http://toyotaautofocus2026.local` in your browser
 
 #### 4. Launch TV Display
@@ -174,7 +174,7 @@ Opens Chrome in app/kiosk mode on a secondary monitor (positioned at 1920,0) loa
 | Check | URL | Expected |
 |-------|-----|----------|
 | Video server | `http://localhost/api/data` | JSON with zeros or existing queue state |
-| TTS server | `http://localhost:8000/api/speak_unit?unit=RH01` | WAV audio plays |
+| TTS server | `http://localhost:8001/api/speak_unit?unit=RH01` | WAV audio plays |
 | Video playlist | `http://localhost/api/videos` | JSON array of MP4 URLs |
 | Dashboard | `http://localhost/dashboard.html` | Control panel with +/- buttons |
 | Display | `http://localhost/display_with_ads.html` | Stacked queue grid with "Click to start" overlay |
@@ -228,8 +228,8 @@ If internet goes down:
 | Problem | Solution |
 |---------|----------|
 | Port 80 already in use | Run `taskkill /F /IM node.exe` then restart |
-| Port 8000 already in use | Run `taskkill /F /IM python.exe` then restart |
-| TTS not speaking | Check `http://localhost:8000/docs` — verify server is running. First boot takes ~30s to pre-render audio. |
+| Port 8001 already in use | Run `taskkill /F /IM python.exe` then restart |
+| TTS not speaking | Check `http://localhost:8001/docs` — verify server is running. First boot takes ~30s to pre-render audio. |
 | Videos not playing | Ensure `.mp4` files are in the `videos/` folder. Check `http://localhost/api/videos` returns a list. |
 | Dashboard not syncing | Open DevTools Console on both dashboard and display tabs. Check for fetch errors. Verify both access same hostname. |
 | Cloudflare deploy fails | Run `wrangler login` first. Ensure KV namespace ID in `wrangler.toml` is valid. |

@@ -4,8 +4,8 @@
 
 // Detect local vs cloud origin (config-driven hostname, resolved at runtime).
 function afHostname() {
-    try { return localStorage.getItem('af_hostname') || 'autofocus.local'; }
-    catch (e) { return 'autofocus.local'; }
+    try { return localStorage.getItem('af_hostname') || 'tdqsys.local'; }
+    catch (e) { return 'tdqsys.local'; }
 }
 
 function afIsLocal() {

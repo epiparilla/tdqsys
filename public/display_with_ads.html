@@ -45,7 +45,7 @@
 
         function announceNumber(displayValue) {
             if (!voiceEnabled) return;
-            const ttsPort = (dataStore && dataStore.config && dataStore.config.ttsPort) || 8000;
+            const ttsPort = (dataStore && dataStore.config && dataStore.config.ttsPort) || 8001;
             const url = `http://localhost:${ttsPort}/api/speak_unit?voice=af_heart&unit=${encodeURIComponent(displayValue)}`;
             audioQueue.push(url);
             playNextAudio();
