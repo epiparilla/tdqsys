@@ -4,10 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const { defaultState, migrateLegacy } = require('./shared/config');
 
-const PORT = 80;
-const VIDEOS_DIR = path.join(__dirname, 'videos');
+const PORT = parseInt(process.env.AF_PORT, 10) || 80;
+// Data location: override from Electron (portable -> beside exe; installed -> %APPDATA%).
+const DATA_DIR = process.env.AF_DATA_DIR || __dirname;
+const VIDEOS_DIR = path.join(DATA_DIR, 'videos');
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DATA_FILE = path.join(DATA_DIR, 'data.json');
 
 // Helper to log with timestamps
 const log = (msg) => console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
@@ -87,6 +89,9 @@ if (isDataEmpty(localData)) {
 }
 
 // ---- CONNECTIVITY WATCHDOG ----
+// Under the desktop app the Electron main process owns cloud sync (single
+// push source). When AF_OWNER_SYNC=1 the watchdog here is disabled.
+const OWNER_SYNC = process.env.AF_OWNER_SYNC === '1';
 let wasOnline = null; // null = unknown (first run)
 
 function pushToCloud() {
@@ -135,8 +140,12 @@ function checkConnectivity() {
     });
 }
 
-setInterval(checkConnectivity, 10000);
-checkConnectivity(); // run immediately on startup
+if (!OWNER_SYNC) {
+    setInterval(checkConnectivity, 10000);
+    checkConnectivity(); // run immediately on startup
+} else {
+    log("Running under desktop app — cloud sync is owned by Electron main.");
+}
 
 const server = http.createServer((req, res) => {
     // 1. Massive CORS allowance so Cloudflare site can access local files securely

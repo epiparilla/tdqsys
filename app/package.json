@@ -1,0 +1,14 @@
+{
+  "name": "autofocus-queue-desktop",
+  "version": "1.0.0",
+  "description": "AutoFocus Queue System - desktop app (portable, no installer until layout sign-off)",
+  "main": "main.js",
+  "author": "AutoFocus",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
