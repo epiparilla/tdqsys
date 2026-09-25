@@ -1,3 +1,5 @@
+import { defaultState, migrateLegacy } from "../../shared/config.js";
+
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -6,30 +8,28 @@ const CORS_HEADERS = {
 };
 
 export async function onRequest(context) {
-    // Handle browser CORS preflight check
     if (context.request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
     if (context.request.method === "GET") {
         try {
-            // kv binding is QUEUE_DATA
-            const data = await context.env.QUEUE_DATA.get("state");
-            
+            const url = new URL(context.request.url);
+            const site = (url.searchParams.get("site") || "auto-01").toLowerCase();
+            const key = `${site}/state`;
+
+            const data = await context.env.QUEUE_DATA.get(key, "text");
+
             if (data) {
                 return new Response(data, { headers: CORS_HEADERS });
             }
-            
-            // Default state if KV is empty
-            const defaultState = {
-                lexus:  { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0 },
-                toyota: { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0 }
-            };
 
-            return new Response(JSON.stringify(defaultState), { headers: CORS_HEADERS });
-            
+            // Nothing stored for this site yet: offer a fresh default state.
+            const fresh = defaultState();
+            fresh.config.site = site;
+            return new Response(JSON.stringify(fresh), { headers: CORS_HEADERS });
         } catch (err) {
-            return new Response(JSON.stringify({ error: "Failed to read data" }), { 
+            return new Response(JSON.stringify({ error: "Failed to read data" }), {
                 status: 500,
                 headers: CORS_HEADERS
             });

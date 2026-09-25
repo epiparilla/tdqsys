@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Toyota Auto Focus</title>
+    <title>AutoFocus TV Display</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -15,48 +15,30 @@
         ⛶ Click to Fullscreen
     </div>
 
-    <!-- AUTOPLAY UNLOCK OVERLAY (Industry standard for digital signage to bypass browser restrictions) -->
+    <!-- AUTOPLAY UNLOCK OVERLAY -->
     <div id="start-overlay" onclick="startDisplay()" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--bg-main); z-index:999999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; font-family:Inter,sans-serif; cursor:pointer; text-align:center;">
         <h1 style="font-size: 3rem; margin-bottom: 1rem;">TV DISPLAY SYSTEM</h1>
         <p style="font-size: 1.5rem; opacity: 0.7;">Click anywhere to start the queue and enable video ads.</p>
     </div>
 
-    <!-- FULL SCREEN AD OVERLAY (Translucent so queue shows through) -->
+    <!-- FULL SCREEN AD OVERLAY -->
     <div id="video-overlay"
         style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0, 0, 0, 1); z-index:9999; opacity:1; transition: opacity 0.5s ease;">
         <video id="ad-video" style="width:100%; height:100%; object-fit:contain; background:transparent;"></video>
     </div>
 
-    <!-- STANDARD QUEUE DISPLAY SYSTEM -->
-    <div class="stacked-container">
-        <!-- TOYOTA SECTION -->
-        <main class="brand-section toyota-section">
-            <header class="brand-header">
-                <h1>TOYOTA</h1>
-            </header>
-            <div class="queue-grid" id="toyota-grid">
-                <!-- Javascript will populate units -->
-            </div>
-        </main>
-
-        <!-- LEXUS SECTION -->
-        <main class="brand-section lexus-section">
-            <header class="brand-header">
-                <h1>LEXUS</h1>
-            </header>
-            <div class="queue-grid" id="lexus-grid">
-                <!-- Javascript will populate units -->
-            </div>
-        </main>
+    <div class="stacked-container" id="brand-sections">
+        <!-- Brand sections rendered from config via af.js -->
     </div>
 
+    <script src="af.js"></script>
     <script>
-        // --------- QUEUE SYSTEM LOGIC ---------
-        const brands = ['lexus', 'toyota'];
-        let localData = { lexus: {}, toyota: {} };
-        let lastLocalUpdate = 0; // Prevent polling race conditions
+        // --------- CONFIG DRIVEN STATE ---------
+        let dataStore = null;
+        let lastLocalUpdate = 0;
+        let modelLookup = {}; // brandKey -> [{label, prefix, pronounce}, ...]
 
-        // --------- VOICE SYSTEM LOGIC ---------
+        // --------- VOICE SYSTEM LOGIC (unchanged behavior) ---------
         let voiceEnabled = false;
         const audioQueue = [];
         let isPlaying = false;
@@ -70,265 +52,201 @@
 
         function playNextAudio() {
             if (isPlaying || audioQueue.length === 0) {
-                // If nothing is playing and the queue is empty, ensure video volume is restored
                 if (audioQueue.length === 0) {
                     const videoPlayer = document.getElementById('ad-video');
                     if (videoPlayer) videoPlayer.volume = 1.0;
                 }
                 return;
             }
-            
+
             isPlaying = true;
-            
-            // Duck the video volume down to 10%
             const videoPlayer = document.getElementById('ad-video');
             if (videoPlayer) videoPlayer.volume = 0.1;
 
             const url = audioQueue.shift();
             const audio = new Audio(url);
-            
-            audio.onended = () => {
-                isPlaying = false;
-                playNextAudio();
-            };
-            
-            audio.onerror = () => {
-                console.error("Failed to play local AI voice");
-                isPlaying = false;
-                playNextAudio();
-            };
-            
-            audio.play().catch(err => {
-                console.error("Playback prevented:", err);
-                isPlaying = false;
-                playNextAudio();
+            audio.onended = () => { isPlaying = false; playNextAudio(); };
+            audio.onerror = () => { console.error("Failed to play local AI voice"); isPlaying = false; playNextAudio(); };
+            audio.play().catch(err => { console.error("Playback prevented:", err); isPlaying = false; playNextAudio(); });
+        }
+
+        // --------- BUILD DOM FROM CONFIG ---------
+        function buildDisplay(state) {
+            const container = document.getElementById('brand-sections');
+            container.innerHTML = '';
+            modelLookup = {};
+            const config = state.config || {};
+
+            config.brands.forEach(brand => {
+                const section = document.createElement('main');
+                section.className = 'brand-section';
+                section.dataset.brandKey = brand.key;
+                section.style.setProperty('--brand-accent', brand.color);
+
+                const header = document.createElement('header');
+                header.className = 'brand-header';
+                const h1 = document.createElement('h1');
+                h1.textContent = brand.name;
+                header.appendChild(h1);
+                section.appendChild(header);
+
+                const grid = document.createElement('div');
+                grid.className = 'queue-grid';
+                grid.id = `grid-${brand.key}`;
+                section.appendChild(grid);
+                container.appendChild(section);
+
+                modelLookup[brand.key] = brand.models;
+                brand.models.forEach((model, idx) => {
+                    const i = idx + 1;
+                    const card = document.createElement('div');
+                    card.className = 'unit-card';
+                    card.id = `card-${brand.key}-${i}`;
+                    card.innerHTML = `
+                        <div class="unit-label" style="line-height: 1.2;">${model.label}</div>
+                        <div class="unit-number-wrapper">
+                            <div class="unit-number" id="num-${brand.key}-${i}"><span class="prefix">${model.prefix}</span>00</div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
             });
         }
 
-        // Detect if running on TV laptop (localhost/local dns) or from cloud (remote)
-        const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'toyotaautofocus2026.local';
-        const API_BASE = IS_LOCAL ? 'http://toyotaautofocus2026.local' : '';
-
-        // Build the Queue Grid DOM
-        const modelCodes = {
-            toyota: { 
-                1: { name: "RAV4 LTD HEV", prefix: "RH" }, 
-                2: { name: "bZ4X", prefix: "BZ" }, 
-                3: { name: "Urban Cruiser", prefix: "UC" }, 
-                4: { name: "RAV4 ADV", prefix: "RA" }, 
-                5: { name: "Yaris Cross SE HEV", prefix: "YC" }, 
-                6: { name: "Corolla Cross G HEV", prefix: "CC" }, 
-                7: { name: "ATIV HEV", prefix: "AH" } 
-            },
-            lexus:  { 
-                1: { name: "IS Premier", prefix: "IS" }, 
-                2: { name: "Lexus NX", prefix: "NX" }, 
-                3: { name: "Lexus LBX", prefix: "LBX" },
-                4: { name: "Lexus RX", prefix: "RX" }
-            }
-        };
-        const unitCounts = {
-            toyota: 7,
-            lexus: 4
-        };
-
-        brands.forEach(brand => {
-            const grid = document.getElementById(`${brand}-grid`);
-            const count = unitCounts[brand];
-            for (let i = 1; i <= count; i++) {
-                const card = document.createElement('div');
-                card.className = 'unit-card';
-                card.id = `card-${brand}-${i}`;
-                
-                const modelCode = modelCodes[brand][i];
-
-                card.innerHTML = `
-                    <div class="unit-label" style="line-height: 1.2;">${modelCode.name}</div>
-                    <div class="unit-number-wrapper">
-                        <div class="unit-number" id="num-${brand}-${i}"><span class="prefix">${modelCode.prefix}</span>00</div>
-                    </div>
-                `;
-                grid.appendChild(card);
-            }
-        });
-
-        // Backend Polling System (Cloudflare)
+        // --------- BACKEND POLLING ---------
         async function pollData() {
-            let data;
-            try {
-                const response = await fetch(`${API_BASE}/api/data`);
-                if (!response.ok) throw new Error("Primary failed");
-                data = await response.json();
-            } catch (err) {
-                if (!IS_LOCAL) {
-                    try {
-                        const localResponse = await fetch('http://toyotaautofocus2026.local/api/data');
-                        if (localResponse.ok) data = await localResponse.json();
-                    } catch(localErr) { return; }
-                } else { return; }
-            }
-
+            let data = await afFetchState();
             if (!data) return;
-
-            // Prevent "rubber-banding" race condition where slow API pulls downgrade fast local UI clicks
             if (Date.now() - lastLocalUpdate < 3000) return;
 
+            if (!dataStore) {
+                buildDisplay(data);
+                dataStore = data;
+                return;
+            }
+
             // Check for explicit re-announce triggers
-            if (data.reannounce && (!localData.reannounce || localData.reannounce.ts !== data.reannounce.ts)) {
+            if (data.reannounce && (!dataStore.reannounce || dataStore.reannounce.ts !== data.reannounce.ts)) {
                 const ra = data.reannounce;
-                // Wait to make sure we don't double fire if the value also changed
                 setTimeout(() => {
-                    animateChange(ra.brand, ra.unit, data[ra.brand] ? data[ra.brand][ra.unit] : 0, true);
+                    const prefix = (modelLookup[ra.brand] && modelLookup[ra.brand][ra.unit-1] && modelLookup[ra.brand][ra.unit-1].prefix) || '';
+                    animateChange(ra.brand, ra.unit, (data.queues[ra.brand] && data.queues[ra.brand][ra.unit]) || 0, prefix, true);
                 }, 50);
             }
 
-            brands.forEach(brand => {
-                const count = unitCounts[brand];
-                for (let i = 1; i <= count; i++) {
-                    if (data[brand] && data[brand][i] !== undefined) {
-                        if (!localData[brand] || localData[brand][i] !== data[brand][i]) {
-                            animateChange(brand, i, data[brand][i]);
+            data.config.brands.forEach(brand => {
+                brand.models.forEach((model, idx) => {
+                    const i = idx + 1;
+                    if (data.queues[brand.key] && data.queues[brand.key][i] !== undefined) {
+                        const old = (dataStore.queues[brand.key] && dataStore.queues[brand.key][i]) || 0;
+                        if (old !== data.queues[brand.key][i]) {
+                            animateChange(brand.key, i, data.queues[brand.key][i], model.prefix);
                         }
                     }
-                }
+                });
             });
-            localData = data;
+            dataStore = data;
         }
 
-        function animateChange(brand, unit, newValue, forceReannounce = false) {
-            const el = document.getElementById(`num-${brand}-${unit}`);
-            const card = document.getElementById(`card-${brand}-${unit}`);
+        function animateChange(brandKey, unit, newValue, prefix, forceReannounce = false) {
+            const el = document.getElementById(`num-${brandKey}-${unit}`);
+            const card = document.getElementById(`card-${brandKey}-${unit}`);
+            if (!el) return;
 
-            const prefix = modelCodes[brand][unit].prefix;
             const formattedVal = String(newValue).padStart(2, '0');
             const displayValue = prefix + formattedVal;
 
-            if (forceReannounce || (el && el.textContent != displayValue)) {
+            if (forceReannounce || (el.textContent != displayValue)) {
                 el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
-                
-                // Voice Announcement (skip if value is zero)
                 if (newValue > 0) {
                     announceNumber(displayValue);
                 }
-                
                 el.classList.remove('animate-pop');
-                card.classList.remove(`flash-${brand}`);
+                card.classList.remove('flash-brand');
                 void el.offsetWidth;
                 void card.offsetWidth;
                 el.classList.add('animate-pop');
-                card.classList.add(`flash-${brand}`);
+                card.classList.add('flash-brand');
             }
         }
 
-        // Ensure polling runs constantly in background
-        pollData(); // initial
+        pollData();
         setInterval(() => pollData(), 2000);
 
         // Listen for immediate localStorage updates from dashboard
         window.addEventListener('storage', (event) => {
             if (event.key === 'queueUpdate') {
                 const msg = JSON.parse(event.newValue);
-                lastLocalUpdate = Date.now(); // Lockout polling for 3 seconds
-                animateChange(msg.brand, msg.unit, msg.val, msg.forceReannounce);
-                if (!localData[msg.brand]) localData[msg.brand] = {};
-                localData[msg.brand][msg.unit] = parseInt(msg.val, 10);
-                
-                // Prevent polling from double-triggering this exact reannounce
+                lastLocalUpdate = Date.now();
+                const prefix = (modelLookup[msg.brand] && modelLookup[msg.brand][msg.unit-1] && modelLookup[msg.brand][msg.unit-1].prefix) || '';
+                animateChange(msg.brand, msg.unit, msg.val, prefix, msg.forceReannounce);
+                if (!dataStore.queues[msg.brand]) dataStore.queues[msg.brand] = {};
+                dataStore.queues[msg.brand][msg.unit] = parseInt(msg.val, 10);
                 if (msg.forceReannounce) {
-                    localData.reannounce = { brand: msg.brand, unit: msg.unit, ts: msg.ts };
+                    dataStore.reannounce = { brand: msg.brand, unit: msg.unit, ts: msg.ts };
                 }
             } else if (event.key === 'queueDataSync') {
                 const data = JSON.parse(event.newValue);
-                localData = data;
-                brands.forEach(brand => {
-                    const count = unitCounts[brand];
-                    for (let i = 1; i <= count; i++) {
-                        const el = document.getElementById(`num-${brand}-${i}`);
-                        if (el && data[brand] && data[brand][i] !== undefined) {
-                            const prefix = modelCodes[brand][i].prefix;
-                            const formattedVal = String(data[brand][i]).padStart(2, '0');
-                            el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
-                        }
-                    }
-                });
+                if (data && data.config) {
+                    buildDisplay(data);
+                    dataStore = data;
+                }
             }
         });
-
 
         // --------- AUTOMATED VIDEO AD ENGINE ---------
         let adVideos = [];
         let currentAdIndex = 0;
         let adTimer = null;
+        let adConfig = { minSec: 120, maxSec: 180, enabled: true };
 
-        // Auto-fetch local video playlist on boot from your shadow server
         async function fetchLocalVideos() {
             try {
-                const response = await fetch('http://toyotaautofocus2026.local/api/videos');
+                const response = await fetch(`http://${afHostname()}/api/videos`);
                 const videos = await response.json();
-
                 if (videos.length > 0) {
                     adVideos = videos;
-                    console.log("Successfully connected to Local Video Engine. Found " + adVideos.length + " ads.");
-                    scheduleNextAd(); // Start the 60-90s clock
+                    console.log("Connected to Local Video Engine. Found " + adVideos.length + " ads.");
+                    scheduleNextAd();
                 } else {
-                    console.warn("Local Video API connected, but your 'videos' folder is currently empty!");
+                    console.warn("Local Video API connected, but 'videos' folder is empty!");
                 }
             } catch (error) {
-                console.error("CRITICAL: Failed to connect to local video server! Make sure your start_video_server.vbs is running in the background.", error);
+                console.error("Failed to connect to local video server.", error);
             }
         }
 
-        // Wait Engine
         function scheduleNextAd() {
-            if (adVideos.length === 0) return; // Failsafe
-
-            // Calculate random wait time between 60,000ms (60s) and 90,000ms (90s)
-            const minTime = 120000;
-            const maxTime = 180000;
-            const waitTimeMs = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-
+            if (adVideos.length === 0) return;
+            const min = Math.max(1, adConfig.minSec) * 1000;
+            const max = Math.max(min, adConfig.maxSec) * 1000;
+            const waitTimeMs = Math.floor(Math.random() * (max - min + 1) + min);
             console.log(`Next ad scheduled in ${waitTimeMs / 1000} seconds.`);
             adTimer = setTimeout(playNextAd, waitTimeMs);
         }
 
-        // Trigger Ad Overlay
         function playNextAd() {
             if (adVideos.length === 0) return;
-
             const overlay = document.getElementById('video-overlay');
             const player = document.getElementById('ad-video');
-
-            // Show black overlay masking the queue
             overlay.style.display = 'block';
-
-            // Feed the next video source instantly off localhost
             player.src = adVideos[currentAdIndex];
-
-            // Rotate the tracker so next time it picks the next video
             currentAdIndex = (currentAdIndex + 1) % adVideos.length;
-
-            // Force play
             player.play().catch(e => {
-                console.error("Autoplay was blocked by browser. Skipping ad.", e);
+                console.error("Autoplay blocked. Skipping ad.", e);
                 endAd();
             });
         }
 
-        // Extremely Crucial: Wait for the exact conclusion of the video
         document.getElementById('ad-video').onended = function () {
             endAd();
         };
 
-        // Ad Ending Protocol
         function endAd() {
             const overlay = document.getElementById('video-overlay');
             const player = document.getElementById('ad-video');
-
-            // Reset player and hide overlay
             player.src = "";
             overlay.style.display = 'none';
-
-            // The ad is finished, so start the queue waiting timer over again
             scheduleNextAd();
         }
 
@@ -336,27 +254,18 @@
         function goFullscreen() {
             const el = document.documentElement;
             if (el.requestFullscreen) el.requestFullscreen();
-            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // Safari
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
         }
 
-        // Industry Standard Autoplay Bypass
         function startDisplay() {
-            // Hide the blocker
             document.getElementById('start-overlay').style.display = 'none';
-            
             voiceEnabled = true;
-            // Play a silent audio to unlock AudioContext on browsers
             const unlockAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
             unlockAudio.play().catch(() => {});
-
-            // Go fullscreen automatically
             goFullscreen();
-            
-            // NOW we start the video engine, because we have a trusted user gesture!
             fetchLocalVideos();
         }
 
-        // Auto-hide the button once fullscreen is active, show it again if user exits
         document.addEventListener('fullscreenchange', () => {
             const btn = document.getElementById('fs-prompt');
             if (document.fullscreenElement) {
@@ -367,6 +276,15 @@
                 btn.style.pointerEvents = 'auto';
             }
         });
+
+        // Load ad interval from config when display is built
+        const origPoll = pollData;
+        pollData = async function () {
+            await origPoll();
+            if (dataStore && dataStore.config && dataStore.config.ads) {
+                adConfig = dataStore.config.ads;
+            }
+        };
     </script>
 </body>
 
