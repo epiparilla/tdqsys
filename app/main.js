@@ -58,6 +58,16 @@ function openLocalWindow({ page, width, height, fullscreen = false, x = undefine
     const url = `http://localhost:${PORT}/${page}`;
     win.loadURL(url);
     win.setMenu(null);
+
+    // Dev-mode polish loop: edit HTML/CSS -> reload window (F5) / devtools (F12), no rebuild.
+    if (!app.isPackaged) {
+        win.webContents.on('before-input-event', (event, input) => {
+            if (input.type !== 'keyDown') return;
+            if (input.key === 'F5' || input.key === 'R') { win.webContents.reload(); event.preventDefault(); }
+            if (input.key === 'F12') { win.webContents.toggleDevTools(); event.preventDefault(); }
+        });
+    }
+
     win.webContents.on('did-fail-load', (_e, code, desc, validatedURL) => {
         if (String(validatedURL).startsWith('http://localhost:')) {
             // Engine likely not up yet; retry shortly.
