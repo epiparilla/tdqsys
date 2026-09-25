@@ -10,7 +10,6 @@
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, dialog, shell } = require('electron');
 const { spawn } = require('child_process');
 const https = require('https');
-const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
@@ -204,6 +203,32 @@ if (!gotLock) {
     app.quit();
 }
 
+// Open (or reopen if closed) the dashboard window.
+function openDashboardWindow() {
+    if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+        if (dashboardWindow.isMinimized()) dashboardWindow.restore();
+        dashboardWindow.show();
+        dashboardWindow.focus();
+        return dashboardWindow;
+    }
+    dashboardWindow = openLocalWindow({
+        page: 'index.html',
+        width: 1200, height: 800,
+        minWidth: 600, minHeight: 400
+    });
+    dashboardWindow.on('close', () => { dashboardWindow = null; });
+    dashboardWindow.webContents.setWindowOpenHandler(({ url }) => {
+        // Links that open "display in new window" -> manage through our own window
+        if (url.includes('display')) {
+            openDisplayWindow();
+            return { action: 'deny' };
+        }
+        shell.openExternal(url);
+        return { action: 'deny' };
+    });
+    return dashboardWindow;
+}
+
 app.whenReady().then(() => {
     // Display added/removed handling must run only after app is ready.
     screen.on('display-added', () => {
@@ -224,29 +249,16 @@ app.whenReady().then(() => {
     startCloudSync();
 
     // Registration area shortcut: dashboard on the local monitor, display on TV.
-    dashboardWindow = openLocalWindow({
-        page: 'index.html',
-        width: 1200, height: 800,
-        minWidth: 600, minHeight: 400
-    });
-    dashboardWindow.webContents.setWindowOpenHandler(({ url }) => {
-        // Links that open "display in new window" -> manage through our own window
-        if (url.includes('display')) {
-            openDisplayWindow();
-            return { action: 'deny' };
-        }
-        shell.openExternal(url);
-        return { action: 'deny' };
-    });
+    openDashboardWindow();
 
     setTimeout(() => { if (displayMode === 'auto') openDisplayWindow(); }, 6000); // after engine boots
 
     tray = new Tray(path.join(APP_DIR, 'icon.png'));
     tray.setToolTip('AutoFocus Queue System');
     tray.setContextMenu(Menu.buildFromTemplate([
-        { label: 'Open Dashboard', click: () => { if (dashboardWindow) dashboardWindow.show(); } },
+        { label: 'Open Dashboard', click: () => openDashboardWindow() },
         { label: 'Open TV Display', click: () => openDisplayWindow() },
-        { label: 'Season', type: 'separator' },
+        { type: 'separator' },
         { label: 'Quit AutoFocus', click: () => { app.isQuitting = true; app.quit(); } }
     ]));
 
@@ -278,6 +290,8 @@ ipcMain.handle('af:chooseVideos', async () => {
 ipcMain.handle('af:dataDir', () => BASE_DIR);
 ipcMain.handle('af:displayMode', (_e, mode) => { displayMode = mode; });
 
+// Keep running in the tray when all windows close, so the operator can reopen
+// the dashboard without restarting the engine/TTS. Quit only via tray menu.
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    // no-op: app keeps running (tray). Explicit quit via tray -> app.quit().
 });
