@@ -1,0 +1,7 @@
+name = "aftestdrivetoyota"
+compatibility_date = "2024-04-21"
+pages_build_output_dir = "public"
+
+[[kv_namespaces]]
+binding = "QUEUE_DATA"
+id = "8dca2e784c784542aea61c08281ec082"

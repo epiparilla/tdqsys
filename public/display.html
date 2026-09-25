@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toyota Auto Focus</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- AUTOPLAY UNLOCK OVERLAY REMOVED FROM DISPLAY.HTML -->
+
+    <div class="stacked-container">
+        <!-- TOYOTA SECTION -->
+        <main class="brand-section toyota-section">
+            <header class="brand-header">
+                <h1>TOYOTA</h1>
+            </header>
+            <div class="queue-grid" id="toyota-grid">
+                <!-- Javascript will populate units -->
+            </div>
+        </main>
+
+        <!-- LEXUS SECTION -->
+        <main class="brand-section lexus-section">
+            <header class="brand-header">
+                <h1>LEXUS</h1>
+            </header>
+            <div class="queue-grid" id="lexus-grid">
+                <!-- Javascript will populate units -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const brands = ['lexus', 'toyota'];
+        
+        // Build the DOM
+        const modelCodes = {
+            toyota: { 
+                1: { name: "RAV4 LTD HEV", prefix: "RH" }, 
+                2: { name: "bZ4X", prefix: "BZ" }, 
+                3: { name: "Urban Cruiser", prefix: "UC" }, 
+                4: { name: "RAV4 ADV", prefix: "RA" }, 
+                5: { name: "Yaris Cross SE HEV", prefix: "YC" }, 
+                6: { name: "Corolla Cross G HEV", prefix: "CC" }, 
+                7: { name: "ATIV HEV", prefix: "AH" } 
+            },
+            lexus:  { 
+                1: { name: "IS Premier", prefix: "IS" }, 
+                2: { name: "Lexus NX", prefix: "NX" }, 
+                3: { name: "Lexus LBX", prefix: "LBX" },
+                4: { name: "Lexus RX", prefix: "RX" }
+            }
+        };
+
+        const unitCounts = {
+            toyota: 7,
+            lexus: 4
+        };
+
+        brands.forEach(brand => {
+            const grid = document.getElementById(`${brand}-grid`);
+            const count = unitCounts[brand];
+            for (let i = 1; i <= count; i++) {
+                const card = document.createElement('div');
+                card.className = 'unit-card';
+                card.id = `card-${brand}-${i}`;
+                
+                const modelCode = modelCodes[brand][i];
+
+                card.innerHTML = `
+                    <div class="unit-label" style="line-height: 1.2;">${modelCode.name}</div>
+                    <div class="unit-number-wrapper">
+                        <div class="unit-number" id="num-${brand}-${i}"><span class="prefix">${modelCode.prefix}</span>00</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            }
+        });
+
+        // Manage State
+        let localData = { lexus: {}, toyota: {} };
+        let lastLocalUpdate = 0; // Prevent polling race conditions
+
+        // Detect if running on TV laptop (localhost) or from cloud (remote)
+        const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'toyotaautofocus2026.local';
+        const API_BASE = IS_LOCAL ? 'http://toyotaautofocus2026.local' : '';
+
+        // Poll data from server to support cross-device sync
+        async function pollData(isInitial = false) {
+            let data;
+            try {
+                const response = await fetch(`${API_BASE}/api/data`);
+                if (!response.ok) throw new Error("Primary failed");
+                data = await response.json();
+            } catch (err) {
+                // If on cloud and cloud is down, try local fallback
+                if (!IS_LOCAL) {
+                    try {
+                        const localResponse = await fetch('http://toyotaautofocus2026.local/api/data');
+                        if (localResponse.ok) data = await localResponse.json();
+                    } catch(localErr) { return; }
+                } else {
+                    return; // Local server itself is down, nothing we can do
+                }
+            }
+
+            if (!data) return;
+
+            // Prevent "rubber-banding" race condition where slow API pulls downgrade fast local UI clicks
+            if (Date.now() - lastLocalUpdate < 3000 && !isInitial) return;
+
+            if (isInitial) {
+                localData = data;
+                renderAll(data);
+            } else {
+                brands.forEach(brand => {
+                    const count = unitCounts[brand];
+                    for (let i = 1; i <= count; i++) {
+                        if (data[brand] && data[brand][i] !== undefined) {
+                            if (!localData[brand] || localData[brand][i] !== data[brand][i]) {
+                                animateChange(brand, i, data[brand][i]);
+                            }
+                        }
+                    }
+                });
+                localData = data;
+            }
+        }
+
+        function renderAll(data) {
+            brands.forEach(brand => {
+                const count = unitCounts[brand];
+                for (let i = 1; i <= count; i++) {
+                    const el = document.getElementById(`num-${brand}-${i}`);
+                    if (el && data[brand] && data[brand][i] !== undefined) {
+                        const prefix = modelCodes[brand][i].prefix;
+                        const formattedVal = String(data[brand][i]).padStart(2, '0');
+                        el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
+                    }
+                }
+            });
+        }
+
+        function animateChange(brand, unit, newValue) {
+            const el = document.getElementById(`num-${brand}-${unit}`);
+            const card = document.getElementById(`card-${brand}-${unit}`);
+            
+            const prefix = modelCodes[brand][unit].prefix;
+            const formattedVal = String(newValue).padStart(2, '0');
+            const displayValue = prefix + formattedVal;
+            
+            if (el && el.textContent != displayValue) {
+                el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
+                
+                // Remove animation classes to trigger re-flow
+                el.classList.remove('animate-pop');
+                card.classList.remove(`flash-${brand}`);
+                void el.offsetWidth; // trigger reflow
+                void card.offsetWidth;
+                
+                // Add back
+                el.classList.add('animate-pop');
+                card.classList.add(`flash-${brand}`);
+            }
+        }
+
+        // Listen for immediate localStorage updates from dashboard
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'queueUpdate') {
+                const msg = JSON.parse(event.newValue);
+                lastLocalUpdate = Date.now(); // Lockout polling for 3 seconds
+                animateChange(msg.brand, msg.unit, msg.val);
+                // Also update our local copy
+                if (!localData[msg.brand]) localData[msg.brand] = {};
+                localData[msg.brand][msg.unit] = parseInt(msg.val, 10);
+            } else if (event.key === 'queueDataSync') {
+                // Bulk update (e.g. initial sync)
+                const data = JSON.parse(event.newValue);
+                localData = data;
+                renderAll(localData);
+            }
+        });
+
+        // Initial Load & Start Polling
+        // TV screens get 2s interval, mobile phones get 30s to save bandwidth
+        const IS_MOBILE = window.matchMedia('(max-width: 768px)').matches;
+        const POLL_INTERVAL = IS_MOBILE ? 30000 : 2000;
+
+        pollData(true);
+        setInterval(() => pollData(false), POLL_INTERVAL);
+    </script>
+</body>
+</html>

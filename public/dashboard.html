@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toyota Auto Focus</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="dashboard">
+
+    <header class="dashboard-header">
+        <h1>Auto Focus Test Drive Facilitator Dashboard</h1>
+        <!-- <p>Updates instantly sync to the Display screen</p> -->
+        <br>
+        <a href="display_with_ads.html" target="_blank" class="link-button">Open Display Screen (New Window)</a>
+    </header>
+
+    <main class="controls-wrapper">
+        <!-- TOYOTA CONTROLS -->
+        <section class="controls-brand-section toyota-controls">
+            <h2 style="margin-bottom: 1.5rem; text-align: center; color: white;">TOYOTA CONTROLS</h2>
+            <div class="controls-grid" id="toyota-controls">
+                <!-- Populated via JS -->
+            </div>
+        </section>
+
+        <!-- LEXUS CONTROLS -->
+        <section class="controls-brand-section lexus-controls">
+            <h2 style="margin-bottom: 1.5rem; text-align: center; color: white;">LEXUS CONTROLS</h2>
+            <div class="controls-grid" id="lexus-controls">
+                <!-- Populated via JS -->
+            </div>
+        </section>
+    </main>
+
+    <!-- RESET ALL BUTTON -->
+    <button id="reset-all-btn" onclick="startResetConfirmation()" style="position:fixed; bottom:20px; right:20px; z-index:9999; background:rgba(220,38,38,0.8); color:white; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; font-family:Inter,sans-serif; font-size:0.8rem; transition:background 0.2s, opacity 0.2s;" onmouseover="this.style.background='rgba(220,38,38,1)'" onmouseout="this.style.background='rgba(220,38,38,0.8)'">
+        Reset All to Zero
+    </button>
+
+    <!-- 2-LEVEL CONFIRMATION MODAL -->
+    <div id="reset-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:99999; justify-content:center; align-items:center;">
+        <div style="background:#1a1a2e; color:white; padding:2rem 2.5rem; border-radius:12px; text-align:center; font-family:Inter,sans-serif; max-width:400px;">
+            <h2 id="reset-modal-title" style="margin:0 0 0.5rem 0;">Are you sure?</h2>
+            <p id="reset-modal-message" style="opacity:0.7; margin:0 0 1.5rem 0;">This will reset all queue values to zero.</p>
+            <div style="display:flex; gap:1rem; justify-content:center;">
+                <button onclick="cancelResetConfirmation()" style="padding:8px 20px; border-radius:6px; border:1px solid rgba(255,255,255,0.3); background:transparent; color:white; cursor:pointer; font-size:0.9rem;">Cancel</button>
+                <button id="reset-modal-confirm-btn" onclick="confirmResetStep()" style="padding:8px 20px; border-radius:6px; border:none; background:#dc2626; color:white; cursor:pointer; font-size:0.9rem;">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const brands = ['lexus', 'toyota'];
+        let dataStore = { lexus: {}, toyota: {} };
+
+        // Save timeout handle for debouncing background saves
+        let saveTimeout = null;
+
+        // Detect if this page is running locally (TV laptop) or from Cloudflare (mobile/remote)
+        const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'toyotaautofocus2026.local';
+        const LOCAL_API = 'http://toyotaautofocus2026.local';
+        const CLOUD_API = ''; // relative path = Cloudflare
+
+        // Fetch Initial Data
+        async function fetchInitialData() {
+            let data = null;
+            try {
+                // Try primary source first (local if on TV laptop, cloud if on mobile)
+                const primaryUrl = IS_LOCAL ? `${LOCAL_API}/api/data` : '/api/data';
+                const response = await fetch(primaryUrl);
+                if (!response.ok) throw new Error('Primary failed');
+                data = await response.json();
+            } catch (err) {
+                // Fallback: if on cloud and cloud fails, try local
+                if (!IS_LOCAL) {
+                    try {
+                        const localResponse = await fetch(`${LOCAL_API}/api/data`);
+                        if (localResponse.ok) data = await localResponse.json();
+                    } catch (e) { /* both failed */ }
+                }
+            }
+            if (data) {
+                dataStore = data;
+                renderDOM();
+                localStorage.setItem('queueDataSync', JSON.stringify(dataStore));
+            }
+        }
+
+        // Model codes for each unit
+        const modelCodes = {
+            toyota: {
+                1: { name: "RAV4 LTD HEV", prefix: "RH" },
+                2: { name: "bZ4X", prefix: "BZ" },
+                3: { name: "Urban Cruiser", prefix: "UC" },
+                4: { name: "RAV4 ADV", prefix: "RA" },
+                5: { name: "Yaris Cross SE HEV", prefix: "YC" },
+                6: { name: "Corolla Cross G HEV", prefix: "CC" },
+                7: { name: "ATIV HEV", prefix: "AH" }
+            },
+            lexus: {
+                1: { name: "IS Premier", prefix: "IS" },
+                2: { name: "Lexus NX", prefix: "NX" },
+                3: { name: "Lexus LBX", prefix: "LBX" },
+                4: { name: "Lexus RX", prefix: "RX" }
+            }
+        };
+
+        const unitCounts = {
+            toyota: 7,
+            lexus: 4
+        };
+
+        // Build the control UI
+        function renderDOM() {
+            brands.forEach(brand => {
+                const grid = document.getElementById(`${brand}-controls`);
+                grid.innerHTML = '';
+
+                const count = unitCounts[brand];
+
+                for (let i = 1; i <= count; i++) {
+                    const card = document.createElement('div');
+                    card.className = 'control-card';
+
+                    const val = dataStore[brand]?.[i] !== undefined ? dataStore[brand][i] : 0;
+                    const modelCode = modelCodes[brand][i];
+
+                    card.innerHTML = `
+                        <button onclick="reannounce('${brand}', ${i})" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 1.2rem; cursor: pointer; opacity: 0.5; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" title="Re-announce this number">📣</button>
+                        <h3>${modelCode.name} <br><span style="font-size: 0.8rem; opacity: 0.7;">${modelCode.prefix}</span></h3>
+                        <div class="input-group">
+                            <button class="btn" onclick="updateQueue('${brand}', ${i}, -1)">-</button>
+                            <input type="number" class="number-input" id="input-${brand}-${i}" value="${val}" onchange="setQueue('${brand}', ${i}, this.value)">
+                            <button class="btn" onclick="updateQueue('${brand}', ${i}, 1)">+</button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                }
+            });
+        }
+
+        function updateQueue(brand, unit, delta) {
+            const input = document.getElementById(`input-${brand}-${unit}`);
+            let current = parseInt(input.value, 10);
+            if (isNaN(current)) current = 0;
+
+            let newVal = current + delta;
+            if (newVal < 0) newVal = 0; // Prevent negative queues
+            if (newVal > 999) newVal = 999;
+
+            input.value = newVal;
+            commitChange(brand, unit, newVal);
+        }
+
+        function setQueue(brand, unit, value) {
+            let newVal = parseInt(value, 10);
+            if (isNaN(newVal) || newVal < 0) newVal = 0;
+            if (newVal > 999) newVal = 999;
+            document.getElementById(`input-${brand}-${unit}`).value = newVal;
+            commitChange(brand, unit, newVal);
+        }
+
+        function reannounce(brand, unit) {
+            const val = document.getElementById(`input-${brand}-${unit}`).value;
+            const ts = Date.now();
+            
+            // 1. LocalStorage for same-machine instant trigger
+            localStorage.setItem('queueUpdate', JSON.stringify({ brand, unit, val, forceReannounce: true, ts: ts }));
+            
+            // 2. Add to dataStore for cross-machine polling
+            dataStore.reannounce = { brand, unit, ts: ts };
+            backgroundSave();
+        }
+
+        function commitChange(brand, unit, val) {
+            // 1. Update local store
+            if (!dataStore[brand]) dataStore[brand] = {};
+            dataStore[brand][unit] = val;
+
+            // 2. Broadcast via LocalStorage (Instant Sync for Display tab)
+            // Adding a timestamp ensures the event fires even if the value is the same but we want to re-trigger
+            localStorage.setItem('queueUpdate', JSON.stringify({ brand, unit, val, ts: Date.now() }));
+
+            // 3. Persist to server (Debounced to avoid spamming the file system if clicking fast)
+            backgroundSave();
+        }
+
+        function backgroundSave() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                const payload = JSON.stringify(dataStore);
+
+                if (IS_LOCAL) {
+                    // 1. Always save locally (works even when offline)
+                    fetch(`${LOCAL_API}/api/save`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    }).catch(err => console.error("Local save failed:", err));
+
+                    // 2. Also save directly to Cloudflare while internet is up
+                    // This keeps all cloud displays (mobile clients, TV URLs) in real-time sync
+                    // Fails silently when offline — watchdog handles recovery
+                    fetch('https://test-drive-queue.pages.dev/api/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    }).catch(() => { }); // Silent — expected to fail when offline
+
+                } else {
+                    // Running on Cloudflare URL (mobile/remote): save to cloud AND local backup
+                    fetch('/api/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    }).catch(err => console.error("Cloud save failed:", err));
+
+                    fetch(`${LOCAL_API}/api/save`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    }).catch(() => { }); // Silent - may be blocked by HTTPS policy
+                }
+            }, 500);
+        }
+
+        // --------- RESET ALL CONFIRMATION ---------
+        let resetStep = 0;
+
+        function startResetConfirmation() {
+            resetStep = 1;
+            document.getElementById('reset-modal-title').textContent = 'Reset all queue values to zero?';
+            document.getElementById('reset-modal-message').textContent = 'This cannot be undone. All unit counters will be cleared.';
+            document.getElementById('reset-modal-confirm-btn').textContent = 'Yes, continue';
+            document.getElementById('reset-modal-confirm-btn').style.background = '#dc2626';
+            document.getElementById('reset-modal').style.display = 'flex';
+        }
+
+        function confirmResetStep() {
+            if (resetStep === 1) {
+                resetStep = 2;
+                document.getElementById('reset-modal-title').textContent = 'Final confirmation';
+                document.getElementById('reset-modal-message').textContent = 'This will immediately reset every unit to 00. Proceed?';
+                document.getElementById('reset-modal-confirm-btn').textContent = 'Reset everything';
+                document.getElementById('reset-modal-confirm-btn').style.background = '#b91c1c';
+            } else if (resetStep === 2) {
+                resetAllToZero();
+                cancelResetConfirmation();
+            }
+        }
+
+        function cancelResetConfirmation() {
+            resetStep = 0;
+            document.getElementById('reset-modal').style.display = 'none';
+        }
+
+        function resetAllToZero() {
+            brands.forEach(brand => {
+                const count = unitCounts[brand];
+                for (let i = 1; i <= count; i++) {
+                    setQueue(brand, i, 0);
+                }
+            });
+        }
+
+        // INIT
+        fetchInitialData();
+    </script>
+</body>
+
+</html>

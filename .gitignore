@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Cloudflare local state
+.wrangler/
+
+# Generated/regenerable TTS cache
+audio_cache/
+
+# Client content (imported via dashboard at runtime)
+videos/
+
+# Stray test audio
+*.wav
+
+# OS
+.DS_Store
+Thumbs.db

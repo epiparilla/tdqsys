@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Drive Queue - Mobile Status</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Mobile Specific Overrides */
+        body {
+            overflow-y: auto; 
+            height: auto;
+        }
+        .split-container {
+            flex-direction: column; /* Stack domains vertically for phone screens */
+            height: auto;
+        }
+        .brand-section {
+            border-right: none;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            min-height: 50vh;
+        }
+        .brand-section:last-child {
+            border-bottom: none;
+        }
+        .brand-header {
+            height: 80px;
+            margin-bottom: 1rem;
+        }
+        .brand-header h1 {
+            font-size: 2.5rem; /* Smaller font for mobile header */
+        }
+        .queue-grid {
+            /* 2 columns on phones instead of 3 */
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        .unit-card {
+            padding: 1rem 0.5rem;
+        }
+        .unit-number {
+            font-size: 4rem; /* Smaller numbers for phone displays */
+        }
+        
+        /* Auto Adjust back to 3 columns if the user turns their phone sideways */
+        @media (min-width: 600px) {
+            .queue-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="split-container">
+        <!-- TOYOTA SECTION -->
+        <main class="brand-section toyota-section">
+            <header class="brand-header">
+                <h1>TOYOTA</h1>
+                <p>Test Drive Queue</p>
+            </header>
+            <div class="queue-grid" id="toyota-grid">
+                <!-- Javascript will populate units -->
+            </div>
+        </main>
+
+        <!-- LEXUS SECTION -->
+        <main class="brand-section lexus-section">
+            <header class="brand-header">
+                <h1>LEXUS</h1>
+                <p>Test Drive Queue</p>
+            </header>
+            <div class="queue-grid" id="lexus-grid">
+                <!-- Javascript will populate units -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Small refresh banner for transparency -->
+    <div style="text-align: center; padding: 10px; background: #111; color: #666; font-size: 0.8rem;">
+        Status syncs automatically every 30 seconds
+    </div>
+
+    <script>
+        const brands = ['lexus', 'toyota'];
+        
+        const unitCounts = {
+            toyota: 7,
+            lexus: 4
+        };
+        
+        // Build the DOM
+        brands.forEach(brand => {
+            const grid = document.getElementById(`${brand}-grid`);
+            const count = unitCounts[brand];
+            for (let i = 1; i <= count; i++) {
+                const card = document.createElement('div');
+                card.className = 'unit-card';
+                card.id = `card-${brand}-${i}`;
+                
+                card.innerHTML = `
+                    <div class="unit-label">Unit ${i}</div>
+                    <div class="unit-number-wrapper">
+                        <div class="unit-number" id="num-${brand}-${i}">0</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            }
+        });
+
+        let localData = { lexus: {}, toyota: {} };
+
+        function renderAll(data) {
+            brands.forEach(brand => {
+                const count = unitCounts[brand];
+                for (let i = 1; i <= count; i++) {
+                    const el = document.getElementById(`num-${brand}-${i}`);
+                    if (el && data[brand] && data[brand][i] !== undefined) {
+                        el.innerText = data[brand][i];
+                    }
+                }
+            });
+        }
+
+        function animateChange(brand, unit, newValue) {
+            const el = document.getElementById(`num-${brand}-${unit}`);
+            const card = document.getElementById(`card-${brand}-${unit}`);
+            
+            if (el && el.innerText != newValue) {
+                el.innerText = newValue;
+                el.classList.remove('animate-pop');
+                card.classList.remove(`flash-${brand}`);
+                void el.offsetWidth;
+                void card.offsetWidth;
+                el.classList.add('animate-pop');
+                card.classList.add(`flash-${brand}`);
+            }
+        }
+
+        // Poll data from server to support cross-device sync
+        async function pollData(isInitial = false) {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                
+                if (isInitial) {
+                    localData = data;
+                    renderAll(data);
+                } else {
+                    brands.forEach(brand => {
+                        const count = unitCounts[brand];
+                        for (let i = 1; i <= count; i++) {
+                            if (data[brand] && data[brand][i] !== undefined) {
+                                if (!localData[brand] || localData[brand][i] !== data[brand][i]) {
+                                    animateChange(brand, i, data[brand][i]);
+                                }
+                            }
+                        }
+                    });
+                    localData = data;
+                }
+            } catch (err) {
+                console.error("Error fetching data:", err);
+            }
+        }
+
+        // Listen for immediate localStorage updates ONLY if they happen to run dashboard and display on the same phone
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'queueUpdate') {
+                const msg = JSON.parse(event.newValue);
+                animateChange(msg.brand, msg.unit, msg.val);
+                if (!localData[msg.brand]) localData[msg.brand] = {};
+                localData[msg.brand][msg.unit] = parseInt(msg.val, 10);
+            }
+        });
+
+        // Initial Load
+        pollData(true);
+        
+        // SLOW POLLING FOR PUBLIC MOBILE USERS: 30 seconds (30000ms)
+        // This dramatically saves read limits while keeping clients reasonably informed.
+        setInterval(() => pollData(false), 30000);
+    </script>
+</body>
+</html>
