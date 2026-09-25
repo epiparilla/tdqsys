@@ -654,16 +654,6 @@
                     ? 'New setup applied. All queue numbers reset to zero.'
                     : 'New setup applied. Existing numbers were kept where possible.';
             openModal('done-modal');
-            relockSilent();
-        }
-
-        function relockSilent() {
-            unlocked = false;
-            document.getElementById('lock-banner').style.display = 'block';
-            document.getElementById('settings-form').style.opacity = '0.55';
-            document.getElementById('settings-form').style.pointerEvents = 'none';
-            document.getElementById('unlock-bar').classList.remove('hidden');
-            document.getElementById('discard-btn').classList.add('hidden');
         }
 
         // ---------------------------------------------------------------
