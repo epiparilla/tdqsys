@@ -13,6 +13,13 @@ videos/
 # Stray test audio
 *.wav
 
+# Runtime state (recreated from defaults on first boot)
+data.json
+
+# Python bytecode
+__pycache__/
+*.pyc
+
 # OS
 .DS_Store
 Thumbs.db
