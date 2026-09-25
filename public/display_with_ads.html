@@ -202,7 +202,7 @@
 
         async function fetchLocalVideos() {
             try {
-                const response = await fetch(`http://${afHostname()}/api/videos`);
+                const response = await fetch(`${afApiBase()}/api/videos`);
                 const videos = await response.json();
                 if (videos.length > 0) {
                     adVideos = videos;
