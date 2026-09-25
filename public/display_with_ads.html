@@ -113,6 +113,22 @@
             });
         }
 
+        function renderAll(state) {
+            (state.config.brands || []).forEach(brand => {
+                brand.models.forEach((model, idx) => {
+                    const i = idx + 1;
+                    const el = document.getElementById(`num-${brand.key}-${i}`);
+                    if (!el) return;
+                    const v = (state.queues[brand.key] && state.queues[brand.key][i]) || 0;
+                    const formattedVal = String(v).padStart(2, '0');
+                    const displayValue = model.prefix + formattedVal;
+                    if (el.textContent != displayValue) {
+                        el.innerHTML = `<span class="prefix">${model.prefix}</span>${formattedVal}`;
+                    }
+                });
+            });
+        }
+
         // --------- BACKEND POLLING ---------
         async function pollData() {
             let data = await afFetchState();
@@ -122,6 +138,7 @@
             if (!dataStore) {
                 buildDisplay(data);
                 dataStore = data;
+                renderAll(data);
                 return;
             }
 
@@ -190,6 +207,7 @@
                 if (data && data.config) {
                     buildDisplay(data);
                     dataStore = data;
+                    renderAll(data);
                 }
             }
         });
