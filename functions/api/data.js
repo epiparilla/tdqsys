@@ -18,7 +18,7 @@ export async function onRequest(context) {
             const site = (url.searchParams.get("site") || "auto-01").toLowerCase();
             const key = `${site}/state`;
 
-            const data = await context.env.QUEUE_DATA.get(key, "text");
+            const data = await context.env.TDQSYS_QUEUE_DATA.get(key, "text");
 
             if (data) {
                 return new Response(data, { headers: CORS_HEADERS });

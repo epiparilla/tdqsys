@@ -24,7 +24,7 @@ export async function onRequest(context) {
             // Accept either a full state doc or a queue-only payload.
             // Queue-only => merge with whatever config is already stored (or defaults).
             if (reqJson && !reqJson.queues) {
-                const existing = await context.env.QUEUE_DATA.get(key, "text");
+                const existing = await context.env.TDQSYS_QUEUE_DATA.get(key, "text");
                 let base = null;
                 if (existing) {
                     const parsed = JSON.parse(existing);
@@ -33,7 +33,7 @@ export async function onRequest(context) {
                 if (!base) base = defaultState();
                 state = { ...base, queues: reqJson, reannounce: reqJson.reannounce || null };
             } else if (reqJson && reqJson.queues && !reqJson.config) {
-                const existing = await context.env.QUEUE_DATA.get(key, "text");
+                const existing = await context.env.TDQSYS_QUEUE_DATA.get(key, "text");
                 let base = null;
                 if (existing) {
                     const parsed = JSON.parse(existing);
@@ -49,7 +49,7 @@ export async function onRequest(context) {
 
             if (!state.config.site) state.config.site = site;
 
-            await context.env.QUEUE_DATA.put(key, JSON.stringify(state));
+            await context.env.TDQSYS_QUEUE_DATA.put(key, JSON.stringify(state));
 
             return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
         } catch (err) {
