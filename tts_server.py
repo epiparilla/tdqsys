@@ -38,6 +38,51 @@ import threading
 highest_rendered = 99
 render_lock = threading.Lock()
 
+# ---------------------------------------------------------------------------
+# Config-driven model pronunciations.
+# Reads the v2 config (data.json) so acronyms are no longer hardcoded.
+# PRONOUNCE_MAP:  prefix (uppercase) -> {"text": spoken words, "key": cache key}
+# ---------------------------------------------------------------------------
+DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
+DEFAULT_SPEECH_UNITS = [
+    ("RH", "R H"), ("BZ", "B Z"), ("UC", "U C"), ("RA", "R A"),
+    ("YC", "Y C"), ("CC", "C C"), ("AH", "A H"),
+    ("IS", "I S"), ("NX", "N X"), ("LBX", "L B X"), ("RX", "R X")
+]
+
+def _normalize_key(text):
+    """'A H' -> 'A-H' so it survives as a safe filename/cache key."""
+    return " ".join(text.split()).replace(" ", "-").upper()
+
+def load_pronounce_map():
+    units = {}
+    try:
+        if os.path.exists(DATA_FILE):
+            import json
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                doc = json.load(f)
+            brands = (doc.get("config") or {}).get("brands") or []
+            for brand in brands:
+                for m in brand.get("models") or []:
+                    prefix = (m.get("prefix") or "").strip().upper()
+                    if not prefix:
+                        continue
+                    text = (m.get("pronounce") or "").strip() or " ".join(prefix)
+                    units[prefix] = {"text": text, "key": _normalize_key(text)}
+    except Exception as e:
+        print(f"Could not read data.json for pronunciations ({e}); using defaults.")
+    if not units:
+        for prefix, text in DEFAULT_SPEECH_UNITS:
+            units[prefix] = {"text": text, "key": _normalize_key(text)}
+    print(f"Loaded {len(units)} pronunciation units from config.")
+    return units
+
+pronounce_map = load_pronounce_map()
+
+def speech_keys():
+    """The set of cache keys needed for all configured model prefixes."""
+    return {v["key"] for v in pronounce_map.values()}
+
 def cache_path(key):
     """Return the file path for a cached audio key."""
     if key in ('prefix', 'suffix'):
@@ -80,7 +125,7 @@ def cache_is_complete(max_num=150):
     for key in ('prefix', 'suffix'):
         if not os.path.exists(cache_path(key)):
             return False
-    acronyms = ["RH.", "BZ.", "U-C.", "R-A.", "Y-C.", "CC.", "A-H.", "I-S.", "NX.", "LBX.", "RX."]
+    acronyms = speech_keys()
     for ac in acronyms:
         if not os.path.exists(cache_path(ac)):
             return False
@@ -131,7 +176,7 @@ def load_all_from_cache():
             AUDIO_CACHE[key] = data
             global_sr = sr
 
-    acronyms = ["RH.", "BZ.", "U-C.", "R-A.", "Y-C.", "CC.", "A-H.", "I-S.", "NX.", "LBX.", "RX."]
+    acronyms = speech_keys()
     for ac in acronyms:
         path = cache_path(ac)
         if os.path.exists(path):
@@ -159,11 +204,10 @@ def render_all_from_scratch():
     render_and_cache("Test driver", 'prefix')
     render_and_cache("you may now approach the registration area for your test drive.", 'suffix')
     
-    # 2. Acronyms
+    # 2. Acronyms (config-driven pronunciations)
     print("Rendering acronyms...")
-    acronyms = ["RH.", "BZ.", "U-C.", "R-A.", "Y-C.", "CC.", "A-H.", "I-S.", "NX.", "LBX.", "RX."]
-    for ac in acronyms:
-        render_and_cache(ac, ac, speed=1.1)
+    for unit in pronounce_map.values():
+        render_and_cache(unit["text"], unit["key"], speed=1.1)
         
     # 3. Numbers 01 to 150
     print("Rendering numbers 01 to 150...")
@@ -242,21 +286,20 @@ async def speak_unit(unit: str, voice: str = "af_heart", speed: float = 1.0):
                     print(f"Approaching queue limit ({num_val}). Triggering background render for {start_num} to {end_num}...")
                     threading.Thread(target=background_render_range, args=(start_num, end_num), daemon=True).start()
         
-        # Format the keys to match the pre-rendered AUDIO_CACHE
+        # Format the keys to match the pre-rendered AUDIO_CACHE (config-driven)
         acronym_raw = "".join(letters).upper()
-        if acronym_raw == "AH": acronym_key = "A-H."
-        elif acronym_raw == "IS": acronym_key = "I-S."
-        elif acronym_raw == "UC": acronym_key = "U-C."
-        elif acronym_raw == "RA": acronym_key = "R-A."
-        elif acronym_raw == "YC": acronym_key = "Y-C."
-        else: acronym_key = acronym_raw + "."
+        entry = pronounce_map.get(acronym_raw)
+        if entry is None:
+            return Response(content=f"Unknown prefix: {acronym_raw}", status_code=400)
+        acronym_key = entry["key"]
+        acronym_text = entry["text"]
         
         number_key = " ".join(numbers)
         
         # Fallback generation for cache misses — also persist to disk
         if acronym_key not in AUDIO_CACHE:
             print(f"Cache miss for {acronym_key}, generating and saving to disk...")
-            render_and_cache(acronym_key, acronym_key, voice=voice, speed=speed)
+            render_and_cache(acronym_text, acronym_key, voice=voice, speed=speed)
             
         if number_key not in AUDIO_CACHE:
             print(f"Cache miss for {number_key}, generating and saving to disk...")

@@ -33,6 +33,7 @@ function defaultConfig() {
         site: "auto-01",
         hostname: "autofocus.local",
         cloudBase: "",
+        wizardDone: false,
         ads: { enabled: true, minSec: 120, maxSec: 180 },
         brands: [
             { key: "brand1", name: "TOYOTA", color: "#EB0A1E", models: models.brand1 },

@@ -14,6 +14,10 @@ function afIsLocal() {
 }
 
 function afApiBase() {
+    // Same-origin when served from localhost/127.0.0.1; otherwise use the
+    // configured hostname so it applies on LAN devices too.
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return '';
     return afIsLocal() ? `http://${afHostname()}` : '';
 }
 
@@ -149,4 +153,47 @@ async function afSaveState(state) {
             body: JSON.stringify(state)
         }).catch(() => {});
     }
+}
+
+// Config change detection: true if the two configs differ in any user setting
+// (brands/models/colors), so the dashboard/settings page can prompt and reconcile.
+function afConfigEqual(a, b) {
+    const norm = (c) => JSON.stringify({
+        site: c.site || '',
+        hostname: c.hostname || '',
+        cloudBase: c.cloudBase || '',
+        ads: c.ads || null,
+        brands: (c.brands || []).map(br => ({
+            key: br.key,
+            name: br.name,
+            color: br.color,
+            models: (br.models || []).map(m => ({ label: m.label, prefix: m.prefix, pronounce: m.pronounce }))
+        }))
+    });
+    return norm(a) === norm(b);
+}
+
+// Client-side mirrors of shared/config.js helpers (settings page needs them
+// without a Node dependency).
+function afEmptyQueues(config) {
+    const queues = {};
+    for (const brand of (config && config.brands) || []) {
+        queues[brand.key] = {};
+        brand.models.forEach((_, idx) => { queues[brand.key][String(idx + 1)] = 0; });
+    }
+    return queues;
+}
+
+function afReconcileQueues(queues, config) {
+    const result = {};
+    for (const brand of (config && config.brands) || []) {
+        const src = (queues && queues[brand.key]) || {};
+        result[brand.key] = {};
+        brand.models.forEach((_, idx) => {
+            const key = String(idx + 1);
+            const val = parseInt(src[key], 10);
+            result[brand.key][key] = Number.isNaN(val) ? 0 : Math.max(0, val);
+        });
+    }
+    return result;
 }

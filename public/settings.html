@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoFocus System Settings</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body.settings { padding: 1.5rem 2rem; overflow-y: auto; height: 100vh; }
+        .settings-header { text-align: center; margin-bottom: 1.5rem; }
+        .settings-header h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+        .settings-card {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.25rem;
+            max-width: 860px;
+            margin-left: auto; margin-right: auto;
+        }
+        .settings-card h2 {
+            font-size: 1rem;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--brand-accent);
+            padding-left: 0.6rem;
+        }
+        .field { margin-bottom: 0.9rem; }
+        .field label { display: block; font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 0.3rem; text-transform: uppercase; }
+        .field input[type="text"], .field input[type="number"], .field input[type="url"] {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: white;
+            padding: 0.55rem 0.7rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+        .field input:focus { outline: none; border-color: var(--brand-accent); }
+        .field-row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+        .field-row .field { flex: 1; min-width: 140px; }
+
+        .model-row {
+            display: flex; gap: 0.5rem; align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .model-row input[type="text"] { flex: 1; }
+        .model-row .model-label { flex: 2.2; }
+        .model-row .model-prefix { flex: 0.8; max-width: 110px; }
+        .model-row .model-pronounce { flex: 1.4; }
+        .remove-model-btn {
+            background: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.5);
+            color: #fca5a5; width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+        }
+        .add-model-btn {
+            background: rgba(255,255,255,0.08); color: white; border: 1px dashed rgba(255,255,255,0.3);
+            padding: 0.45rem 1rem; border-radius: 8px; cursor: pointer; width: 100%;
+            font-size: 0.85rem; letter-spacing: 1px; margin-top: 0.25rem;
+        }
+        .add-model-btn:hover { background: rgba(255,255,255,0.15); }
+
+        .color-palette { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.3rem; }
+        .swatch {
+            width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+            border: 2px solid transparent; transition: transform 0.15s;
+        }
+        .swatch:hover { transform: scale(1.12); }
+        .swatch.selected { border-color: white; box-shadow: 0 0 0 2px black, 0 0 0 3px white; }
+        .swatch-color-input { width: 34px; height: 34px; border-radius: 8px; border: none; cursor: pointer; background: none; }
+        .hex-input-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.4rem; }
+        .hex-input-row input { width: 110px; }
+
+        .lock-banner {
+            text-align: center; padding: 0.4rem; font-size: 0.8rem; letter-spacing: 1px;
+            background: rgba(255,179,0,0.12); border: 1px solid rgba(255,179,0,0.35);
+            border-radius: 8px; color: #ffd966; margin-bottom: 1rem;
+        }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 0.6rem; }
+        .status-item {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px; padding: 0.6rem 0.8rem; font-size: 0.85rem;
+        }
+        .status-item strong { display: block; font-size: 0.7rem; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.2rem; }
+        .status-item span { word-break: break-all; }
+
+        .action-bar { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; margin: 1.5rem 0; }
+        .settings-btn {
+            padding: 0.7rem 1.6rem; border-radius: 8px; border: none; cursor: pointer;
+            font-weight: bold; font-size: 0.95rem; letter-spacing: 0.5px;
+        }
+        .btn-primary { background: var(--brand-accent); color: white; }
+        .btn-primary:hover { filter: brightness(1.15); }
+        .btn-ghost { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.25); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.18); }
+        .btn-danger { background: rgba(220,38,38,0.85); color: white; }
+        .btn-danger:hover { background: rgba(220,38,38,1); }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { filter: brightness(1.12); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .modal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.82);
+            z-index: 99999; justify-content: center; align-items: center; padding: 1rem;
+        }
+        .modal.show { display: flex; }
+        .modal-box {
+            background: #15151f; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 14px; padding: 1.8rem 2rem; max-width: 520px; width: 100%;
+            font-family: Inter, sans-serif; text-align: center;
+        }
+        .modal-box h2 { margin: 0 0 0.6rem 0; font-size: 1.2rem; }
+        .modal-box p { opacity: 0.75; margin: 0 0 1.5rem 0; font-size: 0.95rem; line-height: 1.5; }
+        .modal-box .confirm-input {
+            width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 0.6rem; border-radius: 8px; margin-bottom: 1rem; text-align: center;
+            font-size: 1rem; letter-spacing: 2px;
+        }
+        .modal-actions { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
+
+        .brand-block {
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;
+            background: rgba(255,255,255,0.02);
+        }
+        .brand-block.enabled { border-left: 4px solid var(--brand-accent); }
+        .brand-block.disabled { opacity: 0.55; }
+        .brand-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; gap: 0.5rem; flex-wrap: wrap; }
+        .brand-head label { display: flex; align-items: center; gap: 0.5rem; font-weight: bold; cursor: pointer; }
+        .brand-warn { font-size: 0.75rem; color: #ffd966; }
+
+        .check-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; margin-bottom: 0.4rem; }
+        .check-label input { width: 18px; height: 18px; }
+
+        .import-status { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.6rem; }
+        .import-status.done { color: #86efac; }
+        .import-status.err { color: #fca5a5; }
+        .hidden { display: none !important; }
+        .wizard-steps { text-align: left; font-size: 0.9rem; line-height: 1.7; margin-bottom: 1rem; }
+    </style>
+</head>
+
+<body class="settings">
+
+    <header class="settings-header">
+        <h1>AutoFocus System Settings</h1>
+        <div class="header-links">
+            <a href="dashboard.html" class="link-button">&larr; Back to Dashboard</a>
+            <a href="index.html" class="link-button">Hub</a>
+        </div>
+    </header>
+
+    <!-- READ-ONLY LOCK BANNER -->
+    <div id="lock-banner" class="lock-banner">&#x1F512; Settings are locked and read-only. Use "Enter Edit Mode" to change them.</div>
+
+    <!-- ============ STATUS ============ -->
+    <div class="settings-card">
+        <h2>Current Status</h2>
+        <div class="status-grid" id="status-grid">
+            <div class="status-item"><strong>Site</strong><span id="st-site">-</span></div>
+            <div class="status-item"><strong>Hostname</strong><span id="st-host">-</span></div>
+            <div class="status-item"><strong>Cloud Base</strong><span id="st-cloud">-</span></div>
+            <div class="status-item"><strong>Brands</strong><span id="st-brands">-</span></div>
+            <div class="status-item"><strong>Total Cars</strong><span id="st-cars">-</span></div>
+            <div class="status-item"><strong>Ads</strong><span id="st-ads">-</span></div>
+        </div>
+        <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the AutoFocus shortcut).</div>
+    </div>
+
+    <!-- ============ EDIT FORM ============ -->
+    <form id="settings-form" autocomplete="off" style="opacity:0.55; pointer-events:none;">
+
+        <!-- Site identity -->
+        <div class="settings-card">
+            <h2>Site Identity</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Site code (used for cloud sync)</label>
+                    <input type="text" id="cfg-site" placeholder="auto-01">
+                </div>
+                <div class="field">
+                    <label>Hostname (LAN address, without http://)</label>
+                    <input type="text" id="cfg-hostname" placeholder="autofocus.local">
+                </div>
+            </div>
+            <div class="field">
+                <label>Cloud base URL (Cloudflare Pages project; leave empty for offline-only)</label>
+                <input type="url" id="cfg-cloudbase" placeholder="https://autofocus-queue.pages.dev">
+            </div>
+        </div>
+
+        <!-- Advertising -->
+        <div class="settings-card">
+            <h2>Advertising (TV Display)</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Min ad gap (seconds between ads)</label>
+                    <input type="number" id="cfg-ads-min" min="0" step="5">
+                </div>
+                <div class="field">
+                    <label>Max ad gap (seconds)</label>
+                    <input type="number" id="cfg-ads-max" min="0" step="5">
+                </div>
+            </div>
+            <label class="check-label">
+                <input type="checkbox" id="cfg-ads-enabled">
+                Show video ads on the TV display
+            </label>
+            <div class="field">
+                <button type="button" class="btn-ghost settings-btn" onclick="document.getElementById('video-file-input').click()">&#x1F4F9; Import Videos From Folder / USB</button>
+                <input type="file" id="video-file-input" accept="video/mp4,video/webm" multiple webkitdirectory style="display:none;" onchange="importVideos(this.files)">
+                <div id="import-status" class="import-status"></div>
+            </div>
+        </div>
+
+        <!-- Brands -->
+        <div class="settings-card">
+            <h2>Brands &amp; Cars</h2>
+            <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">Up to 2 brands. Brand 2 turns off automatically when Brand 1 reaches 12 cars. Max 12 cars total.</p>
+            <div id="brand-editors"></div>
+        </div>
+
+        <div class="action-bar">
+            <button type="button" class="btn-primary settings-btn" id="save-btn">Save Configuration</button>
+            <button type="button" class="btn-ghost settings-btn hidden" id="discard-btn">Cancel &amp; Relock</button>
+        </div>
+    </form>
+
+    <!-- Locked view button (shown above form when locked) -->
+    <div class="action-bar" id="unlock-bar">
+        <button class="btn-primary settings-btn" onclick="requestUnlock()">&#x1F513; Enter Edit Mode</button>
+    </div>
+
+    <!-- ============ WIZARD ============ -->
+    <div class="modal" id="wizard-modal">
+        <div class="modal-box">
+            <h2>Welcome to AutoFocus</h2>
+            <p>First-time setup. Let's customize your queue system before the crew starts using it.</p>
+            <pre class="wizard-steps">
+  1) Set your site code &amp; hostname
+  2) Pick brand colors &amp; car models
+  3) Choose ad interval &amp; import videos
+            </pre>
+            <p style="font-size:0.85rem;">You can change everything later from the settings page (locked, read-only until you enter edit mode).</p>
+            <div class="modal-actions">
+                <button class="btn-primary settings-btn" onclick="closeWizard()">Get Started</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ UNLOCK TRIPLE-CHECK ============ -->
+    <div class="modal" id="unlock-modal">
+        <div class="modal-box">
+            <h2 id="unlock-title">You are about to edit system settings</h2>
+            <p id="unlock-msg">Changing brands, car models, colors, or ad settings affects the entire queue system used on every screen and phone.</p>
+            <p id="unlock-warn" style="display:none; color:#ffd966;">This is a triple-check. Once unlocked, settings are editable until you press "Cancel &amp; Relock". Blocking all other machines from changing anything is intentional: only this machine (the AutoFocus shortcut) may reconfigure the system.</p>
+            <input type="text" id="unlock-confirm-input" class="confirm-input" placeholder="Type CONFIRM to unlock" autocomplete="off">
+            <div class="modal-actions">
+                <button class="btn-ghost settings-btn" onclick="closeUnlockModal()">Cancel</button>
+                <button class="btn-danger settings-btn" id="unlock-final-btn" onclick="doUnlock()" disabled>Unlock Edit Mode</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ CONFIG-CHANGE PROMPT (clear vs preserve) ============ -->
+    <div class="modal" id="config-change-modal">
+        <div class="modal-box">
+            <h2>Apply configuration change?</h2>
+            <p id="cc-msg">Your brand / car setup changed. What should happen to the current queue numbers?</p>
+            <div class="modal-actions">
+                <button class="btn-ghost settings-btn" onclick="changedAction('preserve')">Keep Existing Numbers (map by position)</button>
+                <button class="btn-danger settings-btn" onclick="changedAction('clear')">Clear All Numbers to Zero</button>
+                <button class="btn-ghost settings-btn" onclick="closeChangeModal()">Cancel Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ SAVE DONE ============ -->
+    <div class="modal" id="done-modal">
+        <div class="modal-box">
+            <h2 id="done-title">Saved</h2>
+            <p id="done-msg">Configuration saved.</p>
+            <div class="modal-actions">
+                <button class="btn-primary settings-btn" onclick="closeDoneModal()">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="af.js"></script>
+    <script>
+        // ---------------------------------------------------------------
+        // State
+        // ---------------------------------------------------------------
+        let stateDoc = null;     // { config, queues, reannounce }
+        let editedBrandKeys = []; // ['brand1','brand2']
+        let unlocked = false;
+        let pendingClearPreserve = null;
+
+        const PALETTE = ['#EB0A1E', '#B0B0B0', '#003478', '#00A0E9', '#7C0902', '#4B0082',
+                         '#006B3F', '#FFCD00', '#E35205', '#1A1A1A', '#1A3C6E', '#8A0303'];
+
+        // ---------------------------------------------------------------
+        // Boot
+        // ---------------------------------------------------------------
+        if (!afIsLocal()) {
+            document.getElementById('nonlocal-warning').classList.remove('hidden');
+            document.getElementById('unlock-bar').classList.add('hidden');
+        }
+
+        async function boot() {
+            const data = await afFetchState();
+            if (!data) {
+                document.getElementById('done-title').textContent = 'Connection error';
+                document.getElementById('done-msg').textContent = 'Could not reach the local machine. Settings require the AutoFocus shortcut to be running.';
+                openModal('done-modal');
+                return;
+            }
+            stateDoc = data;
+            renderStatus();
+            buildBrandEditors();
+            hydrateForm();
+
+            if (stateDoc.config && stateDoc.config.wizardDone !== true) {
+                openModal('wizard-modal');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Status readout
+        // ---------------------------------------------------------------
+        function renderStatus() {
+            const c = stateDoc.config || {};
+            document.getElementById('st-site').textContent = c.site || '-';
+            document.getElementById('st-host').textContent = c.hostname || '-';
+            document.getElementById('st-cloud').textContent = c.cloudBase || '(offline)';
+            const brands = c.brands || [];
+            document.getElementById('st-brands').textContent = brands.map(b => b.name).join(' + ') || '-';
+            const total = brands.reduce((n, b) => n + (b.models ? b.models.length : 0), 0);
+            document.getElementById('st-cars').textContent = String(total);
+            const ads = c.ads || {};
+            document.getElementById('st-ads').textContent = ads.enabled ? `${ads.minSec}-${ads.maxSec}s` : 'Off';
+        }
+
+        // ---------------------------------------------------------------
+        // Brand editors (dynamic)
+        // ---------------------------------------------------------------
+        const SWATCHES_HTML = (hex) => PALETTE.map(c =>
+            `<div class="swatch ${c === hex ? 'selected' : ''}" style="background:${c}" data-hex="${c}" onclick="pickSwatch(this)"></div>`
+        ).join('');
+
+        function buildBrandEditors() {
+            const c = stateDoc.config || {};
+            const wrap = document.getElementById('brand-editors');
+            wrap.innerHTML = '';
+
+            editedBrandKeys = c.brands && c.brands.length ? c.brands.map(b => b.key) : ['brand1', 'brand2'];
+
+            // Always show brand1; show brand2 slot (toggleable) except when brand1 is full.
+            const b1Count = (c.brands && c.brands.length && (c.brands[0].models || []).length) || 0;
+            const b2Present = editedBrandKeys.includes('brand2');
+
+            renderBrandBlock(wrap, {
+                key: 'brand1',
+                name: (c.brands && c.brands[0] && c.brands[0].name) || 'TOYOTA',
+                color: (c.brands && c.brands[0] && c.brands[0].color) || '#EB0A1E',
+                models: (c.brands && c.brands[0] && c.brands[0].models) || [],
+                canDisable: false,
+                brand2Enabled: b2Present
+            });
+
+            if (b1Count >= 12) {
+                renderBrandBlock(wrap, {
+                    key: 'brand2',
+                    name: (c.brands && c.brands[1] && c.brands[1].name) || 'BRAND 2',
+                    color: (c.brands && c.brands[1] && c.brands[1].color) || '#B0B0B0',
+                    models: (c.brands && c.brands[1] && c.brands[1].models) || [],
+                    canDisable: true,
+                    brand2Enabled: false,
+                    warning: 'Brand 1 has 12 cars — Brand 2 is automatically disabled.'
+                });
+            } else {
+                renderBrandBlock(wrap, {
+                    key: 'brand2',
+                    name: (c.brands && c.brands[1] && c.brands[1].name) || 'BRAND 2',
+                    color: (c.brands && c.brands[1] && c.brands[1].color) || '#B0B0B0',
+                    models: (c.brands && c.brands[1] && c.brands[1].models) || [],
+                    canDisable: true,
+                    brand2Enabled: b2Present
+                });
+            }
+        }
+
+        function renderBrandBlock(wrap, spec) {
+            const section = document.createElement('div');
+            section.className = spec.canDisable
+                ? (spec.brand2Enabled ? 'brand-block enabled' : 'brand-block disabled')
+                : 'brand-block enabled';
+            section.dataset.brandKey = spec.key;
+            section.style.setProperty('--brand-accent', spec.color);
+
+            const enableState = spec.brand2Enabled ? '' : 'checked';
+            const noDisableText = spec.canDisable
+                ? `<input type="checkbox" id="b2-enable" ${spec.brand2Enabled ? 'checked' : ''} onchange="toggleBrand2(this.checked)" style="width:18px;height:18px;">`
+                : '';
+
+            section.innerHTML = `
+                <div class="brand-head">
+                    <label>
+                        ${noDisableText}
+                        <span>${spec.key === 'brand1' ? 'Brand 1' : 'Brand 2'}</span>
+                    </label>
+                    ${spec.warning ? `<span class="brand-warn">${spec.warning}</span>` : ''}
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label>Brand name</label>
+                        <input type="text" class="brand-name" value="${escAttr(spec.name)}">
+                    </div>
+                    <div class="field" style="flex:1.4;">
+                        <label>Accent color (${spec.color})</label>
+                        <div class="color-palette" data-field="palette">
+                            ${SWATCHES_HTML(spec.color)}
+                            <input type="color" class="swatch-color-input" value="${spec.color}" onchange="pickCustomColor(this)">
+                        </div>
+                        <div class="hex-input-row">
+                            <input type="text" class="brand-hex" value="${spec.color}" oninput="onHexTyped(this)">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Cars (label, prefix shown on screen, pronunciation spoken aloud)</label>
+                    <div class="model-list"></div>
+                    <button type="button" class="add-model-btn" onclick="addModelRow(this)">+ Add Car</button>
+                </div>
+            `;
+            wrap.appendChild(section);
+
+            const listEl = section.querySelector('.model-list');
+            spec.models.forEach((m, i) => {
+                addModelRowEl(listEl, m.label, m.prefix, m.pronounce);
+            });
+        }
+
+        function addModelRow(btn) {
+            addModelRowEl(btn.closest('.field').querySelector('.model-list'), '', '', '');
+        }
+
+        function addModelRowEl(listEl, label, prefix, pronounce) {
+            const row = document.createElement('div');
+            row.className = 'model-row';
+            row.innerHTML = `
+                <input type="text" class="model-label" placeholder="Car name (e.g. RAV4 LTD HEV)" value="${escAttr(label || '')}">
+                <input type="text" class="model-prefix" placeholder="Prefix (e.g. RH)" value="${escAttr(prefix || '')}">
+                <input type="text" class="model-pronounce" placeholder="Speak (e.g. R H)" value="${escAttr(pronounce || '')}">
+                <button type="button" class="remove-model-btn" title="Remove car" onclick="if(confirm('Remove this car?')) this.closest('.model-row').remove()">&times;</button>
+            `;
+            listEl.appendChild(row);
+        }
+
+        function pickSwatch(el) {
+            const wrapEl = el.closest('.brand-block');
+            wrapEl.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+            el.classList.add('selected');
+            const hex = el.dataset.hex;
+            const hexInput = wrapEl.querySelector('.brand-hex');
+            hexInput.value = hex;
+            wrapEl.querySelector('.swatch-color-input').value = hex;
+            wrapEl.style.setProperty('--brand-accent', hex);
+        }
+
+        function pickCustomColor(el) {
+            const wrapEl = el.closest('.brand-block');
+            wrapEl.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+            const hex = el.value.toUpperCase();
+            const hexInput = wrapEl.querySelector('.brand-hex');
+            hexInput.value = hex;
+            wrapEl.style.setProperty('--brand-accent', hex);
+        }
+
+        function onHexTyped(el) {
+            const wrapEl = el.closest('.brand-block');
+            const v = el.value.trim();
+            if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+                wrapEl.querySelector('.swatch-color-input').value = v;
+                wrapEl.style.setProperty('--brand-accent', v);
+            }
+        }
+
+        function toggleBrand2(on) {
+            const check = document.getElementById('b2-enable');
+            check.checked = on;
+            const blocks = document.querySelectorAll('.brand-block');
+            // brand block order: 0 = brand1, 1 = brand2
+            if (blocks[1]) {
+                blocks[1].classList.toggle('enabled', on);
+                blocks[1].classList.toggle('disabled', !on);
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Form hydration / collection
+        // ---------------------------------------------------------------
+        function hydrateForm() {
+            const c = stateDoc.config || {};
+            set('cfg-site', c.site || '');
+            set('cfg-hostname', c.hostname || '');
+            set('cfg-cloudbase', c.cloudBase || '');
+            const ads = c.ads || {};
+            set('cfg-ads-min', ads.minSec != null ? ads.minSec : 120);
+            set('cfg-ads-max', ads.maxSec != null ? ads.maxSec : 180);
+            const en = document.getElementById('cfg-ads-enabled');
+            en.checked = ads.enabled !== false;
+        }
+
+        function set(id, v) { document.getElementById(id).value = v; }
+        function escAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+        function collectConfig() {
+            const config = {
+                schemaVersion: 2,
+                site: val('cfg-site').trim() || 'auto-01',
+                hostname: val('cfg-hostname').trim() || 'autofocus.local',
+                cloudBase: val('cfg-cloudbase').trim(),
+                wizardDone: true,
+                ads: {
+                    enabled: document.getElementById('cfg-ads-enabled').checked,
+                    minSec: Math.max(0, parseInt(val('cfg-ads-min'), 10) || 0),
+                    maxSec: Math.max(0, parseInt(val('cfg-ads-max'), 10) || 0)
+                },
+                brands: []
+            };
+
+            document.querySelectorAll('.brand-block').forEach(block => {
+                const key = block.dataset.brandKey;
+                const name = block.querySelector('.brand-name').value.trim() || (key === 'brand1' ? 'BRAND 1' : 'BRAND 2');
+                const color = block.querySelector('.brand-hex').value.trim();
+                const models = [];
+                block.querySelectorAll('.model-row').forEach(row => {
+                    const label = row.querySelector('.model-label').value.trim();
+                    const prefix = row.querySelector('.model-prefix').value.trim();
+                    const pronounce = row.querySelector('.model-pronounce').value.trim();
+                    if (label || prefix) {
+                        models.push({
+                            label: label || prefix,
+                            prefix: prefix || '??',
+                            pronounce: pronounce || String(prefix || '').split('').join(' ')
+                        });
+                    }
+                });
+                const enabled = !block.classList.contains('disabled');
+                if (models.length && enabled) {
+                    config.brands.push({ key, name, color: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#555555', models });
+                }
+            });
+
+            if (!config.brands.some(b => b.key === 'brand1')) {
+                throw new Error('Brand 1 needs at least one car. Brand 1 cannot be disabled.');
+            }
+            return config;
+        }
+
+        function val(id) { return document.getElementById(id).value || ''; }
+
+        // ---------------------------------------------------------------
+        // Lock / unlock
+        // ---------------------------------------------------------------
+        function requestUnlock() {
+            // Triple check: initial warning -> typed confirm -> unlock
+            document.getElementById('unlock-title').textContent = 'You are about to edit system settings';
+            document.getElementById('unlock-msg').textContent = 'Changing brands, car models, colors, or ad settings affects the entire queue system used on every screen and phone.';
+            document.getElementById('unlock-warn').style.display = 'block';
+            document.getElementById('unlock-confirm-input').value = '';
+            const btn = document.getElementById('unlock-final-btn');
+            btn.disabled = true;
+            btn.textContent = 'Unlock Edit Mode';
+            document.getElementById('unlock-confirm-input').oninput = function () {
+                btn.disabled = (this.value.trim().toUpperCase() !== 'CONFIRM');
+            };
+            openModal('unlock-modal');
+            setTimeout(() => document.getElementById('unlock-confirm-input').focus(), 50);
+        }
+
+        function doUnlock() {
+            unlocked = true;
+            document.getElementById('lock-banner').style.display = 'none';
+            document.getElementById('settings-form').style.opacity = '1';
+            document.getElementById('settings-form').style.pointerEvents = 'auto';
+            document.getElementById('unlock-bar').classList.add('hidden');
+            document.getElementById('discard-btn').classList.remove('hidden');
+            closeUnlockModal();
+        }
+
+        function relock() {
+            if (!confirm('Relock settings? Your edits will be discarded.')) return;
+            unlocked = false;
+            document.getElementById('lock-banner').style.display = 'block';
+            document.getElementById('settings-form').style.opacity = '0.55';
+            document.getElementById('settings-form').style.pointerEvents = 'none';
+            document.getElementById('unlock-bar').classList.remove('hidden');
+            document.getElementById('discard-btn').classList.add('hidden');
+            // Rebuild from saved state
+            buildBrandEditors();
+            hydrateForm();
+            document.getElementById('import-status').textContent = '';
+            document.getElementById('video-file-input').value = '';
+        }
+
+        // ---------------------------------------------------------------
+        // Save with clear-vs-preserve
+        // ---------------------------------------------------------------
+        async function onSave() {
+            let newConfig;
+            try {
+                newConfig = collectConfig();
+            } catch (e) {
+                alert(e.message);
+                return;
+            }
+
+            // Validate total cars
+            const total = newConfig.brands.reduce((n, b) => n + b.models.length, 0);
+            if (total > 12) {
+                alert(`Max 12 cars total (currently ${total}). Please remove cars or disable Brand 2.`);
+                return;
+            }
+            if (newConfig.brands[0] && newConfig.brands[0].models.length > 12) {
+                alert('Brand 1 cannot exceed 12 cars.');
+                return;
+            }
+
+            const oldConfig = stateDoc.config || {};
+            const configChanged = !afConfigEqual(oldConfig, newConfig);
+
+            if (!configChanged) {
+                // Only queue data identical config — just save state as-is
+                alert('No configuration changes detected.');
+                return;
+            }
+
+            pendingClearPreserve = newConfig;
+            const brandsChanged = !JSON.stringify((oldConfig.brands||[]).map(b=>b.key))
+                || !JSON.stringify((newConfig.brands||[]).map(b=>b.key));
+            document.getElementById('cc-msg').textContent =
+                'Your brand / car setup changed. What should happen to the current queue numbers?\n\n' +
+                '• Keep Existing Numbers: cars that still exist keep their current count at the same position.\n' +
+                '• Clear All Numbers: every queue starts at 0 with the new setup.';
+            openModal('config-change-modal');
+        }
+
+        async function changedAction(action) {
+            const newConfig = pendingClearPreserve;
+            closeChangeModal();
+
+            let queues;
+            if (action === 'clear') {
+                queues = afEmptyQueues(newConfig);
+            } else {
+                queues = afReconcileQueues(stateDoc.queues, newConfig);
+            }
+
+            stateDoc.config = newConfig;
+            stateDoc.queues = queues;
+            stateDoc.reannounce = null;
+
+            const ok = await afSaveState(stateDoc);
+            stateDoc = await afFetchState();
+            renderStatus();
+            buildBrandEditors();
+            hydrateForm();
+
+            document.getElementById('done-title').textContent = 'Configuration saved';
+            document.getElementById('done-msg').textContent =
+                action === 'clear'
+                    ? 'New setup applied. All queue numbers reset to zero.'
+                    : 'New setup applied. Existing numbers were kept where possible.';
+            openModal('done-modal');
+            relockSilent();
+        }
+
+        function relockSilent() {
+            unlocked = false;
+            document.getElementById('lock-banner').style.display = 'block';
+            document.getElementById('settings-form').style.opacity = '0.55';
+            document.getElementById('settings-form').style.pointerEvents = 'none';
+            document.getElementById('unlock-bar').classList.remove('hidden');
+            document.getElementById('discard-btn').classList.add('hidden');
+        }
+
+        // ---------------------------------------------------------------
+        // Video import
+        // ---------------------------------------------------------------
+        async function importVideos(files) {
+            const status = document.getElementById('import-status');
+            const nameField = document.getElementById('cfg-hostname');
+            const base = afIsLocal() ? `http://${afHostname()}` : '';
+            if (!afIsLocal()) {
+                status.textContent = 'Video import requires being on the local machine.';
+                status.className = 'import-status err';
+                return;
+            }
+            if (!files || !files.length) {
+                status.textContent = 'No files selected.';
+                return;
+            }
+
+            const list = Array.from(files).filter(f => /\.(mp4|webm)$/i.test(f.name));
+            status.className = 'import-status';
+            status.textContent = `Uploading ${list.length} video(s) to the local machines video folder...`;
+
+            let okCount = 0;
+            const errors = [];
+            for (let i = 0; i < list.length; i++) {
+                const f = list[i];
+                status.textContent = `Uploading ${i + 1}/${list.length}: ${f.name}`;
+                try {
+                    const name = encodeURIComponent(f.name);
+                    const res = await fetch(`${base}/api/import?name=${name}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'video/mp4' },
+                        body: f
+                    });
+                    if (res.ok) { okCount++; }
+                    else { errors.push(f.name); }
+                } catch (e) { errors.push(f.name); }
+            }
+
+            if (errors.length === 0) {
+                status.textContent = `Done! ${okCount} video(s) imported. They appear on the TV display after a page reload.`;
+                status.className = 'import-status done';
+            } else {
+                status.textContent = `${okCount} imported, ${errors.length} failed: ${errors.join(', ')}`;
+                status.className = 'import-status err';
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Modal helpers
+        // ---------------------------------------------------------------
+        function openModal(id) { document.getElementById(id).classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+        function closeWizard() { closeModal('wizard-modal'); }
+        function closeUnlockModal() { closeModal('unlock-modal'); }
+        function closeChangeModal() { closeModal('config-change-modal'); pendingClearPreserve = null; }
+        function closeDoneModal() { closeModal('done-modal'); }
+
+        // Bind save
+        document.getElementById('save-btn').addEventListener('click', onSave);
+        document.getElementById('discard-btn').addEventListener('click', relock);
+
+        boot();
+    </script>
+</body>
+</html>

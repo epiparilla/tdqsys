@@ -38,13 +38,14 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
-const HOSTNAME = (localData.config && localData.config.hostname) || 'autofocus.local';
-const CLOUD_BASE = (localData.config && localData.config.cloudBase) || '';
-const SITE = (localData.config && localData.config.site) || 'auto-01';
+const HOSTNAME = () => (localData.config && localData.config.hostname) || 'autofocus.local';
+const CLOUD_BASE = () => (localData.config && localData.config.cloudBase) || '';
+const SITE = () => (localData.config && localData.config.site) || 'auto-01';
 
-// Derived cloud endpoints (empty cloudBase => cloud sync disabled)
-const CLOUD_DATA_URL = CLOUD_BASE ? `${CLOUD_BASE}/api/data?site=${SITE}` : null;
-const CLOUD_SAVE_URL  = CLOUD_BASE ? `${CLOUD_BASE}/api/save?site=${SITE}` : null;
+// Derived cloud endpoints (empty cloudBase => cloud sync disabled).
+// Computed per-use so settings saves take effect without a restart.
+const CLOUD_DATA_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/data?site=${SITE()}` : null; };
+const CLOUD_SAVE_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/save?site=${SITE()}` : null; };
 
 // Auto-seed: Pull latest data from Cloudflare on startup if local is empty
 function isDataEmpty(data) {
@@ -56,9 +57,10 @@ function isDataEmpty(data) {
 }
 
 function seedFromCloud() {
-    if (!CLOUD_DATA_URL) { log("No cloud base configured — starting locally."); return; }
+    const url = CLOUD_DATA_URL();
+    if (!url) { log("No cloud base configured — starting locally."); return; }
     log("Local data is empty — seeding from Cloudflare...");
-    https.get(CLOUD_DATA_URL, (res) => {
+    https.get(url, (res) => {
         let body = '';
         res.on('data', chunk => body += chunk);
         res.on('end', () => {
@@ -88,10 +90,11 @@ if (isDataEmpty(localData)) {
 let wasOnline = null; // null = unknown (first run)
 
 function pushToCloud() {
-    if (!CLOUD_SAVE_URL) return;
+    const url = CLOUD_SAVE_URL();
+    if (!url) return;
     log("Internet restored! Pushing local queue data to Cloudflare...");
     const payload = JSON.stringify(localData);
-    const urlObj = new URL(CLOUD_SAVE_URL);
+    const urlObj = new URL(url);
     const options = {
         hostname: urlObj.hostname,
         path: urlObj.pathname + urlObj.search,
@@ -115,8 +118,9 @@ function pushToCloud() {
 }
 
 function checkConnectivity() {
-    if (!CLOUD_DATA_URL) return;
-    https.get(CLOUD_DATA_URL, (res) => {
+    const url = CLOUD_DATA_URL();
+    if (!url) return;
+    https.get(url, (res) => {
         const isOnline = res.statusCode === 200;
         res.resume();
         if (isOnline && wasOnline === false) {
@@ -199,7 +203,42 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 4. The Video Streamer -> Serves large mp4 files with Proper range support
+    // 4. Video Import -> Receives a raw video file and saves it into /videos
+    if (req.url.startsWith('/api/import') && req.method === 'POST') {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const name = decodeURIComponent(url.searchParams.get('name') || '');
+        if (!name || !/\.(mp4|webm)$/i.test(name)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Filename must end with .mp4 or .webm (name=..." }));
+        }
+        const safeName = path.basename(name).replace(/[^a-zA-Z0-9._ -]/g, '_');
+        const dest = path.join(VIDEOS_DIR, safeName);
+        const out = fs.createWriteStream(dest);
+        req.pipe(out);
+        let bytes = 0;
+        req.on('data', chunk => { bytes += chunk.length;
+            if (bytes > 4 * 1024 * 1024 * 1024) { // 4GB safety cap
+                out.destroy();
+                req.destroy();
+                res.writeHead(413, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "File too large (max 4GB)." }));
+            }
+        });
+        req.on('end', () => {
+            if (!out.writableEnded) { out.end(); }
+        });
+        out.on('finish', () => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, name: safeName, size: bytes }));
+        });
+        out.on('error', () => {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: "Failed to write video file." }));
+        });
+        return;
+    }
+
+    // 5. The Video Streamer -> Serves large mp4 files with Proper range support
     if (req.url.startsWith('/videos/')) {
         const decodedUrl = decodeURIComponent(req.url).split('?')[0];
         const filePath = path.join(__dirname, decodedUrl);
@@ -276,7 +315,7 @@ if (!fs.existsSync(VIDEOS_DIR)) fs.mkdirSync(VIDEOS_DIR);
 
 server.listen(PORT, '0.0.0.0', () => {
     log(`AutoFocus Queue Engine & Offline Hub running on http://localhost:${PORT}`);
-    log(`Hostname: ${HOSTNAME}   Site: ${SITE}   CloudBase: ${CLOUD_BASE || '(disabled)'}`);
+    log(`Hostname: ${HOSTNAME()}   Site: ${SITE()}   CloudBase: ${CLOUD_BASE() || '(disabled)'}`);
 }).on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
         log(`ERROR: Port ${PORT} is already in use!`);
