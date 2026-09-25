@@ -1,9 +1,9 @@
 {
-  "name": "autofocus-queue-desktop",
+  "name": "tdqsys-queue-desktop",
   "version": "1.0.0",
-  "description": "AutoFocus Queue System - desktop app (portable, no installer until layout sign-off)",
+  "description": "tdqsys Queue System - desktop app (portable, no installer until layout sign-off)",
   "main": "main.js",
-  "author": "AutoFocus",
+  "author": "tdqsys",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron ."

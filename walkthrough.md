@@ -1,6 +1,6 @@
 # Walkthrough: Cloudflare Deployment Version
 
-The Cloudflare-ready files have been set up in `C:\Users\Epi\Documents\Projects\AutoFocus\Autofocus cloud\`. 
+The Cloudflare-ready files have been set up in `C:\Users\Epi\Documents\Projects\AutoFocus\tdqsys\`. 
 
 ## What Changed?
 Instead of a local `server.js` running permanently on your laptop and saving to a text file, Cloudflare relies on **Cloudflare Workers KV (Key-Value Database)**. I created a `functions` folder containing two serverless endpoints:
@@ -19,7 +19,7 @@ You will need Node.js and the official Cloudflare CLI, `wrangler`.
    ```
 2. Navigate to your new directory:
    ```cmd
-   cd "C:\Users\Epi\Documents\Projects\AutoFocus\Autofocus cloud"
+   cd "C:\Users\Epi\Documents\Projects\AutoFocus\tdqsys"
    ```
 3. Run the local Cloudflare dev server:
    ```cmd

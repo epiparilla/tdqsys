@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoFocus System Settings</title>
+    <title>tdqsys System Settings</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body.settings { padding: 1.5rem 2rem; overflow-y: auto; height: 100vh; }
@@ -143,7 +143,7 @@
 <body class="settings">
 
     <header class="settings-header">
-        <h1>AutoFocus System Settings</h1>
+        <h1>tdqsys System Settings</h1>
         <div class="header-links">
             <a href="dashboard.html" class="link-button">&larr; Back to Dashboard</a>
             <a href="index.html" class="link-button">Hub</a>
@@ -164,7 +164,7 @@
             <div class="status-item"><strong>Total Cars</strong><span id="st-cars">-</span></div>
             <div class="status-item"><strong>Ads</strong><span id="st-ads">-</span></div>
         </div>
-        <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the AutoFocus shortcut).</div>
+        <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the tdqsys shortcut).</div>
     </div>
 
     <!-- ============ EDIT FORM ============ -->
@@ -215,7 +215,7 @@
     <!-- ============ WIZARD ============ -->
     <div class="modal" id="wizard-modal">
         <div class="modal-box">
-            <h2>Welcome to AutoFocus</h2>
+            <h2>Welcome to tdqsys</h2>
             <p>First-time setup. Let's customize your queue system before the crew starts using it.</p>
             <pre class="wizard-steps">
   1) Pick brand colors &amp; car models
@@ -233,7 +233,7 @@
         <div class="modal-box">
             <h2 id="unlock-title">You are about to edit system settings</h2>
             <p id="unlock-msg">Changing brands, car models, colors, or ad settings affects the entire queue system used on every screen and phone.</p>
-            <p id="unlock-warn" style="display:none; color:#ffd966;">This is a triple-check. Once unlocked, settings are editable until you press "Cancel &amp; Relock". Blocking all other machines from changing anything is intentional: only this machine (the AutoFocus shortcut) may reconfigure the system.</p>
+            <p id="unlock-warn" style="display:none; color:#ffd966;">This is a triple-check. Once unlocked, settings are editable until you press "Cancel &amp; Relock". Blocking all other machines from changing anything is intentional: only this machine (the tdqsys shortcut) may reconfigure the system.</p>
             <input type="text" id="unlock-confirm-input" class="confirm-input" placeholder="Type CONFIRM to unlock" autocomplete="off">
             <div class="modal-actions">
                 <button class="btn-ghost settings-btn" onclick="closeUnlockModal()">Cancel</button>
@@ -291,7 +291,7 @@
             const data = await afFetchState();
             if (!data) {
                 document.getElementById('done-title').textContent = 'Connection error';
-                document.getElementById('done-msg').textContent = 'Could not reach the local machine. Settings require the AutoFocus shortcut to be running.';
+                document.getElementById('done-msg').textContent = 'Could not reach the local machine. Settings require the tdqsys shortcut to be running.';
                 openModal('done-modal');
                 return;
             }
@@ -555,6 +555,12 @@
             btn.textContent = 'Unlock Edit Mode';
             document.getElementById('unlock-confirm-input').oninput = function () {
                 btn.disabled = (this.value.trim().toUpperCase() !== 'CONFIRM');
+            };
+            document.getElementById('unlock-confirm-input').onkeydown = function (e) {
+                if (e.key === 'Enter' && this.value.trim().toUpperCase() === 'CONFIRM') {
+                    e.preventDefault();
+                    doUnlock();
+                }
             };
             openModal('unlock-modal');
             setTimeout(() => document.getElementById('unlock-confirm-input').focus(), 50);

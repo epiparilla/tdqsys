@@ -1,4 +1,4 @@
-# AutoFocus Test Drive Queue System
+# tdqsys Test Drive Queue System
 
 ## Overview
 
@@ -8,7 +8,7 @@ A real-time test drive queue management system for Toyota/Lexus dealerships. It 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    TOYOTA AUTOFOCUS                         │
+│                    TOYOTA TDQSYS                         │
 ├──────────────┬──────────────┬───────────────────────────────┤
 │   Frontend   │   Backend    │          Cloud                │
 │              │              │                               │
@@ -51,7 +51,7 @@ A real-time test drive queue management system for Toyota/Lexus dealerships. It 
 ## Project Structure
 
 ```
-Autofocus cloud/
+tdqsys/
 │
 ├── public/                          # Frontend files (deployed to Cloudflare Pages)
 │   ├── index.html                   # Hub landing page
@@ -104,7 +104,7 @@ Install these **before** copying files:
 
 ### Files/Folders to Copy
 
-Copy the **entire `Autofocus cloud` folder** to the new laptop. Everything listed below is required:
+Copy the **entire `tdqsys` folder** to the new laptop. Everything listed below is required:
 
 | Path | Required | Purpose |
 |------|----------|---------|
@@ -144,7 +144,7 @@ Run **as Administrator**:
 .\setup_local_dns.bat
 ```
 
-This adds `127.0.0.1 toyotaautofocus2026.local` to your Windows hosts file, so the display can reach the local server via a consistent hostname even when offline.
+This adds `127.0.0.1 tdqsys.local` to your Windows hosts file, so the display can reach the local server via a consistent hostname even when offline.
 
 #### 3. Start the Servers
 
@@ -159,7 +159,7 @@ This will:
 1. Kill any stale `node.exe` / `python.exe` processes
 2. Start `video_server.js` on port 80 (invisible)
 3. Start `tts_server.py` on port 8001 (visible console shows pre-rendering progress)
-4. Wait 6 seconds, then open `http://toyotaautofocus2026.local` in your browser
+4. Wait 6 seconds, then open `http://tdqsys.local` in your browser
 
 #### 4. Launch TV Display
 
@@ -182,7 +182,7 @@ Opens Chrome in app/kiosk mode on a secondary monitor (positioned at 1920,0) loa
 #### 6. (Optional) Deploy to Cloudflare
 
 ```powershell
-cd "Autofocus cloud"
+cd "tdqsys"
 wrangler pages deploy public
 ```
 
@@ -195,9 +195,9 @@ This uploads `public/` to Cloudflare Pages so facilitators can access the dashbo
 ### Daily Workflow
 
 1. **Start**: Double-click `start_all_systems.vbs`
-2. **Open display**: Double-click `launch_tv_display.bat` (or navigate to `http://toyotaautofocus2026.local/display_with_ads.html`)
+2. **Open display**: Double-click `launch_tv_display.bat` (or navigate to `http://tdqsys.local/display_with_ads.html`)
 3. **Click anywhere** on the display to activate fullscreen and start the ad engine
-4. **Manage queues**: Open `http://toyotaautofocus2026.local/dashboard.html` on your phone/tablet
+4. **Manage queues**: Open `http://tdqsys.local/dashboard.html` on your phone/tablet
 5. **Shutdown**: Double-click `stop_all_systems.vbs` at end of day
 
 ### Dashboard Controls

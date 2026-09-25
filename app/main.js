@@ -1,11 +1,11 @@
-// AutoFocus desktop app - main process.
+// tdqsys desktop app - main process.
 // Responsibilities:
 //  1. Spawn/own the local queue engine (video_server.js) and TTS server (tts_server.py)
 //  2. Open the display window on the correct screen (auto-detect 2nd display)
 //  3. Own cloud sync (single push source) when AF_OWNER_SYNC is passed to the engine
 //  4. Open the settings/dashboard screen on the main (local) monitor
 // Portable mode: data and videos live next to the app (AF_DATA_DIR = __dirname).
-// Installed mode: AF_DATA_DIR = %APPDATA%/AutoFocus (set by installer).
+// Installed mode: AF_DATA_DIR = %APPDATA%/tdqsys (set by installer).
 
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, dialog, shell } = require('electron');
 const { spawn } = require('child_process');
@@ -255,16 +255,32 @@ app.whenReady().then(() => {
     setTimeout(() => { if (displayMode === 'auto') openDisplayWindow(); }, 6000); // after engine boots
 
     tray = new Tray(path.join(APP_DIR, 'icon.png'));
-    tray.setToolTip('AutoFocus Queue System');
+    tray.setToolTip('tdqsys Queue System');
     tray.setContextMenu(Menu.buildFromTemplate([
         { label: 'Open Dashboard', click: () => openDashboardWindow() },
         { label: 'Open TV Display', click: () => openDisplayWindow() },
         { type: 'separator' },
-        { label: 'Quit AutoFocus', click: () => { app.isQuitting = true; app.quit(); } }
+        { label: 'Restart', click: () => restartSystem() },
+        { type: 'separator' },
+        { label: 'Quit tdqsys', click: () => { app.isQuitting = true; app.quit(); } }
     ]));
 
     app.on('before-quit', () => { app.isQuitting = true; cleanup(); });
 });
+
+function restartSystem() {
+    log('restarting engine + TTS + windows...');
+    if (cloudTimer) clearInterval(cloudTimer);
+    if (engineProcess) engineProcess.kill();   // exit handler auto-restarts in 2s
+    if (ttsProcess) ttsProcess.kill();         // exit handler auto-restarts in 3s
+    startCloudSync();
+    // Reload open windows so they reconnect once the engine is back up.
+    setTimeout(() => {
+        [dashboardWindow, displayWindow].forEach(w => {
+            if (w && !w.isDestroyed()) w.webContents.reload();
+        });
+    }, 6000);
+}
 
 function cleanup() {
     if (cloudTimer) clearInterval(cloudTimer);
