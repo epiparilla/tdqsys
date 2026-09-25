@@ -34,7 +34,7 @@ body {
 }
 
 .brand-section {
-    flex: 1;
+    flex: var(--flex-grow, 1) 1 auto;
     display: flex;
     flex-direction: column;
     padding: 0.75rem 1.5rem;
@@ -96,7 +96,7 @@ body {
     flex-wrap: wrap;
     gap: 0.75rem;
     justify-content: center;
-    align-content: center;
+    align-content: stretch;
     flex: 1;
 }
 
@@ -110,12 +110,11 @@ body {
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 0.5rem;
+    padding: 0.5rem;
     position: relative;
     overflow: hidden;
     flex: 1 1 calc(25% - 0.75rem);
     max-width: calc(25% - 0.75rem);
-    min-width: 120px;
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
 }
 
@@ -128,7 +127,7 @@ body {
 }
 
 .unit-label {
-    font-size: clamp(1rem, 1.4vw, 1.6rem);
+    font-size: clamp(1.2rem, 1.6vw, 2rem);
     font-weight: 500;
     letter-spacing: 1px;
     color: var(--text-muted);

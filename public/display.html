@@ -28,6 +28,7 @@
                 section.className = 'brand-section';
                 section.dataset.brandKey = brand.key;
                 section.style.setProperty('--brand-accent', brand.color);
+                section.style.setProperty('--flex-grow', Math.max(1, Math.ceil(brand.models.length / 4)));
 
                 const header = document.createElement('header');
                 header.className = 'brand-header';
