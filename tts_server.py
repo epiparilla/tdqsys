@@ -1,5 +1,6 @@
 import io
 import os
+import time
 import soundfile as sf
 import numpy as np
 import re
@@ -78,6 +79,30 @@ def load_pronounce_map():
     return units
 
 pronounce_map = load_pronounce_map()
+
+# Watch data.json so newly added cars/pronunciations take effect WITHOUT a
+# server restart. When it changes we hot-reload the pronunciation map; the
+# cache-miss path in speak_unit then generates/saves any missing audio on
+# demand. Anything not requested yet is rendered on the next restart sweep.
+def _watch_data_file():
+    global pronounce_map
+    last = None
+    while True:
+        try:
+            st = os.stat(DATA_FILE)
+            sig = (st.st_mtime, st.st_size)
+        except FileNotFoundError:
+            sig = None
+        if sig != last:
+            if last is not None and sig is not None:
+                new_map = load_pronounce_map()
+                if new_map != pronounce_map:
+                    print("data.json changed - hot-reloading pronunciation map.")
+                    pronounce_map = new_map
+            last = sig
+        time.sleep(1.0)
+
+threading.Thread(target=_watch_data_file, daemon=True).start()
 
 def speech_keys():
     """The set of cache keys needed for all configured model prefixes."""
