@@ -63,7 +63,7 @@ function openLocalWindow({ page, width, height, fullscreen = false, x = undefine
     if (!app.isPackaged) {
         win.webContents.on('before-input-event', (event, input) => {
             if (input.type !== 'keyDown') return;
-            if (input.key === 'F5' || input.key === 'R') { win.webContents.reload(); event.preventDefault(); }
+            if (input.key === 'F5') { win.webContents.reload(); event.preventDefault(); }
             if (input.key === 'F12') { win.webContents.toggleDevTools(); event.preventDefault(); }
         });
     }
