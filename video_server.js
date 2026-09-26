@@ -212,6 +212,30 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // 3.5 Reload from disk -> Re-reads data.json (used after a backup restore).
+    // The desktop app restores data.json on disk then calls this so the running
+    // engine (and every connected screen) picks up the restored queue state
+    // without a full engine restart.
+    if (req.url === '/api/reload' && req.method === 'POST') {
+        if (!fs.existsSync(DATA_FILE)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "No local data.json to reload." }));
+        }
+        try {
+            const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+            if (raw && raw.config && raw.queues) {
+                localData = raw;
+                log("Reloaded data.json from disk (backup restore).");
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ success: true }));
+            }
+            throw new Error("Invalid data.json shape");
+        } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "data.json is invalid; engine kept its current state." }));
+        }
+    }
+
     // 4. Video Import -> Receives a raw video file and saves it into /videos
     if (req.url.startsWith('/api/import') && req.method === 'POST') {
         const url = new URL(req.url, `http://${req.headers.host}`);

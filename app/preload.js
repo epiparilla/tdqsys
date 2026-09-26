@@ -12,6 +12,14 @@ contextBridge.exposeInMainWorld('afDesktop', {
     checkUpdates: () => ipcRenderer.invoke('af:checkUpdates'),
     // Open a URL in the default browser (used by the download-update button).
     openExternal: (url) => ipcRenderer.invoke('af:openExternal', url),
+    // App metadata: install mode / version / data dir / uninstaller existence.
+    appInfo: () => ipcRenderer.invoke('af:appInfo'),
+    // Backup the whole queue state (data.json + videos) into a user-chosen .zip.
+    backupData: () => ipcRenderer.invoke('af:backupData'),
+    // Restore a backup .zip over the current data dir and reload the engine.
+    restoreData: () => ipcRenderer.invoke('af:restoreData'),
+    // Launch the NSIS uninstaller and quit (installed builds only).
+    uninstallApp: () => ipcRenderer.invoke('af:uninstallApp'),
     // Subscribe to background update-available events pushed by the main process.
     onUpdateAvailable: (cb) => ipcRenderer.on('af:update-available', (_e, info) => cb(info))
 });

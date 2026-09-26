@@ -36,6 +36,13 @@ const TTS_PATH = IS_INSTALLED
 const PORT = parseInt(process.env.AF_PORT, 10) || 8081;
 const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8001;
 
+// ---- Uninstall (installed NSIS builds) ----
+// electron-builder NSIS names the per-user uninstaller "<ProductName>.exe" and
+// places it next to the app. Its presence also lets us tell "installed" apart
+// from "portable" (which extracts to a temp dir and has no uninstaller).
+const PRODUCT_NAME = 'tdqsys Queue System';
+const UNINSTALLER_EXE = path.join(process.env.LOCALAPPDATA || '', 'Programs', PRODUCT_NAME, `Uninstall ${PRODUCT_NAME}.exe`);
+
 let engineProcess = null;
 let ttsProcess = null;
 let tray = null;
@@ -563,6 +570,161 @@ ipcMain.handle('af:displayMode', (_e, mode) => { displayMode = mode; });
 // Software updates: renderer-triggered check + open download URL in browser.
 ipcMain.handle('af:checkUpdates', () => checkForUpdates());
 ipcMain.handle('af:openExternal', (_e, url) => { if (url) shell.openExternal(url); });
+
+// ---- App info: mode (installed / portable / dev), data dir, uninstaller ----
+ipcMain.handle('af:appInfo', () => ({
+    mode: app.isPackaged ? (fs.existsSync(UNINSTALLER_EXE) ? 'installed' : 'portable') : 'dev',
+    version: app.getVersion(),
+    dataDir: BASE_DIR,
+    uninstaller: UNINSTALLER_EXE
+}));
+
+// ---- PowerShell helper (Windows-only; Compress-Archive/Expand-Archive) ----
+// The packaged app carries no node_modules, so we lean on the OS PowerShell
+// that already ships with Windows (same dependency the firewall setup uses).
+function runPowershell(script) {
+    return new Promise((resolve) => {
+        const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+            { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+        let err = '';
+        p.stderr.on('data', d => { err += d.toString(); });
+        p.on('error', (e) => resolve({ code: -1, error: `powershell launch failed: ${e.message}` }));
+        p.on('exit', (code) => resolve({ code: code == null ? -1 : code, error: err.trim() }));
+    });
+}
+const pshQuote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+
+// ---- Backup: zip data.json + videos/ into a user-chosen .zip (no web page can reach this) ----
+ipcMain.handle('af:backupData', async () => {
+    try {
+        const stamp = new Date().toISOString().slice(0, 10);
+        const r = await dialog.showSaveDialog({
+            title: 'Backup tdqsys data',
+            defaultPath: path.join(app.getPath('documents'), `tdqsys-backup-${stamp}.zip`),
+            filters: [{ name: 'tdqsys Backup', extensions: ['zip'] }]
+        });
+        if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+
+        // Stage a copy of the live data (atomic against the engine's own writes).
+        const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'tdqsys-bak-'));
+        try {
+            let items = 0;
+            fs.mkdirSync(path.join(stage, 'videos'), { recursive: true });
+            const dataFile = path.join(BASE_DIR, 'data.json');
+            if (fs.existsSync(dataFile)) { fs.copyFileSync(dataFile, path.join(stage, 'data.json')); items++; }
+            const vdir = path.join(BASE_DIR, 'videos');
+            if (fs.existsSync(vdir)) {
+                for (const f of fs.readdirSync(vdir)) {
+                    if (/\.(mp4|webm)$/i.test(f)) {
+                        fs.copyFileSync(path.join(vdir, f), path.join(stage, 'videos', f));
+                        items++;
+                    }
+                }
+            }
+            if (items === 0) {
+                fs.rmSync(stage, { recursive: true, force: true });
+                return { ok: false, reason: 'no-data' };
+            }
+            const out = await runPowershell(
+                `Compress-Archive -Path ${pshQuote(path.join(stage, '*'))} -DestinationPath ${pshQuote(r.filePath)} -Force`);
+            fs.rmSync(stage, { recursive: true, force: true });
+            if (out.code !== 0) return { ok: false, reason: 'zip-failed', error: out.error || 'zip failed' };
+            return { ok: true, file: r.filePath, items };
+        } catch (e) {
+            fs.rmSync(stage, { recursive: true, force: true });
+            return { ok: false, reason: 'error', error: e.message };
+        }
+    } catch (e) {
+        return { ok: false, reason: 'error', error: e.message };
+    }
+});
+
+// ---- Restore: unpack a backup .zip over the current data dir, then reload engine ----
+ipcMain.handle('af:restoreData', async () => {
+    try {
+        const r = await dialog.showOpenDialog({
+            title: 'Restore tdqsys data from a backup',
+            properties: ['openFile'],
+            filters: [{ name: 'tdqsys Backup', extensions: ['zip'] }]
+        });
+        if (r.canceled || !r.filePaths.length) return { ok: false, canceled: true };
+        const zip = r.filePaths[0];
+
+        const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'tdqsys-rst-'));
+        const out = await runPowershell(
+            `Expand-Archive -LiteralPath ${pshQuote(zip)} -DestinationPath ${pshQuote(stage)} -Force`);
+        if (out.code !== 0) {
+            fs.rmSync(stage, { recursive: true, force: true });
+            return { ok: false, reason: 'expand-failed', error: out.error || 'could not open zip' };
+        }
+
+        // Find data.json anywhere in the archive and sanity-check its shape.
+        let dataFile = null;
+        const walk = (dir) => {
+            for (const f of fs.readdirSync(dir)) {
+                const p = path.join(dir, f);
+                const st = fs.statSync(p);
+                if (st.isDirectory()) { walk(p); continue; }
+                if (f === 'data.json' && !dataFile) dataFile = p;
+            }
+        };
+        try { walk(stage); } catch { dataFile = null; }
+        if (!dataFile) {
+            fs.rmSync(stage, { recursive: true, force: true });
+            return { ok: false, reason: 'not-a-backup' };
+        }
+        let parsed;
+        try { parsed = JSON.parse(fs.readFileSync(dataFile, 'utf8')); }
+        catch {
+            fs.rmSync(stage, { recursive: true, force: true });
+            return { ok: false, reason: 'bad-data-json' };
+        }
+        if (!parsed || !parsed.config || !parsed.queues) {
+            fs.rmSync(stage, { recursive: true, force: true });
+            return { ok: false, reason: 'bad-shape' };
+        }
+
+        // Commit into the live data dir.
+        fs.mkdirSync(BASE_DIR, { recursive: true });
+        fs.copyFileSync(dataFile, path.join(BASE_DIR, 'data.json'));
+        let videos = 0;
+        const srcVideos = path.join(stage, 'videos');
+        if (fs.existsSync(srcVideos)) {
+            fs.mkdirSync(path.join(BASE_DIR, 'videos'), { recursive: true });
+            for (const f of fs.readdirSync(srcVideos)) {
+                if (/\.(mp4|webm)$/i.test(f)) {
+                    fs.copyFileSync(path.join(srcVideos, f), path.join(BASE_DIR, 'videos', f));
+                    videos++;
+                }
+            }
+        }
+        fs.rmSync(stage, { recursive: true, force: true });
+
+        // Reload the running engine so all screens pick up the restored state now.
+        let reloaded = false;
+        try {
+            const resp = await fetch(`http://localhost:${PORT}/api/reload`, { method: 'POST' });
+            reloaded = resp.ok;
+        } catch { reloaded = false; }
+
+        return { ok: true, videos, reloaded };
+    } catch (e) {
+        return { ok: false, reason: 'error', error: e.message };
+    }
+});
+
+// ---- Uninstall: hand off to the NSIS uninstaller, then close the app ----
+// The uninstaller keeps the %APPDATA%\tdqsys data folder by default, so queue
+// state survives; the user is still prompted to make a backup first in the UI.
+ipcMain.handle('af:uninstallApp', () => {
+    if (!fs.existsSync(UNINSTALLER_EXE)) return { ok: false, reason: 'no-uninstaller' };
+    app.isQuitting = true;     // engines/TTS must not resurrect
+    cleanup();
+    const child = spawn(UNINSTALLER_EXE, [], { detached: true, stdio: 'ignore' });
+    child.unref();
+    setTimeout(() => app.quit(), 800);
+    return { ok: true };
+});
 
 // Keep running in the tray when all windows close, so the operator can reopen
 // the dashboard without restarting the engine/TTS. Quit only via tray menu.

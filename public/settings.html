@@ -202,6 +202,29 @@
         </div>
     </div>
 
+    <!-- ============ DATA BACKUP / RESTORE ============ -->
+    <div class="settings-card">
+        <h2>Data Backup &amp; Restore</h2>
+        <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">
+            Backup saves the current queue state (config + numbers) and all imported
+            videos into a single <b>.zip</b> file. Keep it safe — if tdqsys is ever
+            uninstalled, moved, or moved to another PC, Restore brings the queue back
+            to exactly how it was.
+        </p>
+        <div class="field-row">
+            <button type="button" class="btn-ghost settings-btn" onclick="backupData()">&#x1F4BE; Backup Data Now</button>
+            <button type="button" class="btn-ghost settings-btn" onclick="restoreData()">&#x267B;&#xFE0F; Restore From Backup</button>
+        </div>
+        <div id="io-status" class="import-status"></div>
+    </div>
+
+    <!-- ============ UNINSTALL ============ -->
+    <div class="settings-card">
+        <h2>Uninstall tdqsys</h2>
+        <p id="uninst-hint" style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">Checking installation type…</p>
+        <button type="button" class="btn-danger settings-btn" id="uninst-btn" onclick="uninstallApp()" disabled>&#x1F5D1;&#xFE0F; Uninstall tdqsys from this PC</button>
+    </div>
+
     <!-- ============ EDIT FORM ============ -->
     <form id="settings-form" autocomplete="off" style="opacity:0.55; pointer-events:none;">
 
@@ -337,6 +360,7 @@
             buildBrandEditors();
             hydrateForm();
             runUpdateCheck();
+            applyAppInfo();
 
             if (stateDoc.config && stateDoc.config.wizardDone !== true) {
                 openModal('wizard-modal');
@@ -865,6 +889,120 @@
                 }
             } catch (e) {
                 status.textContent = `Failed to clear videos: ${e.message}`;
+                status.className = 'import-status err';
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Backup / restore / uninstall (desktop app only)
+        // ---------------------------------------------------------------
+        async function applyAppInfo() {
+            const hint = document.getElementById('uninst-hint');
+            const btn = document.getElementById('uninst-btn');
+            if (!window.afDesktop || !window.afDesktop.appInfo) {
+                hint.textContent = 'Uninstall control is only available inside the desktop app (this window is a browser view).';
+                return;
+            }
+            const info = await window.afDesktop.appInfo();
+            if (info.mode === 'installed') {
+                btn.disabled = false;
+                hint.textContent = 'Installed version v' + info.version + '. Backup your data first if you plan to reinstall — your data folder is kept, but a backup is the guaranteed copy.';
+            } else if (info.mode === 'portable') {
+                hint.textContent = 'This is the portable version — there is no uninstaller. Exit tdqsys and delete the portable folder to remove it (that also removes your data).';
+            } else {
+                hint.textContent = 'Development mode: no uninstall handling.';
+            }
+        }
+
+        async function backupData() {
+            const status = document.getElementById('io-status');
+            if (!window.afDesktop || !window.afDesktop.backupData) {
+                status.textContent = 'Backup runs inside the desktop app only.';
+                status.className = 'import-status err';
+                return;
+            }
+            if (!afIsLocal()) {
+                status.textContent = 'Backup requires being on the local machine.';
+                status.className = 'import-status err';
+                return;
+            }
+            status.className = 'import-status';
+            status.textContent = 'Preparing backup…';
+            try {
+                const r = await window.afDesktop.backupData();
+                if (r.canceled) {
+                    status.textContent = 'Backup cancelled.';
+                    status.className = '';
+                } else if (r.ok) {
+                    status.textContent = `Backup saved: ${r.file} (${r.items} file(s)). Keep this .zip somewhere safe.`;
+                    status.className = 'import-status done';
+                } else if (r.reason === 'no-data') {
+                    status.textContent = 'Nothing to back up yet — no queue data or videos on this machine.';
+                    status.className = 'import-status err';
+                } else {
+                    status.textContent = `Backup failed: ${r.error || r.reason || 'unknown error'}`;
+                    status.className = 'import-status err';
+                }
+            } catch (e) {
+                status.textContent = `Backup failed: ${e.message}`;
+                status.className = 'import-status err';
+            }
+        }
+
+        async function restoreData() {
+            const status = document.getElementById('io-status');
+            if (!window.afDesktop || !window.afDesktop.restoreData) {
+                status.textContent = 'Restore runs inside the desktop app only.';
+                status.className = 'import-status err';
+                return;
+            }
+            if (!afIsLocal()) {
+                status.textContent = 'Restore requires being on the local machine.';
+                status.className = 'import-status err';
+                return;
+            }
+            if (!confirm('Restore queue data + videos from a backup file? This REPLACES the current queue state on this machine with the backup contents.')) return;
+            status.className = 'import-status';
+            status.textContent = 'Restoring…';
+            try {
+                const r = await window.afDesktop.restoreData();
+                if (r.canceled) {
+                    status.textContent = 'Restore cancelled.';
+                    status.className = '';
+                } else if (r.ok) {
+                    status.textContent = `Restored ${r.videos} video(s) + queue state from backup. ${r.reloaded ? 'Engine reloaded — screens are updated.' : 'Refresh the page to see the restored state.'}`;
+                    status.className = 'import-status done';
+                    stateDoc = await afFetchState();
+                    renderStatus();
+                    buildBrandEditors();
+                    hydrateForm();
+                } else {
+                    const msg =
+                        r.reason === 'not-a-backup' ? 'that file is not a valid tdqsys backup (no data.json found).' :
+                        r.reason === 'bad-shape' ? 'the backup file is corrupted (invalid data.json contents).' :
+                        r.reason === 'bad-data-json' ? 'the backup file is corrupted (data.json is not valid JSON).' :
+                        (r.error || r.reason || 'unknown error');
+                    status.textContent = `Restore failed: ${msg}`;
+                    status.className = 'import-status err';
+                }
+            } catch (e) {
+                status.textContent = `Restore failed: ${e.message}`;
+                status.className = 'import-status err';
+            }
+        }
+
+        async function uninstallApp() {
+            const status = document.getElementById('io-status');
+            if (!window.afDesktop || !window.afDesktop.uninstallApp) return;
+            if (!afIsLocal()) return;
+            if (!confirm('Uninstall tdqsys from this PC?\n\nYour data folder (queue state + videos) is left on disk. Use "Backup Data Now" first so you can restore after reinstalling.')) return;
+            if (!confirm('Last chance: are you sure you want to remove tdqsys from this PC? The app will close now and the Windows uninstaller will open.')) return;
+            const r = await window.afDesktop.uninstallApp();
+            if (r.ok) {
+                status.textContent = 'Uninstaller launched. The app is closing — follow the Windows uninstaller prompts.';
+                status.className = 'import-status done';
+            } else {
+                status.textContent = `Could not launch the uninstaller: ${r.reason || 'unknown'}`;
                 status.className = 'import-status err';
             }
         }
