@@ -225,6 +225,7 @@
             <div class="field">
                 <button type="button" class="btn-ghost settings-btn" onclick="document.getElementById('video-file-input').click()">&#x1F4F9; Import Videos From Folder / USB</button>
                 <input type="file" id="video-file-input" accept="video/mp4,video/webm" multiple webkitdirectory style="display:none;" onchange="importVideos(this.files)">
+                <button type="button" class="btn-danger settings-btn" onclick="clearVideos()">&#x1F5D1;&#xFE0F; Clear Videos</button>
                 <div id="import-status" class="import-status"></div>
             </div>
         </div>
@@ -833,6 +834,37 @@
                 status.className = 'import-status done';
             } else {
                 status.textContent = `${okCount} imported, ${errors.length} failed: ${errors.join(', ')}`;
+                status.className = 'import-status err';
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Video clear
+        // ---------------------------------------------------------------
+        async function clearVideos() {
+            const status = document.getElementById('import-status');
+            if (!afIsLocal()) {
+                status.textContent = 'Video clearing requires being on the local machine.';
+                status.className = 'import-status err';
+                return;
+            }
+            if (!confirm('Clear all imported videos from this machine? The TV display will stop showing the video loop until you import new ones.')) return;
+
+            status.className = 'import-status';
+            status.textContent = 'Clearing videos...';
+            try {
+                const base = `http://${afHostname()}`;
+                const res = await fetch(`${base}/api/clearVideos`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    status.textContent = `Done! ${data.removed} video(s) cleared. The TV display will stop the loop on its next reload.`;
+                    status.className = 'import-status done';
+                } else {
+                    status.textContent = `Failed to clear videos: ${data.error || 'unknown error'}`;
+                    status.className = 'import-status err';
+                }
+            } catch (e) {
+                status.textContent = `Failed to clear videos: ${e.message}`;
                 status.className = 'import-status err';
             }
         }

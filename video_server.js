@@ -247,6 +247,26 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // 4.5 Clear Videos -> Deletes every mp4/webm in the videos folder
+    if (req.url === '/api/clearVideos' && req.method === 'POST') {
+        fs.readdir(VIDEOS_DIR, (err, files) => {
+            if (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "Failed to read videos directory." }));
+            }
+            let removed = 0;
+            const videoFiles = files.filter(file => file.endsWith('.mp4') || file.endsWith('.webm'));
+            const pending = videoFiles.map(file => new Promise((resolve) => {
+                fs.unlink(path.join(VIDEOS_DIR, file), () => { removed++; resolve(); });
+            }));
+            Promise.all(pending).then(() => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, removed }));
+            });
+        });
+        return;
+    }
+
     // 5. The Video Streamer -> Serves large mp4 files with Proper range support
     if (req.url.startsWith('/videos/')) {
         const decodedUrl = decodeURIComponent(req.url).split('?')[0];
