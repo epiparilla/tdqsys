@@ -28,5 +28,19 @@
         </a>
     </div>
 
+    <div id="update-pill" style="display:none; margin-top:1rem; padding:0.6rem 1.2rem; border:1px solid #EB0A1E; border-radius:999px; font-size:0.9rem;">
+        &#x2B07; <a href="settings.html" style="color:#fff; text-decoration:underline;">New version available</a>
+    </div>
+
 </body>
+<script>
+    // Live update notification bridge (only present inside the desktop app).
+    if (window.afDesktop && window.afDesktop.onUpdateAvailable) {
+        window.afDesktop.onUpdateAvailable((info) => {
+            if (info && info.updateAvailable) {
+                document.getElementById('update-pill').style.display = 'block';
+            }
+        });
+    }
+</script>
 </html>

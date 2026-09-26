@@ -54,6 +54,11 @@
             background: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.5);
             color: #fca5a5; width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
         }
+        .preview-btn {
+            background: rgba(22,163,74,0.2); border: 1px solid rgba(22,163,74,0.5);
+            color: #86efac; width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+        }
+        .preview-btn:disabled { opacity: 0.5; cursor: wait; }
         .add-model-btn {
             background: rgba(255,255,255,0.08); color: white; border: 1px dashed rgba(255,255,255,0.3);
             padding: 0.45rem 1rem; border-radius: 8px; cursor: pointer; width: 100%;
@@ -153,6 +158,11 @@
     <!-- READ-ONLY LOCK BANNER -->
     <div id="lock-banner" class="lock-banner">&#x1F512; Settings are locked and read-only. Use "Enter Edit Mode" to change them.</div>
 
+    <!-- Locked view button (top) -->
+    <div class="action-bar" id="unlock-bar">
+        <button class="btn-primary settings-btn" onclick="requestUnlock()">&#x1F513; Enter Edit Mode</button>
+    </div>
+
     <!-- ============ STATUS ============ -->
     <div class="settings-card">
         <h2>Current Status</h2>
@@ -165,6 +175,31 @@
             <div class="status-item"><strong>Ads</strong><span id="st-ads">-</span></div>
         </div>
         <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the tdqsys shortcut).</div>
+    </div>
+
+    <!-- ============ SOFTWARE UPDATES ============ -->
+    <div class="settings-card">
+        <h2>Software Updates</h2>
+        <div class="field-row" style="align-items:center;">
+            <div class="field" style="flex:0 0 auto; min-width:0;">
+                <label>Installed version</label>
+                <div id="upd-current" style="font-size:1.1rem; padding:0.4rem 0;">v<span id="upd-current-num">-</span></div>
+            </div>
+            <div class="field" style="flex:0 0 auto; min-width:0;">
+                <button type="button" class="btn-ghost settings-btn" id="upd-check-btn" onclick="runUpdateCheck()">&#x1F504; Check for Updates</button>
+            </div>
+        </div>
+        <div id="upd-result" style="font-size:0.85rem; opacity:0.85; min-height:1.2rem;">
+            <span id="upd-status">Checking online for a newer version…</span>
+        </div>
+        <div id="upd-available" class="hidden" style="margin-top:0.8rem; padding:0.8rem; border:1px solid var(--brand-accent); border-radius:10px; background:rgba(0,0,0,0.3);">
+            <div style="font-weight:600; margin-bottom:0.4rem;">&#x2B07; New version available: v<span id="upd-latest-num">-</span></div>
+            <div id="upd-notes" style="font-size:0.85rem; opacity:0.85; margin-bottom:0.6rem;"></div>
+            <div class="field-row">
+                <button type="button" class="btn-primary settings-btn" id="upd-download-btn" onclick="downloadUpdate()">Download Update</button>
+                <span style="font-size:0.75rem; opacity:0.6; align-self:center;">Opens the download page in your browser.</span>
+            </div>
+        </div>
     </div>
 
     <!-- ============ EDIT FORM ============ -->
@@ -207,8 +242,8 @@
         </div>
     </form>
 
-    <!-- Locked view button (shown above form when locked) -->
-    <div class="action-bar" id="unlock-bar">
+    <!-- Locked view button (bottom, after form) -->
+    <div class="action-bar" id="unlock-bar-bottom">
         <button class="btn-primary settings-btn" onclick="requestUnlock()">&#x1F513; Enter Edit Mode</button>
     </div>
 
@@ -285,6 +320,7 @@
         if (!afIsLocal()) {
             document.getElementById('nonlocal-warning').classList.remove('hidden');
             document.getElementById('unlock-bar').classList.add('hidden');
+            document.getElementById('unlock-bar-bottom').classList.add('hidden');
         }
 
         async function boot() {
@@ -299,10 +335,68 @@
             renderStatus();
             buildBrandEditors();
             hydrateForm();
+            runUpdateCheck();
 
             if (stateDoc.config && stateDoc.config.wizardDone !== true) {
                 openModal('wizard-modal');
             }
+        }
+
+        // ---------------------------------------------------------------
+        // Software updates
+        // ---------------------------------------------------------------
+        let updateInfo = null;
+
+        function renderUpdateState(info) {
+            updateInfo = info || null;
+            const cur = document.getElementById('upd-current-num');
+            const latest = document.getElementById('upd-latest-num');
+            const notes = document.getElementById('upd-notes');
+            const status = document.getElementById('upd-status');
+            const card = document.getElementById('upd-available');
+
+            if (info && info.current) cur.textContent = info.current;
+            if (info && info.updateAvailable) {
+                latest.textContent = info.latest;
+                notes.textContent = info.notes || '';
+                card.classList.remove('hidden');
+                status.textContent = 'A newer version is available.';
+            } else {
+                card.classList.add('hidden');
+                if (info && info.ok) status.textContent = 'You are on the latest version.';
+                else if (info && !info.ok) status.textContent = 'Update check unavailable right now (offline or no manifest).';
+            }
+        }
+
+        async function runUpdateCheck() {
+            const btn = document.getElementById('upd-check-btn');
+            const status = document.getElementById('upd-status');
+            if (!window.afDesktop || !window.afDesktop.checkUpdates) {
+                status.textContent = 'Update checks run inside the desktop app only (this window is a browser).';
+                return;
+            }
+            btn.disabled = true;
+            status.textContent = 'Checking online for a newer version…';
+            try {
+                const info = await window.afDesktop.checkUpdates();
+                renderUpdateState(info);
+            } catch (e) {
+                status.textContent = 'Update check failed.';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function downloadUpdate() {
+            if (updateInfo && updateInfo.url && window.afDesktop && window.afDesktop.openExternal) {
+                window.afDesktop.openExternal(updateInfo.url);
+            } else {
+                alert('No download link available for this update.');
+            }
+        }
+
+        if (window.afDesktop && window.afDesktop.onUpdateAvailable) {
+            window.afDesktop.onUpdateAvailable((info) => renderUpdateState(info));
         }
 
         // ---------------------------------------------------------------
@@ -434,6 +528,7 @@
                 <input type="text" class="model-label" placeholder="Car name (e.g. RAV4 LTD HEV)" value="${escAttr(label || '')}">
                 <input type="text" class="model-prefix" placeholder="Prefix (e.g. RH)" value="${escAttr(prefix || '')}">
                 <input type="text" class="model-pronounce" placeholder="Speak (e.g. R H)" value="${escAttr(pronounce || '')}">
+                <button type="button" class="preview-btn" title="Preview pronunciation" onclick="previewPronunciation(this)">&#x1F50A;</button>
                 <button type="button" class="remove-model-btn" title="Remove car" onclick="if(confirm('Remove this car?')) this.closest('.model-row').remove()">&times;</button>
             `;
             listEl.appendChild(row);
@@ -476,6 +571,38 @@
             if (blocks[1]) {
                 blocks[1].classList.toggle('enabled', on);
                 blocks[1].classList.toggle('disabled', !on);
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Pronunciation preview
+        // ---------------------------------------------------------------
+        // Renders the pronunciation text via the LOCAL TTS server's /api/speak
+        // endpoint, which returns an in-memory WAV (no files are written), so
+        // nothing accumulates even if previews are played without saving.
+        let previewAudio = null;
+        async function previewPronunciation(btn) {
+            const row = btn.closest('.model-row');
+            const pronounce = row.querySelector('.model-pronounce').value.trim();
+            const prefix = row.querySelector('.model-prefix').value.trim();
+            const text = pronounce || prefix.split('').join(' ');
+            if (!text) { alert('Enter a pronunciation (or prefix) first.'); return; }
+            const ttsPort = (stateDoc.config && stateDoc.config.ttsPort) || 8001;
+            btn.disabled = true;
+            try {
+                const res = await fetch(`http://localhost:${ttsPort}/api/speak?text=${encodeURIComponent(text)}`);
+                if (!res.ok) throw new Error(`TTS server error (${res.status})`);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                if (previewAudio) { previewAudio.pause(); }
+                previewAudio = new Audio(url);
+                previewAudio.onended = () => URL.revokeObjectURL(url);
+                previewAudio.onerror = () => { alert('Preview playback failed.'); URL.revokeObjectURL(url); };
+                await previewAudio.play();
+            } catch (e) {
+                alert(`Preview failed: ${e.message}`);
+            } finally {
+                btn.disabled = false;
             }
         }
 
@@ -572,6 +699,7 @@
             document.getElementById('settings-form').style.opacity = '1';
             document.getElementById('settings-form').style.pointerEvents = 'auto';
             document.getElementById('unlock-bar').classList.add('hidden');
+            document.getElementById('unlock-bar-bottom').classList.add('hidden');
             document.getElementById('discard-btn').classList.remove('hidden');
             closeUnlockModal();
         }
@@ -583,6 +711,7 @@
             document.getElementById('settings-form').style.opacity = '0.55';
             document.getElementById('settings-form').style.pointerEvents = 'none';
             document.getElementById('unlock-bar').classList.remove('hidden');
+            document.getElementById('unlock-bar-bottom').classList.remove('hidden');
             document.getElementById('discard-btn').classList.add('hidden');
             // Rebuild from saved state
             buildBrandEditors();

@@ -1,6 +1,8 @@
 import io
 import os
+import sys
 import time
+import shutil
 import soundfile as sf
 import numpy as np
 import re
@@ -10,6 +12,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from kokoro_onnx import Kokoro
 
 app = FastAPI()
+
+FROZEN = getattr(sys, "frozen", False)
+
+# Installed build: AF_DATA_DIR = %APPDATA%\tdqsys (set by the desktop app), so
+# data.json + audio_cache live outside Program Files. Dev: fall back to the
+# script's own folder (project root), matching pre-installer behavior.
+def data_dir():
+    return os.environ.get("AF_DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
+
+# Frozen (PyInstaller one-file): sys.executable is the real tts_server.exe path,
+# so models shipped "beside the exe" resolve from its folder. Dev: script dir.
+def model_dir():
+    if FROZEN:
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
 
 # Allow CORS for local requests from the frontend display
 app.add_middleware(
@@ -21,7 +38,7 @@ app.add_middleware(
 )
 
 # Persistent cache directory for pre-rendered audio
-CACHE_DIR = os.path.join(os.path.dirname(__file__), "audio_cache")
+CACHE_DIR = os.path.join(data_dir(), "audio_cache")
 SPEAKER_CACHE_DIR = os.path.join(CACHE_DIR, "speakers")
 NUMBER_CACHE_DIR = os.path.join(CACHE_DIR, "numbers")
 
@@ -44,12 +61,14 @@ render_lock = threading.Lock()
 # Reads the v2 config (data.json) so acronyms are no longer hardcoded.
 # PRONOUNCE_MAP:  prefix (uppercase) -> {"text": spoken words, "key": cache key}
 # ---------------------------------------------------------------------------
-DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
+DATA_FILE = os.path.join(data_dir(), "data.json")
 DEFAULT_SPEECH_UNITS = [
     ("RH", "R H"), ("BZ", "B Z"), ("UC", "U C"), ("RA", "R A"),
     ("YC", "Y C"), ("CC", "C C"), ("AH", "A H"),
     ("IS", "I S"), ("NX", "N X"), ("LBX", "L B X"), ("RX", "R X")
 ]
+PREFIX_TEXT = "Test driver"
+SUFFIX_TEXT = "you may now approach the registration area for your test drive."
 
 def _normalize_key(text):
     """'A H' -> 'A-H' so it survives as a safe filename/cache key."""
@@ -190,6 +209,62 @@ def render_and_cache_number(num_str, voice="af_heart", speed=1.0, lang="en-us"):
     AUDIO_CACHE[spaced_num] = trimmed
     return trimmed
 
+def seed_from_bundle():
+    """Copy on-disk pre-rendered clips shipped with the app into CACHE_DIR.
+    Only missing files are copied, so a populated cache is never overwritten."""
+    src = os.path.join(model_dir(), "audio_cache_seed")
+    if not os.path.isdir(src):
+        return 0
+    copied = 0
+    for sub in ('speakers', 'numbers'):
+        ssub = os.path.join(src, sub)
+        if not os.path.isdir(ssub):
+            continue
+        dsub = os.path.join(CACHE_DIR, sub)
+        os.makedirs(dsub, exist_ok=True)
+        for fn in os.listdir(ssub):
+            if not fn.endswith('.wav'):
+                continue
+            dst = os.path.join(dsub, fn)
+            if not os.path.exists(dst):
+                shutil.copy2(os.path.join(ssub, fn), dst)
+                copied += 1
+    if copied:
+        print(f"Seeded {copied} pre-rendered clips from app bundle.")
+    return copied
+
+def load_available_from_cache():
+    """Load whatever pre-rendered WAVs exist on disk into memory (partial ok),
+    and set highest_rendered to the highest number clip actually present."""
+    global global_sr, highest_rendered
+    print("Loading pre-rendered audio from disk cache...")
+    for key in ('prefix', 'suffix'):
+        path = cache_path(key)
+        if os.path.exists(path):
+            data, sr = sf.read(path)
+            AUDIO_CACHE[key] = data
+            global_sr = sr
+
+    acronyms = speech_keys()
+    for ac in acronyms:
+        path = cache_path(ac)
+        if os.path.exists(path):
+            data, sr = sf.read(path)
+            AUDIO_CACHE[ac] = data
+
+    hi = 0
+    for i in range(1, 151):
+        num_str = f"{i:02d}"
+        spaced_num = " ".join(num_str)
+        path = number_cache_path(num_str)
+        if os.path.exists(path):
+            data, sr = sf.read(path)
+            AUDIO_CACHE[spaced_num] = data
+            hi = i
+
+    highest_rendered = hi
+    print(f"Loaded {len(AUDIO_CACHE)} audio clips from disk cache (numbers up to {hi}). Ready.")
+
 def load_all_from_cache():
     """Load all pre-rendered WAVs from disk into the in-memory cache."""
     global global_sr
@@ -226,8 +301,8 @@ def render_all_from_scratch():
     
     # 1. Prefix and Suffix
     print("Rendering prefix and suffix...")
-    render_and_cache("Test driver", 'prefix')
-    render_and_cache("you may now approach the registration area for your test drive.", 'suffix')
+    render_and_cache(PREFIX_TEXT, 'prefix')
+    render_and_cache(SUFFIX_TEXT, 'suffix')
     
     # 2. Acronyms (config-driven pronunciations)
     print("Rendering acronyms...")
@@ -261,14 +336,50 @@ def background_render_range(start_val, end_val):
             highest_rendered = end_val
     print(f"Background thread finished: Numbers {start_val}-{end_val} cached and saved to disk.")
 
+
+def background_render_speakers():
+    """Render the fixed phrase clips (prefix/suffix) and every configured
+    pronunciation when the shipped seed does not include them (numbers-only
+    lightweight seed). Runs in a background thread so the server stays online."""
+    print("Background thread started: Rendering missing speaker clips...")
+    if 'prefix' not in AUDIO_CACHE:
+        try:
+            render_and_cache(PREFIX_TEXT, 'prefix')
+        except Exception as e:
+            print(f"Error rendering prefix: {e}")
+    if 'suffix' not in AUDIO_CACHE:
+        try:
+            render_and_cache(SUFFIX_TEXT, 'suffix')
+        except Exception as e:
+            print(f"Error rendering suffix: {e}")
+    for unit in pronounce_map.values():
+        key = unit["key"]
+        if key not in AUDIO_CACHE:
+            try:
+                render_and_cache(unit["text"], key, speed=1.1)
+            except Exception as e:
+                print(f"Error rendering {key}: {e}")
+    print("Background thread finished: Speaker clips cached and saved to disk.")
+
 try:
-    kokoro = Kokoro("kokoro-v1.0.int8.onnx", "voices-v1.0.bin")
+    kokoro = Kokoro(os.path.join(model_dir(), "kokoro-v1.0.int8.onnx"), os.path.join(model_dir(), "voices-v1.0.bin"))
     print("Kokoro Model Loaded Successfully!")
+    
+    # First run: pull the pre-rendered clips that ship inside the package
+    # (numbers 01-50 + speaker clips) into the data cache dir.
+    seed_from_bundle()
     
     if cache_is_complete(max_num=150):
         load_all_from_cache()
     else:
-        render_all_from_scratch()
+        # Partial cache (first run with seed, or a previously interrupted run):
+        # load what we have so the server binds immediately, then keep filling
+        # missing speaker clips + numbers 01-150 in background threads (each
+        # clip is saved as it's done, and the dynamic continuous renderer below
+        # extends past 150 as needed).
+        load_available_from_cache()
+        threading.Thread(target=background_render_speakers, daemon=True).start()
+        threading.Thread(target=background_render_range, args=(1, 150), daemon=True).start()
     
 except Exception as e:
     print(f"Failed to load model or render audio: {e}")
@@ -330,6 +441,16 @@ async def speak_unit(unit: str, voice: str = "af_heart", speed: float = 1.0):
             print(f"Cache miss for {number_key}, generating and saving to disk...")
             num_str = "".join(numbers)
             render_and_cache_number(num_str, voice=voice, speed=speed)
+            
+        # Fallback for the fixed phrase clips — numbers-only seed / cleared
+        # cache means prefix/suffix may be missing until the background render
+        # completes. Generate + cache them on demand so announce never fails.
+        if 'prefix' not in AUDIO_CACHE:
+            print("Cache miss for prefix, generating and saving to disk...")
+            render_and_cache(PREFIX_TEXT, 'prefix', voice=voice, speed=speed)
+        if 'suffix' not in AUDIO_CACHE:
+            print("Cache miss for suffix, generating and saving to disk...")
+            render_and_cache(SUFFIX_TEXT, 'suffix', voice=voice, speed=speed)
         
         # Zero-Latency Splicing
         pieces = []
@@ -356,15 +477,19 @@ async def speak_unit(unit: str, voice: str = "af_heart", speed: float = 1.0):
 
 if __name__ == "__main__":
     import uvicorn
-    # Fixed port for this deployment (tdqsys runs side-by-side with the original at 8001; no runtime setting).
-    # AF_TTS_PORT env is honored for dev/testing overrides only.
+    # Installed build: AF_TTS_PORT is always set by the desktop app (8001), so it
+    # wins even when data.json hasn't been created yet (first run). Fallbacks:
+    # config ttsPort, then a fixed default. See comment below.
     port = 8001
-    try:
-        if os.path.exists(DATA_FILE):
+    env_port = os.environ.get("AF_TTS_PORT")
+    if env_port:
+        port = int(env_port)
+    elif os.path.exists(DATA_FILE):
+        try:
             import json
             with open(DATA_FILE, "r", encoding="utf-8") as f:
                 doc = json.load(f)
-            port = int(os.environ.get("AF_TTS_PORT", (doc.get("config") or {}).get("ttsPort", "8001")))
-    except Exception:
-        port = int(os.environ.get("AF_TTS_PORT", "8001"))
+            port = int((doc.get("config") or {}).get("ttsPort", "8001"))
+        except Exception:
+            pass
     uvicorn.run(app, host="0.0.0.0", port=port)

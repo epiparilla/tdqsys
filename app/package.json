@@ -1,14 +1,63 @@
 {
   "name": "tdqsys-queue-desktop",
+  "productName": "tdqsys Queue System",
   "version": "1.0.0",
-  "description": "tdqsys Queue System - desktop app (portable, no installer until layout sign-off)",
+  "description": "tdqsys Queue System - desktop app (Windows installer build)",
   "main": "main.js",
   "author": "tdqsys",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "assemble:server": "powershell -NoProfile -ExecutionPolicy Bypass -File assemble-server.ps1",
+    "build:tts": "cd .. && python -m PyInstaller --onefile --name tts_server --clean --noconfirm --collect-data kokoro_onnx --collect-data language_tags --collect-all espeakng_loader --collect-all onnxruntime tts_server.py",
+    "build:installer": "npm run assemble:server && npx electron-builder --win nsis",
+    "build:portable": "npm run assemble:server && npx electron-builder --win portable"
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.tdqsys.queue",
+    "productName": "tdqsys Queue System",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server"
+      }
+    ],
+    "directories": {
+      "output": "dist-installer"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "app_icon.ico"
+    },
+    "portable": {
+      "artifactName": "${productName} ${version} Portable.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "tdqsys",
+      "runAfterFinish": true
+    }
   }
 }
