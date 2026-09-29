@@ -37,11 +37,30 @@ const PORT = parseInt(process.env.AF_PORT, 10) || 8081;
 const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8001;
 
 // ---- Uninstall (installed NSIS builds) ----
-// electron-builder NSIS names the per-user uninstaller "<ProductName>.exe" and
-// places it next to the app. Its presence also lets us tell "installed" apart
-// from "portable" (which extracts to a temp dir and has no uninstaller).
+// The NSIS uninstaller lands in different spots depending on how the installer
+// was run: "install for me only" -> %LOCALAPPDATA%\Programs, "install for all
+// users" -> Program Files (or Program Files (x86)). Its presence also tells
+// "installed" apart from "portable", which extracts to a temp dir and has no
+// uninstaller at all.
 const PRODUCT_NAME = 'tdqsys Queue System';
-const UNINSTALLER_EXE = path.join(process.env.LOCALAPPDATA || '', 'Programs', PRODUCT_NAME, `Uninstall ${PRODUCT_NAME}.exe`);
+function findUninstaller() {
+    const dirs = [
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', PRODUCT_NAME),
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', PRODUCT_NAME),
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', PRODUCT_NAME)
+    ];
+    for (const dir of dirs) {
+        const exe = path.join(dir, `Uninstall ${PRODUCT_NAME}.exe`);
+        if (fs.existsSync(exe)) return exe;
+    }
+    return null;
+}
+const UNINSTALLER_EXE = findUninstaller();
+
+// First run of this installation: no local data yet when the app boots. The
+// engine may seed a configuration from the cloud a moment later, so this flag
+// must be captured BEFORE the engine starts. Drives the first-run wizard.
+const FIRST_RUN = !fs.existsSync(path.join(BASE_DIR, 'data.json'));
 
 let engineProcess = null;
 let ttsProcess = null;
@@ -423,7 +442,7 @@ function openDashboardWindow() {
         return dashboardWindow;
     }
     dashboardWindow = openLocalWindow({
-        page: wizardNotDone() ? 'settings.html' : 'index.html',
+        page: (FIRST_RUN || wizardNotDone()) ? 'settings.html' : 'index.html',
         width: 1200, height: 800,
         minWidth: 600, minHeight: 400
     });
@@ -573,10 +592,11 @@ ipcMain.handle('af:openExternal', (_e, url) => { if (url) shell.openExternal(url
 
 // ---- App info: mode (installed / portable / dev), data dir, uninstaller ----
 ipcMain.handle('af:appInfo', () => ({
-    mode: app.isPackaged ? (fs.existsSync(UNINSTALLER_EXE) ? 'installed' : 'portable') : 'dev',
+    mode: app.isPackaged ? (UNINSTALLER_EXE ? 'installed' : 'portable') : 'dev',
     version: app.getVersion(),
     dataDir: BASE_DIR,
-    uninstaller: UNINSTALLER_EXE
+    uninstaller: UNINSTALLER_EXE,
+    firstRun: FIRST_RUN
 }));
 
 // ---- PowerShell helper (Windows-only; Compress-Archive/Expand-Archive) ----

@@ -360,9 +360,11 @@
             buildBrandEditors();
             hydrateForm();
             runUpdateCheck();
-            applyAppInfo();
+            const appInfo = await applyAppInfo();
 
-            if (stateDoc.config && stateDoc.config.wizardDone !== true) {
+            // First-run wizard: shows on a genuinely fresh install (no previous
+            // local data), or whenever the config hasn't declared wizardDone.
+            if ((stateDoc.config && stateDoc.config.wizardDone !== true) || (appInfo && appInfo.firstRun)) {
                 openModal('wizard-modal');
             }
         }
@@ -821,7 +823,7 @@
         // ---------------------------------------------------------------
         async function importVideos(files) {
             const status = document.getElementById('import-status');
-            const base = afIsLocal() ? `http://${afHostname()}` : '';
+            const base = afApiBase();
             if (!afIsLocal()) {
                 status.textContent = 'Video import requires being on the local machine.';
                 status.className = 'import-status err';
@@ -877,7 +879,7 @@
             status.className = 'import-status';
             status.textContent = 'Clearing videos...';
             try {
-                const base = `http://${afHostname()}`;
+                const base = afApiBase();
                 const res = await fetch(`${base}/api/clearVideos`, { method: 'POST' });
                 const data = await res.json();
                 if (res.ok && data.success) {
@@ -901,7 +903,7 @@
             const btn = document.getElementById('uninst-btn');
             if (!window.afDesktop || !window.afDesktop.appInfo) {
                 hint.textContent = 'Uninstall control is only available inside the desktop app (this window is a browser view).';
-                return;
+                return null;
             }
             const info = await window.afDesktop.appInfo();
             if (info.mode === 'installed') {
@@ -912,6 +914,7 @@
             } else {
                 hint.textContent = 'Development mode: no uninstall handling.';
             }
+            return info;
         }
 
         async function backupData() {

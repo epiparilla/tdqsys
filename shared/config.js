@@ -5,24 +5,16 @@ const SCHEMA_VERSION = 2;
 const MAX_TOTAL_CARS = 12;
 const MAX_BRANDS = 2;
 
-// Brand defaults (matching the dealership vehicle lists). Prefixes are spoken
-// letter-by-letter by the TTS engine, so `pronounce` defaults to spaced letters.
+// Factory defaults for a brand-new installation. The operator configures the
+// real brands/cars through the first-run wizard; until then the system shows a
+// single generic car: Brand 1 is enabled, Brand 2 is disabled (a brand being
+// "disabled" simply means it is absent from config.brands).
 function defaultModels() {
     return {
         brand1: [
-            { label: "RAV4 LTD HEV",     prefix: "RH", pronounce: "R H" },
-            { label: "bZ4X",             prefix: "BZ", pronounce: "B Z" },
-            { label: "Urban Cruiser",    prefix: "UC", pronounce: "U C" },
-            { label: "RAV4 ADV",         prefix: "RA", pronounce: "R A" },
-            { label: "Yaris Cross SE HEV", prefix: "YC", pronounce: "Y C" },
-            { label: "Corolla Cross G HEV", prefix: "CC", pronounce: "C C" },
-            { label: "ATIV HEV",         prefix: "AH", pronounce: "A H" }
+            { label: "Model 1", prefix: "AA", pronounce: "A A" }
         ],
-        brand2: [
-            { label: "IS Premier",       prefix: "IS", pronounce: "I S" },
-            { label: "Lexus NX",         prefix: "NX", pronounce: "N X" },
-            { label: "Lexus LBX",        prefix: "LBX", pronounce: "L B X" }
-        ]
+        brand2: []
     };
 }
 
@@ -37,8 +29,7 @@ function defaultConfig() {
         ads: { enabled: true, minSec: 120, maxSec: 180 },
         ttsPort: (typeof process !== "undefined" && process.env && parseInt(process.env.AF_TTS_PORT, 10)) || 8001,
         brands: [
-            { key: "brand1", name: "TOYOTA", color: "#EB0A1E", models: models.brand1 },
-            { key: "brand2", name: "LEXUS",  color: "#B0B0B0", models: models.brand2 }
+            { key: "brand1", name: "Brand 1", color: "#EB0A1E", models: models.brand1 }
         ]
     };
 }
