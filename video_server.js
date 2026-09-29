@@ -293,8 +293,12 @@ const server = http.createServer((req, res) => {
 
     // 5. The Video Streamer -> Serves large mp4 files with Proper range support
     if (req.url.startsWith('/videos/')) {
+        // Resolve relative to VIDEOS_DIR (not __dirname — the app data folder
+        // lives in %APPDATA% on installed builds, so __dirname-based paths would
+        // 403 there). basename + the prefix check below keep it inside VIDEOS_DIR.
         const decodedUrl = decodeURIComponent(req.url).split('?')[0];
-        const filePath = path.join(__dirname, decodedUrl);
+        const safeName = path.basename(decodedUrl.replace(/^\/videos\//, ''));
+        const filePath = path.join(VIDEOS_DIR, safeName);
 
         if (!filePath.startsWith(VIDEOS_DIR)) {
             res.writeHead(403);

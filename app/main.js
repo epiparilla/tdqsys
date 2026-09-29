@@ -591,13 +591,27 @@ ipcMain.handle('af:checkUpdates', () => checkForUpdates());
 ipcMain.handle('af:openExternal', (_e, url) => { if (url) shell.openExternal(url); });
 
 // ---- App info: mode (installed / portable / dev), data dir, uninstaller ----
-ipcMain.handle('af:appInfo', () => ({
-    mode: app.isPackaged ? (UNINSTALLER_EXE ? 'installed' : 'portable') : 'dev',
-    version: app.getVersion(),
-    dataDir: BASE_DIR,
-    uninstaller: UNINSTALLER_EXE,
-    firstRun: FIRST_RUN
-}));
+ipcMain.handle('af:appInfo', () => {
+    let videoCount = 0;
+    try {
+        const vdir = path.join(BASE_DIR, 'videos');
+        if (fs.existsSync(vdir)) {
+            videoCount = fs.readdirSync(vdir).filter(f => /\.(mp4|webm)$/i.test(f)).length;
+        }
+    } catch { /* data dir may not exist yet on first run */ }
+    return {
+        mode: app.isPackaged ? (UNINSTALLER_EXE ? 'installed' : 'portable') : 'dev',
+        version: app.getVersion(),
+        dataDir: BASE_DIR,
+        uninstaller: UNINSTALLER_EXE,
+        firstRun: FIRST_RUN,
+        // TRUE when data.json already existed at launch — i.e. a previous install's
+        // queue state survived on disk and was picked up automatically. Used by the
+        // settings page to tell the operator "your data came back" without a backup.
+        dataRestored: !FIRST_RUN,
+        videoCount
+    };
+});
 
 // ---- PowerShell helper (Windows-only; Compress-Archive/Expand-Archive) ----
 // The packaged app carries no node_modules, so we lean on the OS PowerShell
@@ -742,6 +756,26 @@ ipcMain.handle('af:uninstallApp', () => {
     cleanup();
     const child = spawn(UNINSTALLER_EXE, [], { detached: true, stdio: 'ignore' });
     child.unref();
+    // The NSIS uninstaller removes every file but cannot delete its own working
+    // directory, so an empty app folder is left behind. Once it exits, sweep the
+    // folder away ONLY if it is empty (never remove a half-uninstalled install).
+    try {
+        const installDir = path.dirname(process.execPath);
+        const uninstPid = child.pid;
+        const sweepScript =
+            `$dir = ${pshQuote(installDir)}; ` +
+            `$unpid = ${uninstPid}; ` +
+            `$deadline = (Get-Date).AddSeconds(120); ` +
+            `while ((Get-Date) -lt $deadline) { ` +
+            `  Start-Sleep -Milliseconds 400; ` +
+            `  try { $items = @(Get-ChildItem -LiteralPath $dir -Recurse -Force -ErrorAction Stop) } catch { break }; ` +
+            `  if ($items.Count -eq 0) { Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue; break }; ` +
+            `  if (-not (Get-Process -Id $unpid -ErrorAction SilentlyContinue)) { break } ` +
+            `}`;
+        const sweep = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', sweepScript],
+            { detached: true, stdio: 'ignore', windowsHide: true });
+        sweep.unref();
+    } catch { /* best-effort — uninstall still completed normally */ }
     setTimeout(() => app.quit(), 800);
     return { ok: true };
 });

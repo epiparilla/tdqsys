@@ -158,6 +158,13 @@
     <!-- READ-ONLY LOCK BANNER -->
     <div id="lock-banner" class="lock-banner">&#x1F512; Settings are locked and read-only. Use "Enter Edit Mode" to change them.</div>
 
+    <!-- AUTO-RESTORED DATA NOTICE (shown when a prior install's data was found on disk) -->
+    <div id="restored-banner" class="lock-banner hidden"
+         style="justify-content:space-between; align-items:center; border-color:#2ecc71; background:rgba(46,204,113,0.12);">
+        <span>&#x1F4C1; Previous data was found on this PC and restored automatically — your queue was already back, including <b id="rb-videos">0</b> video(s). No backup restore was needed.</span>
+        <button type="button" class="btn-ghost settings-btn" style="flex:0 0 auto; padding:0.2rem 0.9rem;" onclick="this.parentElement.classList.add('hidden')">OK</button>
+    </div>
+
     <!-- Locked view button (top) -->
     <div class="action-bar" id="unlock-bar">
         <button class="btn-primary settings-btn" onclick="requestUnlock()">&#x1F513; Enter Edit Mode</button>
@@ -172,6 +179,7 @@
             <div class="status-item"><strong>Cloud Base</strong><span id="st-cloud">-</span></div>
             <div class="status-item"><strong>Brands</strong><span id="st-brands">-</span></div>
             <div class="status-item"><strong>Total Cars</strong><span id="st-cars">-</span></div>
+            <div class="status-item"><strong>Videos on Disk</strong><span id="st-videos">-</span></div>
             <div class="status-item"><strong>Ads</strong><span id="st-ads">-</span></div>
         </div>
         <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the tdqsys shortcut).</div>
@@ -215,6 +223,7 @@
             <button type="button" class="btn-ghost settings-btn" onclick="backupData()">&#x1F4BE; Backup Data Now</button>
             <button type="button" class="btn-ghost settings-btn" onclick="restoreData()">&#x267B;&#xFE0F; Restore From Backup</button>
         </div>
+        <div id="data-summary" class="import-status" style="margin-bottom:0.4rem;">-</div>
         <div id="io-status" class="import-status"></div>
     </div>
 
@@ -906,9 +915,24 @@
                 return null;
             }
             const info = await window.afDesktop.appInfo();
+            const vCount = (info.videoCount != null) ? info.videoCount : 0;
+            const stVideos = document.getElementById('st-videos');
+            if (stVideos) stVideos.textContent = String(vCount);
+            const sum = document.getElementById('data-summary');
+            if (sum) {
+                sum.textContent = stateDoc && stateDoc.config
+                    ? `On this PC: queue data (config + numbers) and ${vCount} video file(s) are stored in: ${info.dataDir || '-'}`
+                    : 'No local data stored on this PC yet.';
+                sum.className = 'import-status';
+            }
+            const rb = document.getElementById('restored-banner');
+            if (rb && info.dataRestored) {
+                document.getElementById('rb-videos').textContent = String(vCount);
+                rb.classList.remove('hidden');
+            }
             if (info.mode === 'installed') {
                 btn.disabled = false;
-                hint.textContent = 'Installed version v' + info.version + '. Backup your data first if you plan to reinstall — your data folder is kept, but a backup is the guaranteed copy.';
+                hint.textContent = 'Installed version v' + info.version + '. Uninstall removes the program itself; your data folder (queue + videos) is kept on disk. Use "Backup Data Now" for a guaranteed copy before uninstalling.';
             } else if (info.mode === 'portable') {
                 hint.textContent = 'This is the portable version — there is no uninstaller. Exit tdqsys and delete the portable folder to remove it (that also removes your data).';
             } else {
