@@ -681,7 +681,9 @@
                 block.querySelectorAll('.model-row').forEach(row => {
                     const label = row.querySelector('.model-label').value.trim();
                     const prefix = row.querySelector('.model-prefix').value.trim();
-                    const pronounce = row.querySelector('.model-pronounce').value.trim();
+                    // Strip stray wrapping quotes — they are not pronounceable and
+                    // would otherwise make the TTS cache key an illegal filename.
+                    const pronounce = row.querySelector('.model-pronounce').value.trim().replace(/^["']+|["']+$/g, '').trim();
                     if (label || prefix) {
                         models.push({
                             label: label || prefix,

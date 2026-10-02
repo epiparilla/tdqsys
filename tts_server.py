@@ -71,8 +71,17 @@ PREFIX_TEXT = "Test driver"
 SUFFIX_TEXT = "you may now approach the registration area for your test drive."
 
 def _normalize_key(text):
-    """'A H' -> 'A-H' so it survives as a safe filename/cache key."""
-    return " ".join(text.split()).replace(" ", "-").upper()
+    """Build a safe cache key from the SPOKEN pronunciation text.
+
+    'A H'      -> 'A-H'
+    '"A-A"'    -> 'A-A'   (quotes and other non-alphanumeric chars collapse to
+                            dashes, so no pronunciation can ever produce a file
+                            name Windows refuses to write)
+    'Unit 5!'  -> 'UNIT-5'
+    """
+    import re
+    key = re.sub(r'[^A-Z0-9]+', '-', text.strip().upper()).strip('-')
+    return key or 'UNIT'
 
 def load_pronounce_map():
     units = {}
@@ -189,24 +198,32 @@ def trim_silence(audio, threshold=0.015, keep_ms=5):
     return audio[start:end]
 
 def render_and_cache(text, key, voice="af_heart", speed=1.0, lang="en-us"):
-    """Render audio with Kokoro, trim silence, save to cache, and store in memory."""
+    """Render audio with Kokoro, trim silence, store in MEMORY first, then
+    best-effort save to disk. A disk write failure must never block playback —
+    the in-memory copy is what the announce path actually plays."""
     global global_sr
     raw, sr = kokoro.create(text, voice=voice, speed=speed, lang=lang)
     trimmed = trim_silence(raw)
-    save_to_cache(key, trimmed, sr)
     global_sr = sr
     AUDIO_CACHE[key] = trimmed
+    try:
+        save_to_cache(key, trimmed, sr)
+    except Exception as e:
+        print(f"Warning: could not cache '{key}' to disk ({e}); serving from memory.")
     return trimmed
 
 def render_and_cache_number(num_str, voice="af_heart", speed=1.0, lang="en-us"):
-    """Render a number clip, save to disk cache, and store in memory."""
+    """Render a number clip, store in memory first, then best-effort to disk."""
     global global_sr
     spaced_num = " ".join(num_str)
     raw, sr = kokoro.create(spaced_num, voice=voice, speed=speed, lang=lang)
     trimmed = trim_silence(raw)
-    save_number_to_cache(num_str, trimmed, sr)
     global_sr = sr
     AUDIO_CACHE[spaced_num] = trimmed
+    try:
+        save_number_to_cache(num_str, trimmed, sr)
+    except Exception as e:
+        print(f"Warning: could not cache number '{num_str}' to disk ({e}); serving from memory.")
     return trimmed
 
 def seed_from_bundle():
