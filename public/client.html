@@ -42,7 +42,6 @@
 
         function selectSite() {
             let v = document.getElementById('site-input').value.trim();
-            // Accept a full mirror link (https://...client.html?id=uuid) or a bare id.
             if (v.includes('=')) {
                 try { v = new URL(v).searchParams.get('id') || ''; } catch (e) { v = ''; }
             }
@@ -55,14 +54,12 @@
         }
 
         function initSitePicker() {
-            // Only the cloud mirror (multi-location viewer) needs the picker.
             if (afIsLocal()) return;
             const bar = document.getElementById('site-picker');
             bar.style.display = 'block';
             document.getElementById('site-input').value = afInstanceId() || '';
             if (!afInstanceId()) {
-                document.getElementById('footer-note').textContent =
-                    'Open a location\u2019s mirror link from TDQSYS \u2192 Settings \u2192 System Identity, or paste an instance id above.';
+                document.getElementById('footer-note').textContent = 'Open a location\u2019s mirror link from TDQSYS \u2192 Settings \u2192 Instance & Mirror Link, or paste an instance id above.';
             }
         }
 
@@ -83,9 +80,6 @@
                 const h1 = document.createElement('h1');
                 h1.textContent = brand.name;
                 header.appendChild(h1);
-                const p = document.createElement('p');
-                p.textContent = 'Test Drive Queue';
-                header.appendChild(p);
                 section.appendChild(header);
 
                 const grid = document.createElement('div');
@@ -169,7 +163,9 @@
 
         initSitePicker();
         pollData(true);
-        setInterval(() => pollData(false), 30000);
+        const IS_MOBILE = window.matchMedia('(max-width: 768px)').matches;
+        const POLL_INTERVAL = IS_MOBILE ? 30000 : 2000;
+        setInterval(() => pollData(false), POLL_INTERVAL);
     </script>
 </body>
 </html>
