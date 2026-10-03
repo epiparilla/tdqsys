@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDQSYS - Page not found</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Pages serves this for any path with no matching asset. Without it,
+           Cloudflare silently falls back to index.html with a 200, which made
+           retired routes like /display look alive. */
+        .nf {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 2rem 1.25rem;
+            text-align: center;
+            font-family: 'Inter', sans-serif;
+            box-sizing: border-box;
+        }
+
+        .nf-code {
+            font-family: 'Syncopate', sans-serif;
+            font-size: clamp(3rem, 16vw, 6rem);
+            line-height: 1;
+            letter-spacing: 4px;
+            color: var(--brand-accent, #EB0A1E);
+        }
+
+        .nf h1 {
+            font-family: 'Syncopate', sans-serif;
+            font-size: clamp(1.1rem, 5vw, 1.6rem);
+            letter-spacing: 2px;
+        }
+
+        .nf p {
+            max-width: 30rem;
+            font-size: clamp(0.85rem, 3.4vw, 1rem);
+            line-height: 1.5;
+            color: var(--text-muted, #888);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nf">
+        <div class="nf-code">404</div>
+        <h1>PAGE NOT FOUND</h1>
+        <p>That address does not exist. The TV display route
+            (<code>/display</code>) was retired &mdash; use the queue viewer instead.</p>
+        <a href="client.html" class="link-button">Open the queue viewer</a>
+        <a href="/" class="link-button">Go to hub</a>
+    </div>
+</body>
+
+</html>

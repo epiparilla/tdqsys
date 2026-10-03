@@ -1,7 +1,8 @@
 {
-  "version": "1.1.10",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.9/tdqsys-setup-1.1.9.exe",
-  "size": 225601724,
-  "notes": "Collision-proof cloud keys: every installation now gets an immutable Instance ID (a permanent UUID) that the cloud mirror is keyed against, so two PCs can never overwrite each other — even if they use the same location label. The label is now just a friendly display name (rename anytime in Settings > System Identity). Your mirror link is shown in Settings with a Copy button, in the form https://tdqsys.pages.dev/client.html?id=INSTANCE. Existing installs keep their data: your PC's Instance ID is generated automatically on first launch after updating. Backups still carry your id, so a reinstall + restore keeps the same mirror link.",
-  "installerBytes": 225601724
+  "version": "1.1.11",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.11/tdqsys-setup-1.1.11.exe",
+  "size": 225607101,
+  "installerBytes": 225607101,
+  "portableBytes": 219060053,
+  "notes": "No more silent location fallback. Opening /client without an Instance ID used to fall back to the shared sites/auto-01 record, so a viewer with no ?id= silently showed whichever machine wrote that record last - two locations could display each other's queue. The viewer now shows a 'No location selected' panel with a field to paste an Instance ID, remembered on that device. /display is removed (404); the TV board still ships as display_with_ads.html, which is what the desktop app opens. Also: the queue grid now rebuilds when Settings changes the layout (adding a brand or cars no longer needs a page reload), cloud reads always send ?id=, and malformed instance IDs are rejected with a 400 instead of returning an empty board that looked like data loss."
 }
