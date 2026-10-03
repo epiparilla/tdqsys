@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <style>
         /* Pull-to-refresh indicator. Lives only on this page; the TV board
-           (display.html) has no markup for it and is unaffected. */
+           (display_with_ads.html) has no markup for it and is unaffected. */
         html,
         body {
             overscroll-behavior: none;
@@ -73,6 +73,7 @@
         let lastLocalUpdate = 0;
         let modelLookup = {}; // brandKey -> [{label, prefix, pronounce}, ...]
         let lastConfigSignature = ''; // layout fingerprint; drives grid rebuilds
+        let noLocationShown = false; // cloud viewer with no ?id=; panel is sticky
 
         // --------- VOICE SYSTEM LOGIC (unchanged behavior) ---------
         let voiceEnabled = false;
@@ -188,7 +189,19 @@
 
         async function pollData() {
             let data = await afFetchState();
-            if (!data) return;
+            if (!data) {
+                // No state because the cloud viewer has no location in its URL.
+                // Say so plainly instead of rendering an empty or wrong board.
+                // Render once: this runs every 2s and re-rendering would wipe
+                // whatever the user has typed into the field.
+                if (!dataStore && !noLocationShown && !afIsLocal() && !afHasCloudTarget()) {
+                    noLocationShown = true;
+                    afRenderNoLocation(document.getElementById('brand-sections'), {
+                        origin: new URLSearchParams(window.location.search).get('id')
+                    });
+                }
+                return;
+            }
             if (Date.now() - lastLocalUpdate < 3000) return;
 
             const signature = configSignature(data.config || {});

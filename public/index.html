@@ -14,8 +14,12 @@
         <!-- Only the mobile status viewer is published for now. The dashboard,
              TV display and display+ads routes are intentionally unlinked; the
              /display stub forwards here, and the others stay reachable by URL
-             (or from the desktop app). -->
-        <a href="client.html" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
+             (or from the desktop app).
+
+             The ?id= is REQUIRED. Without it the viewer has no instance to
+             read and silently falls back to the legacy sites/auto-01 record.
+             Change HUB_INSTANCE_ID when this installation is re-keyed. -->
+        <a href="client.html?id=8c8b6714-f300-413f-bf75-e1156662acfb" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
             &#x1F4F1; Mobile Status Viewer
         </a>
     </div>

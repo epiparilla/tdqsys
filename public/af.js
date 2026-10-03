@@ -37,8 +37,14 @@ function afInstanceId() {
 }
 
 // Extra query string appended ONLY to cloud-origin calls; the local engine
-// ignores the id parameter since it holds a single location's data. Uses the
-// instance id when known; legacy `?site=` labels still work for older links.
+// ignores the id parameter since it holds a single location's data.
+//
+// Returns the instance-scoped query when the location is known, an explicit
+// `?site=` when the link deliberately asks for a legacy label, and null when
+// there is NO target. It used to fall back to '?site=auto-01', which meant a
+// bare /client silently rendered whichever machine last wrote that shared
+// record - two different locations showing each other's queue. Callers must
+// treat null as "no location selected" rather than fetching something.
 function afCloudQuery() {
     if (afIsLocal()) return '';
     const id = afInstanceId();
@@ -47,7 +53,13 @@ function afCloudQuery() {
         const site = new URLSearchParams(window.location.search).get('site');
         if (site && /^[A-Za-z0-9._-]{1,64}$/.test(site)) return `?site=${encodeURIComponent(site)}`;
     } catch (e) { /* ignore */ }
-    return '?site=auto-01';
+    return null;
+}
+
+// True when this cloud page knows which location to show. False means we must
+// not fetch: there is no instance behind the URL.
+function afHasCloudTarget() {
+    return afCloudQuery() !== null;
 }
 
 // Build a brand section (header + grid) into the given container.
@@ -138,11 +150,15 @@ function padValue(n) {
 
 // Fetch state. On the cloud mirror the request MUST carry the instance id:
 // a bare /api/data resolves to the legacy sites/auto-01 record and would
-// serve one PC's stale queue to every viewer.
+// serve one PC's stale queue to every viewer. With no instance known we
+// return null without fetching - the caller shows "select a location"
+// instead of displaying a location that was never asked for.
 async function afFetchState() {
     if (!afIsLocal()) {
+        const query = afCloudQuery();
+        if (query === null) return null;
         try {
-            const r = await fetch(`/api/data${afCloudQuery()}`);
+            const r = await fetch(`/api/data${query}`);
             if (r.ok) return await r.json();
         } catch (e) { /* cloud unavailable */ }
         return null;
@@ -156,8 +172,10 @@ async function afFetchState() {
 
 async function afFetchConfig() {
     if (!afIsLocal()) {
+        const query = afCloudQuery();
+        if (query === null) return null;
         try {
-            const r = await fetch(`/api/config${afCloudQuery()}`);
+            const r = await fetch(`/api/config${query}`);
             if (r.ok) return await r.json();
         } catch (e) { /* cloud unavailable */ }
         return null;
@@ -167,6 +185,51 @@ async function afFetchConfig() {
         if (r.ok) return await r.json();
     } catch (e) { /* engine unavailable */ }
     return null;
+}
+
+// Shown on a cloud page that has no instance in its URL. Deliberately explicit:
+// guessing a location is how one shop ends up watching another's queue.
+function afRenderNoLocation(container, opts) {
+    if (!container) return;
+    const options = opts || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'no-location';
+    wrap.innerHTML = `
+        <h2>No location selected</h2>
+        <p>This viewer needs a location's Instance ID.</p>
+        <p class="no-location-hint">Open the link from
+            <strong>Settings &rsaquo; System Identity &rsaquo; Copy mirror link</strong>,
+            or add it to the address:</p>
+        <form class="no-location-form" novalidate>
+            <input type="text" inputmode="text" autocomplete="off" spellcheck="false"
+                   placeholder="00000000-0000-0000-0000-000000000000"
+                   aria-label="Instance ID">
+            <button type="submit">Open</button>
+        </form>
+        <p class="no-location-err" hidden>That does not look like an Instance ID.</p>
+    `;
+    container.innerHTML = '';
+    container.appendChild(wrap);
+
+    const form = wrap.querySelector('.no-location-form');
+    const input = wrap.querySelector('input');
+    const err = wrap.querySelector('.no-location-err');
+    if (options.origin) input.value = options.origin;
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = input.value.trim();
+        if (!/^[0-9a-fA-F-]{1,64}$/.test(id)) {
+            err.hidden = false;
+            return;
+        }
+        err.hidden = true;
+        // Remember it so a bare /client on this device resolves next time.
+        try { localStorage.setItem('af_instance_id', id.toLowerCase()); } catch (err2) { /* ignore */ }
+        const url = new URL(window.location.href);
+        url.search = `?id=${encodeURIComponent(id.toLowerCase())}`;
+        window.location.replace(url.toString());
+    });
 }
 
 // Persist state. The cloud (https://tdqsys.pages.dev/...) is a READ-ONLY
