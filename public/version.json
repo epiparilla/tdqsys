@@ -1,8 +1,8 @@
 {
-  "version": "1.1.11",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.11/tdqsys-setup-1.1.11.exe",
-  "size": 225607101,
-  "installerBytes": 225607101,
-  "portableBytes": 219060053,
-  "notes": "No more silent location fallback. Opening /client without an Instance ID used to fall back to the shared sites/auto-01 record, so a viewer with no ?id= silently showed whichever machine wrote that record last - two locations could display each other's queue. The viewer now shows a 'No location selected' panel with a field to paste an Instance ID, remembered on that device. /display is removed (404); the TV board still ships as display_with_ads.html, which is what the desktop app opens. Also: the queue grid now rebuilds when Settings changes the layout (adding a brand or cars no longer needs a page reload), cloud reads always send ?id=, and malformed instance IDs are rejected with a 400 instead of returning an empty board that looked like data loss."
+  "version": "1.1.12",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.12/tdqsys-setup-1.1.12.exe",
+  "size": 225608500,
+  "installerBytes": 225608500,
+  "portableBytes": 218973058,
+  "notes": "Restores the full hub in the local app. public/index.html serves two audiences - the local engine (video_server.js serves it for '/') and the desktop app open it directly, while Cloudflare Pages serves the same file as the public website. Trimming the website to just the Mobile Status Viewer had also gutted the local hub. Local-only links are now removed at parse time when the page is not on the local box, so the installed app and LAN show Facilitator Dashboard, TV Display + Video Ads and Mobile Status Viewer, while https://tdqsys.pages.dev/ still shows only the Mobile Status Viewer. Also: /display is a real 404, and a bare /client with no ?id= shows a 'No location selected' panel instead of silently rendering the shared sites/auto-01 record."
 }
