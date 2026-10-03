@@ -136,34 +136,36 @@ function padValue(n) {
     return (Number.isNaN(v) ? 0 : v).toString().padStart(2, '0');
 }
 
-// Fetch state with local->cloud fallback (mirrors original dual-source logic).
+// Fetch state. On the cloud mirror the request MUST carry the instance id:
+// a bare /api/data resolves to the legacy sites/auto-01 record and would
+// serve one PC's stale queue to every viewer.
 async function afFetchState() {
-    const primary = `${afApiBase()}/api/data`;
-    try {
-        const r = await fetch(primary);
-        if (r.ok) return await r.json();
-    } catch (e) { /* fall through */ }
     if (!afIsLocal()) {
         try {
             const r = await fetch(`/api/data${afCloudQuery()}`);
             if (r.ok) return await r.json();
-        } catch (e) { /* both failed */ }
+        } catch (e) { /* cloud unavailable */ }
+        return null;
     }
+    try {
+        const r = await fetch(`${afApiBase()}/api/data`);
+        if (r.ok) return await r.json();
+    } catch (e) { /* engine unavailable */ }
     return null;
 }
 
 async function afFetchConfig() {
-    const primary = `${afApiBase()}/api/config`;
-    try {
-        const r = await fetch(primary);
-        if (r.ok) return await r.json();
-    } catch (e) { /* fall through */ }
     if (!afIsLocal()) {
         try {
             const r = await fetch(`/api/config${afCloudQuery()}`);
             if (r.ok) return await r.json();
-        } catch (e) { /* both failed */ }
+        } catch (e) { /* cloud unavailable */ }
+        return null;
     }
+    try {
+        const r = await fetch(`${afApiBase()}/api/config`);
+        if (r.ok) return await r.json();
+    } catch (e) { /* engine unavailable */ }
     return null;
 }
 
