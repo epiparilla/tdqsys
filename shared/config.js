@@ -5,8 +5,29 @@ const SCHEMA_VERSION = 2;
 const MAX_TOTAL_CARS = 12;
 const MAX_BRANDS = 2;
 
-// Unique-per-location site id. Fresh installs get one of these so two PCs never
-// collide on the same cloud mirror key; the operator can rename it in Settings.
+// Immutable per-install identity (UUID v4). Mints once on the first-ever boot of
+// an installation and is stored in data.json forever after. This is the REAL
+// cloud key — each installation owns a completely separate mirror under
+// instances/<instanceId>, so two PCs can never collide or overwrite each other,
+// no matter what they name themselves. Reinstalls (fresh data folder) mint a new
+// id; a backup restore carries the old id back so the same mirror link works.
+function newInstanceId() {
+    // Node 18+ and the Cloudflare Workers runtime both expose a global
+    // crypto.randomUUID(); if it is somehow missing, fall back to a UUID-shape
+    // string from Math.random (still unique enough as a cloud key).
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+        const r = Math.floor(Math.random() * 16);
+        const v = ch === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// Unique-per-location site *label*. Purely a friendly name the operator picks
+// for this location; it is NOT used as a cloud key (instanceId is). Duplicates
+// of this label are harmless and never mix data.
 function randomSite() {
     const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
     return `auto-${rnd}`;
@@ -29,6 +50,7 @@ function defaultConfig() {
     const models = defaultModels();
     return {
         schemaVersion: SCHEMA_VERSION,
+        instanceId: newInstanceId(),
         site: randomSite(),
         hostname: "tdqsys.local",
         cloudBase: "https://tdqsys.pages.dev",
@@ -166,11 +188,24 @@ function migrateLegacy(raw) {
     return { config, queues, reannounce: raw.reannounce || null };
 }
 
+// Ensure an existing config carries an instanceId (1.1.8-era data.json/KV has
+// none). Mints one when missing so the cloud key stays stable; returns true if
+// a new one was assigned.
+function ensureInstanceId(config) {
+    if (config && typeof config.instanceId === 'string' && config.instanceId) {
+        if (/^[0-9a-fA-F-]{1,64}$/.test(config.instanceId)) return false;
+    }
+    if (config) config.instanceId = newInstanceId();
+    return !!config;
+}
+
 module.exports = {
     SCHEMA_VERSION,
     MAX_TOTAL_CARS,
     MAX_BRANDS,
+    newInstanceId,
     randomSite,
+    ensureInstanceId,
     defaultConfig,
     defaultModels,
     defaultState,

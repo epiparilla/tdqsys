@@ -1,4 +1,4 @@
-import { defaultState, migrateLegacy } from "../../shared/config.js";
+import { defaultState, migrateLegacy, ensureInstanceId } from "../../shared/config.js";
 
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -16,13 +16,17 @@ export async function onRequest(context) {
         try {
             const reqJson = await context.request.json();
             const url = new URL(context.request.url);
+            // The mirror is keyed by the INSTANCE id (immutable per installation).
+            // Saving under a bare site label is still allowed for legacy payloads,
+            // but every current build posts its own instanceId.
+            const instanceId = (url.searchParams.get("id") || "").toLowerCase();
             const site = (url.searchParams.get("site") || "auto-01").toLowerCase();
-            const key = `${site}/state`;
+            const key = instanceId ? `instances/${instanceId}/state` : `sites/${site}/state`;
 
             let state = reqJson;
 
             // Accept either a full state doc or a queue-only payload.
-            // Queue-only => merge with whatever config is already stored (or defaults).
+            // Queue-only => merge with whatever is already stored (or defaults).
             if (reqJson && !reqJson.queues) {
                 const existing = await context.env.TDQSYS_QUEUE_DATA.get(key, "text");
                 let base = null;
@@ -47,11 +51,17 @@ export async function onRequest(context) {
             const legacy = migrateLegacy(state);
             if (legacy) state = legacy;
 
+            // Pin the instance identity so the stored doc is self-consistent.
+            if (instanceId) {
+                if (!state.config) state.config = {};
+                ensureInstanceId(state.config);
+                state.config.instanceId = instanceId;
+            }
             if (!state.config.site) state.config.site = site;
 
             await context.env.TDQSYS_QUEUE_DATA.put(key, JSON.stringify(state));
 
-            return new Response(JSON.stringify({ success: true }), { headers: CORS_HEADERS });
+            return new Response(JSON.stringify({ success: true, key }), { headers: CORS_HEADERS });
         } catch (err) {
             return new Response(JSON.stringify({ error: "Invalid JSON or KV error" }), {
                 status: 400,

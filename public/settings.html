@@ -180,6 +180,28 @@
         <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the TDQSYS shortcut).</div>
     </div>
 
+    <!-- ============ INSTANCE IDENTITY (read-only, always available) ============ -->
+    <div class="settings-card">
+        <h2>Instance &amp; Mirror Link</h2>
+        <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">This installation's permanent identity. The cloud mirror is keyed by the Instance ID, so this location can never collide with another PC. Copy the link to watch this location on any phone.</p>
+        <div class="field">
+            <label>Instance ID (immutable, cloud key)</label>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <input type="text" id="cfg-instance" readonly style="flex:1; opacity:0.85;" onclick="this.select()">
+                <button type="button" class="btn-ghost settings-btn" style="flex:0 0 auto; padding:0.4rem 1rem;" onclick="copyInstanceId()">&#x1F4CB; Copy</button>
+            </div>
+            <div class="hint">Generated once when this installation was first started. Never changes, never shared between machines. Only a reinstall from scratch (no backup) mints a new one; restoring a backup brings your old id back.</div>
+        </div>
+        <div class="field">
+            <label>Your mirror link (share to watch this location)</label>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <input type="text" id="cfg-mirrorlink" readonly style="flex:1; opacity:0.85;" onclick="this.select()">
+                <button type="button" class="btn-ghost settings-btn" style="flex:0 0 auto; padding:0.4rem 1rem;" onclick="copyMirrorLink()">&#x1F4CB; Copy</button>
+            </div>
+            <div class="hint">Opens the read-only web viewer for THIS location on any phone. Paste it into the viewer's "Instance / mirror link" box, or open it directly.</div>
+        </div>
+    </div>
+
     <!-- ============ SOFTWARE UPDATES ============ -->
     <div class="settings-card">
         <h2>Software Updates</h2>
@@ -266,12 +288,12 @@
         <!-- System Identity -->
         <div class="settings-card">
             <h2>System Identity</h2>
-            <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">Each location is independent. This PC's data lives here and is only <i>mirrored</i> read-only to the cloud (a web viewer can watch this location by its Site ID). Online status never overwrites local data.</p>
+            <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">Each location is independent. This PC's data lives here and is only <i>mirrored</i> read-only to the cloud, keyed by the immutable Instance ID (shown above) - so two machines never collide or overwrite each other, even if they pick the same label. Online status never overwrites local data.</p>
             <div class="field">
-                <label>Site ID <span class="req">*</span></label>
+                <label>Location Label</label>
                 <input type="text" id="cfg-site" placeholder="auto-XXXX" autocomplete="off"
-                       pattern="[A-Za-z0-9._-]{1,64}" title="Letters, numbers, dots, dashes, underscores. Must be unique per location.">
-                <div class="hint">Unique name for this location. Two locations must never share one. Recommended: <code>manual-car-wash</code>, <code>tercer-mil-avenida</code>.</div>
+                       pattern="[A-Za-z0-9._-]{1,64}" title="Letters, numbers, dots, dashes, underscores. Just a friendly name for you.">
+                <div class="hint">A friendly name you choose for this location. It is display-only - duplicates are harmless and never mix data. Recommended: <code>manual-car-wash</code>, <code>tercer-mil-avenida</code>.</div>
             </div>
             <div class="field">
                 <label>Hostname</label>
@@ -337,7 +359,7 @@
   1) Pick brand colors &amp; car models
   2) Choose ad interval &amp; import videos
             </pre>
-            <p style="font-size:0.85rem;">Each location runs its own TDQSYS. A unique <b>Site ID</b> was assigned to this PC so its cloud mirror never mixes with another location's — you can rename it in the "System Identity" card. Everything is offline-first: local data is always master.</p>
+            <p style="font-size:0.85rem;">Each location runs its own TDQSYS. This PC got a permanent <b>Instance ID</b> so its cloud mirror never mixes with another location's — no two machines can ever collide. Give it a friendly label like <code>manual-car-wash</code> in the "System Identity" card. Everything is offline-first: local data is always master.</p>
             <div class="modal-actions">
                 <button class="btn-primary settings-btn" onclick="closeWizard()">Get Started</button>
             </div>
@@ -416,6 +438,7 @@
             }
             stateDoc = data;
             renderStatus();
+            renderIdentity();
             buildBrandEditors();
             hydrateForm();
             runUpdateCheck();
@@ -548,6 +571,16 @@
             document.getElementById('st-cars').textContent = String(total);
             const ads = c.ads || {};
             document.getElementById('st-ads').textContent = ads.enabled ? `${ads.minSec}-${ads.maxSec}s` : 'Off';
+        }
+
+        // The immutable instance identity + mirror link live OUTSIDE the locked
+        // form, so they stay readable and copyable even when settings are locked.
+        function renderIdentity() {
+            const c = stateDoc.config || {};
+            const id = c.instanceId || '';
+            set('cfg-instance', id);
+            const base = (c.cloudBase || '').replace(/\/+$/, '');
+            set('cfg-mirrorlink', id ? `${base}/client.html?id=${id}` : '');
         }
 
         // ---------------------------------------------------------------
@@ -759,13 +792,31 @@
         function set(id, v) { document.getElementById(id).value = v; }
         function escAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
+        function copyInstanceId() {
+            const v = document.getElementById('cfg-instance').value;
+            if (!v) return;
+            navigator.clipboard.writeText(v).catch(() => {});
+            document.getElementById('cfg-instance').select();
+        }
+
+        function copyMirrorLink() {
+            const v = document.getElementById('cfg-mirrorlink').value;
+            if (!v) return;
+            navigator.clipboard.writeText(v).catch(() => {});
+            document.getElementById('cfg-mirrorlink').select();
+        }
+
         function collectConfig() {
             const site = val('cfg-site').trim().replace(/[^A-Za-z0-9._-]/g, '-').replace(/-+/g, '-').slice(0, 64);
             if (!site) {
-                throw new Error('Site ID is required — give this location a unique name.');
+                throw new Error('Location label is required — give this location a friendly name.');
             }
+            // The instance id is the immutable cloud key. Preserve whatever the
+            // current config carries; never regenerate on save.
+            const currentInstanceId = (stateDoc.config && stateDoc.config.instanceId) || '';
             const config = {
                 schemaVersion: 2,
+                instanceId: currentInstanceId,
                 site,
                 hostname: val('cfg-hostname').trim() || 'tdqsys.local',
                 cloudBase: val('cfg-cloudbase').trim().replace(/\/+$/, ''),
@@ -860,6 +911,7 @@
             // Rebuild from saved state
             buildBrandEditors();
             hydrateForm();
+            renderIdentity();
             document.getElementById('import-status').textContent = '';
             document.getElementById('video-file-input').value = '';
         }
@@ -924,6 +976,7 @@
             const ok = await afSaveState(stateDoc);
             stateDoc = await afFetchState();
             renderStatus();
+            renderIdentity();
             buildBrandEditors();
             hydrateForm();
 
@@ -1104,6 +1157,7 @@
                     status.className = 'import-status done';
                     stateDoc = await afFetchState();
                     renderStatus();
+                    renderIdentity();
                     buildBrandEditors();
                     hydrateForm();
                 } else {

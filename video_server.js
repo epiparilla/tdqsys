@@ -2,7 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { defaultState, migrateLegacy } = require('./shared/config');
+const { defaultState, migrateLegacy, ensureInstanceId } = require('./shared/config');
 
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
 // Data location: override from Electron (portable -> beside exe; installed -> %APPDATA%).
@@ -39,11 +39,11 @@ if (fs.existsSync(DATA_FILE)) {
         log("Failed to parse local data.json, starting fresh.");
     }
 } else {
-    // Fresh install: defaultState() assigns a brand-new unique site id so this
-    // location never collides with another PC on the cloud mirror. Persist it
-    // right away so the identity is stable across restarts (data.json is a true
-    // read/write mirror of localData once it exists).
-    log(`Fresh start - new site id "${localData.config.site}" (rename it in Settings for this location).`);
+    // Fresh install: defaultState() assigned a brand-new instanceId + site
+    // label so this location is unique on the cloud mirror from the very first
+    // boot. Persist it right away so the identity is stable across restarts
+    // (data.json is a true read/write mirror of localData once it exists).
+    log(`Fresh start - new instance id "${localData.config.instanceId}" (label "${localData.config.site}").`);
     log("First run uses a generic 1-brand/1-car config; configure it in the wizard.");
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(localData));
@@ -52,14 +52,23 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
+// 1.1.8-era or restored configs may lack an instanceId. Mint one now and persist
+// so the cloud mirror key stays stable from here on.
+if (ensureInstanceId(localData.config)) {
+    log(`Backfilled instance id "${localData.config.instanceId}" for this installation.`);
+    try { fs.writeFileSync(DATA_FILE, JSON.stringify(localData)); } catch (e) { /* best-effort */ }
+}
+
 const HOSTNAME = () => (localData.config && localData.config.hostname) || 'tdqsys.local';
 const CLOUD_BASE = () => (localData.config && localData.config.cloudBase) || '';
-const SITE = () => (localData.config && localData.config.site) || 'auto-01';
+const INSTANCE = () => (localData.config && localData.config.instanceId) || 'none';
 
 // Derived cloud endpoints (empty cloudBase => cloud sync disabled).
+// The mirror is keyed ONLY by instanceId, so two PCs naming themselves the same
+// thing can never mix or overwrite each other's cloud data.
 // Computed per-use so settings saves take effect without a restart.
-const CLOUD_DATA_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/data?site=${SITE()}` : null; };
-const CLOUD_SAVE_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/save?site=${SITE()}` : null; };
+const CLOUD_DATA_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/data?id=${INSTANCE()}` : null; };
+const CLOUD_SAVE_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/save?id=${INSTANCE()}` : null; };
 
 // ---- CONNECTIVITY WATCHDOG ----
 // Under the desktop app the Electron main process owns cloud sync (single
@@ -345,7 +354,7 @@ if (!fs.existsSync(VIDEOS_DIR)) fs.mkdirSync(VIDEOS_DIR);
 
 server.listen(PORT, '0.0.0.0', () => {
     log(`TDQSYS Engine & Offline Hub running on http://localhost:${PORT}`);
-    log(`Hostname: ${HOSTNAME()}   Site: ${SITE()}   CloudBase: ${CLOUD_BASE() || '(disabled)'}`);
+    log(`Hostname: ${HOSTNAME()}   Instance: ${INSTANCE()}   Site(label): ${localData.config.site || 'auto-01'}   CloudBase: ${CLOUD_BASE() || '(disabled)'}`);
 }).on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
         log(`ERROR: Port ${PORT} is already in use!`);

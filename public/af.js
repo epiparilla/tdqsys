@@ -21,23 +21,33 @@ function afApiBase() {
     return afIsLocal() ? `http://${afHostname()}` : '';
 }
 
-// Cloud mirror per site: the web viewer (https://tdqsys.pages.dev/client.html)
-// can watch any location by ?site=NAME or by the saved selection. Local pages
-// ignore this — each PC's engine is already that location's live data.
-function afCloudSite() {
+// Cloud mirror per instance: the web viewer (https://tdqsys.pages.dev/client.html)
+// can watch any location by ?id=<instanceId> or by the saved selection. Local
+// pages ignore this — each PC's engine is already that location's live data.
+// The cloud key is the immutable instanceId, so two machines naming themselves
+// the same thing can never mix or overwrite each other.
+function afInstanceId() {
     try {
-        const qs = new URLSearchParams(window.location.search).get('site');
-        if (qs && /^[A-Za-z0-9._-]{1,64}$/.test(qs)) return qs;
-        const saved = localStorage.getItem('af_site');
-        if (saved && /^[A-Za-z0-9._-]{1,64}$/.test(saved)) return saved;
+        const qs = new URLSearchParams(window.location.search).get('id');
+        if (qs && /^[0-9a-fA-F-]{1,64}$/.test(qs)) return qs.toLowerCase();
+        const saved = localStorage.getItem('af_instance_id');
+        if (saved && /^[0-9a-fA-F-]{1,64}$/.test(saved)) return saved.toLowerCase();
     } catch (e) { /* ignore */ }
-    return 'auto-01';
+    return null;
 }
 
 // Extra query string appended ONLY to cloud-origin calls; the local engine
-// ignores the site parameter since it holds a single location's data.
+// ignores the id parameter since it holds a single location's data. Uses the
+// instance id when known; legacy `?site=` labels still work for older links.
 function afCloudQuery() {
-    return afIsLocal() ? '' : `?site=${encodeURIComponent(afCloudSite())}`;
+    if (afIsLocal()) return '';
+    const id = afInstanceId();
+    if (id) return `?id=${encodeURIComponent(id)}`;
+    try {
+        const site = new URLSearchParams(window.location.search).get('site');
+        if (site && /^[A-Za-z0-9._-]{1,64}$/.test(site)) return `?site=${encodeURIComponent(site)}`;
+    } catch (e) { /* ignore */ }
+    return '?site=auto-01';
 }
 
 // Build a brand section (header + grid) into the given container.
@@ -176,7 +186,6 @@ async function afSaveState(state) {
 // (brands/models/colors), so the dashboard/settings page can prompt and reconcile.
 function afConfigEqual(a, b) {
     const norm = (c) => JSON.stringify({
-        site: c.site || '',
         hostname: c.hostname || '',
         cloudBase: c.cloudBase || '',
         ads: c.ads || null,

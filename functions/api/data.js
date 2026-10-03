@@ -1,4 +1,4 @@
-import { defaultState, migrateLegacy } from "../../shared/config.js";
+import { defaultState, ensureInstanceId } from "../../shared/config.js";
 
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -15,8 +15,11 @@ export async function onRequest(context) {
     if (context.request.method === "GET") {
         try {
             const url = new URL(context.request.url);
+            // The mirror is keyed by the INSTANCE id (immutable per installation).
+            // Legacy/URL fallback: a bare site label keeps older bookmarks working.
+            const instanceId = (url.searchParams.get("id") || "").toLowerCase();
             const site = (url.searchParams.get("site") || "auto-01").toLowerCase();
-            const key = `${site}/state`;
+            const key = instanceId ? `instances/${instanceId}/state` : `sites/${site}/state`;
 
             const data = await context.env.TDQSYS_QUEUE_DATA.get(key, "text");
 
@@ -24,8 +27,9 @@ export async function onRequest(context) {
                 return new Response(data, { headers: CORS_HEADERS });
             }
 
-            // Nothing stored for this site yet: offer a fresh default state.
+            // Nothing stored for this instance yet: offer a fresh default state.
             const fresh = defaultState();
+            fresh.config.instanceId = instanceId || fresh.config.instanceId;
             fresh.config.site = site;
             return new Response(JSON.stringify(fresh), { headers: CORS_HEADERS });
         } catch (err) {

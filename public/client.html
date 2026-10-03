@@ -21,8 +21,8 @@
 <body>
     <div style="display:none;" id="site-picker">
         <div style="text-align:center; padding:12px; background:#111; color:#eee; font-size:0.85rem;">
-            <label for="site-input" style="opacity:0.7; margin-right:0.4rem;">Location</label>
-            <input type="text" id="site-input" style="background:#1a1a2e; color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:5px 10px; width:140px;">
+            <label for="site-input" style="opacity:0.7; margin-right:0.4rem;">Instance / mirror link</label>
+            <input type="text" id="site-input" placeholder="paste ?id=... or instance id" style="background:#1a1a2e; color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:5px 10px; width:260px;">
             <button onclick="selectSite()" style="margin-left:0.4rem; padding:5px 14px; border-radius:6px; border:none; background:#EB0A1E; color:#fff; cursor:pointer;">Watch</button>
         </div>
     </div>
@@ -31,7 +31,7 @@
         <!-- Brand sections rendered from config via af.js -->
     </div>
 
-    <div style="text-align: center; padding: 10px; background: #111; color: #666; font-size: 0.8rem;">
+    <div style="text-align: center; padding: 10px; background: #111; color: #666; font-size: 0.8rem;" id="footer-note">
         Status syncs automatically every 30 seconds
     </div>
 
@@ -41,11 +41,16 @@
         let modelLookup = {};
 
         function selectSite() {
-            const v = document.getElementById('site-input').value.trim();
-            if (!/^[A-Za-z0-9._-]{1,64}$/.test(v)) return;
-            try { localStorage.setItem('af_site', v); } catch (e) {}
-            dataStore = null;
+            let v = document.getElementById('site-input').value.trim();
+            // Accept a full mirror link (https://...client.html?id=uuid) or a bare id.
+            if (v.includes('=')) {
+                try { v = new URL(v).searchParams.get('id') || ''; } catch (e) { v = ''; }
+            }
+            v = String(v).toLowerCase();
+            if (!/^[0-9a-fA-F-]{1,64}$/.test(v)) { alert('That is not a valid TDQSYS instance link.'); return; }
+            try { localStorage.setItem('af_instance_id', v); } catch (e) {}
             document.getElementById('site-input').value = v;
+            dataStore = null;
             pollData(true);
         }
 
@@ -54,7 +59,11 @@
             if (afIsLocal()) return;
             const bar = document.getElementById('site-picker');
             bar.style.display = 'block';
-            document.getElementById('site-input').value = afCloudSite();
+            document.getElementById('site-input').value = afInstanceId() || '';
+            if (!afInstanceId()) {
+                document.getElementById('footer-note').textContent =
+                    'Open a location\u2019s mirror link from TDQSYS \u2192 Settings \u2192 System Identity, or paste an instance id above.';
+            }
         }
 
         function buildDisplay(state) {

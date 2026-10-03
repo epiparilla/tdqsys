@@ -174,8 +174,8 @@ let lastPushedHash = null;
 let lastPushAt = 0;
 const FORCE_PUSH_MS = 15 * 60 * 1000;   // re-push at most ~96x/day, even if unchanged
 
-function pushState(base, site, localData) {
-    const url = `${base}/api/save?site=${encodeURIComponent(site)}`;
+function pushState(base, instanceId, localData) {
+    const url = `${base}/api/save?id=${encodeURIComponent(instanceId)}`;
     const payload = JSON.stringify(localData);
     const u = new URL(url);
     const req = https.request({
@@ -197,12 +197,12 @@ function pushState(base, site, localData) {
 async function cloudSyncTick() {
     if (engineDown()) return;
     try {
-        // Read current local config to know cloud base + site.
+        // Read current local config to know cloud base + instance identity.
         const cfgRes = await fetch(`http://localhost:${PORT}/api/config`);
         const cfg = await cfgRes.json();
         const base = cfg && cfg.cloudBase;
-        const site = cfg && cfg.site;
-        if (!base) return; // offline-only
+        const instanceId = cfg && cfg.instanceId;
+        if (!base || !instanceId) return; // offline-only or identity not ready
 
         const localRes = await fetch(`http://localhost:${PORT}/api/data`);
         const localData = await localRes.json();
@@ -214,7 +214,7 @@ async function cloudSyncTick() {
         // (unless the keep-alive window elapsed).
         if (hash === lastPushedHash && Date.now() - lastPushAt < FORCE_PUSH_MS) return;
 
-        pushState(base, site, localData);
+        pushState(base, instanceId, localData);
     } catch (e) { /* engine/config not ready */ }
 }
 
