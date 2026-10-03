@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tdqsys Queue Hub</title>
+    <title>TDQSYS Queue Hub</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; text-align: center; gap: 1rem;">
@@ -28,18 +28,43 @@
         </a>
     </div>
 
-    <div id="update-pill" style="display:none; margin-top:1rem; padding:0.6rem 1.2rem; border:1px solid #EB0A1E; border-radius:999px; font-size:0.9rem;">
-        &#x2B07; <a href="settings.html" style="color:#fff; text-decoration:underline;">New version available</a>
+    <div id="update-pill" style="display:none; margin-top:1rem; padding:0.6rem 1.2rem; border:1px solid #EB0A1E; border-radius:999px; font-size:0.9rem; cursor:pointer;" onclick="updateNow()">
+        &#x2B07; <span style="color:#fff; text-decoration:underline;">New version available - click to update</span>
     </div>
+    <div id="update-pill-progress" style="display:none; margin-top:0.5rem; font-size:0.8rem; opacity:0.85;"></div>
 
 </body>
 <script>
+    function updateNow() {
+        const prog = document.getElementById('update-pill-progress');
+        if (!prog) return;
+        if (window.afDesktop && window.afDesktop.installUpdate) {
+            prog.style.display = 'block';
+            prog.textContent = 'Downloading update\u2026';
+            window.afDesktop.installUpdate()
+                .then((r) => { prog.textContent = (r && r.ok) ? 'Installing\u2026' : ('Update failed: ' + ((r && r.error) || 'open Settings to retry')); })
+                .catch((e) => { prog.textContent = 'Update failed: ' + e.message; });
+        } else {
+            window.location.href = 'settings.html';
+        }
+    }
+
     // Live update notification bridge (only present inside the desktop app).
     if (window.afDesktop && window.afDesktop.onUpdateAvailable) {
         window.afDesktop.onUpdateAvailable((info) => {
             if (info && info.updateAvailable) {
                 document.getElementById('update-pill').style.display = 'block';
             }
+        });
+    }
+    if (window.afDesktop && window.afDesktop.onUpdateProgress) {
+        window.afDesktop.onUpdateProgress((p) => {
+            const prog = document.getElementById('update-pill-progress');
+            if (!prog) return;
+            prog.style.display = 'block';
+            if (p.state === 'download') prog.textContent = 'Downloading update\u2026 ' + (p.percent != null ? p.percent + '%' : '');
+            else if (p.state === 'installing') prog.textContent = 'Installing\u2026 TDQSYS will restart.';
+            else if (p.state === 'error') prog.textContent = 'Update failed. Open Settings to retry.';
         });
     }
 </script>

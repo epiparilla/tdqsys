@@ -1,4 +1,4 @@
-// tdqsys v2 - Shared config / state schema, rules and helpers.
+// TDQSYS v2 - Shared config / state schema, rules and helpers.
 // Used by: video_server.js (Node), Electron main (Node), Cloudflare Pages functions (bundled).
 
 const SCHEMA_VERSION = 2;

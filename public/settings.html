@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tdqsys System Settings</title>
+    <title>TDQSYS Settings</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body.settings { padding: 1.5rem 2rem; overflow-y: auto; height: 100vh; }
@@ -148,7 +148,7 @@
 <body class="settings">
 
     <header class="settings-header">
-        <h1>tdqsys System Settings</h1>
+        <h1>TDQSYS Settings</h1>
         <div class="header-links">
             <a href="dashboard.html" class="link-button">&larr; Back to Dashboard</a>
             <a href="index.html" class="link-button">Hub</a>
@@ -182,7 +182,7 @@
             <div class="status-item"><strong>Videos on Disk</strong><span id="st-videos">-</span></div>
             <div class="status-item"><strong>Ads</strong><span id="st-ads">-</span></div>
         </div>
-        <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the tdqsys shortcut).</div>
+        <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the TDQSYS shortcut).</div>
     </div>
 
     <!-- ============ SOFTWARE UPDATES ============ -->
@@ -204,8 +204,14 @@
             <div style="font-weight:600; margin-bottom:0.4rem;">&#x2B07; New version available: v<span id="upd-latest-num">-</span></div>
             <div id="upd-notes" style="font-size:0.85rem; opacity:0.85; margin-bottom:0.6rem;"></div>
             <div class="field-row">
-                <button type="button" class="btn-primary settings-btn" id="upd-download-btn" onclick="downloadUpdate()">Download Update</button>
-                <span style="font-size:0.75rem; opacity:0.6; align-self:center;">Opens the download page in your browser.</span>
+                <button type="button" class="btn-primary settings-btn" id="upd-download-btn" onclick="downloadUpdate()">Download &amp; Install Update</button>
+                <span style="font-size:0.75rem; opacity:0.6; align-self:center;">Downloads in the background, installs automatically, then restarts TDQSYS.</span>
+            </div>
+            <div id="upd-progress" class="hidden" style="margin-top:0.6rem;">
+                <div style="height:6px; border-radius:3px; background:rgba(255,255,255,0.15); overflow:hidden; margin-bottom:0.3rem;">
+                    <div id="upd-progress-bar" style="height:100%; width:0%; background:#EB0A1E; transition:width .2s;"></div>
+                </div>
+                <span id="upd-progress-text" style="font-size:0.75rem; opacity:0.85;"></span>
             </div>
         </div>
     </div>
@@ -215,7 +221,7 @@
         <h2>Data Backup &amp; Restore</h2>
         <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">
             Backup saves the current queue state (config + numbers) and all imported
-            videos into a single <b>.zip</b> file. Keep it safe — if tdqsys is ever
+            videos into a single <b>.zip</b> file. Keep it safe — if TDQSYS is ever
             uninstalled, moved, or moved to another PC, Restore brings the queue back
             to exactly how it was.
         </p>
@@ -229,9 +235,9 @@
 
     <!-- ============ UNINSTALL ============ -->
     <div class="settings-card">
-        <h2>Uninstall tdqsys</h2>
+        <h2>Uninstall TDQSYS</h2>
         <p id="uninst-hint" style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">Checking installation type…</p>
-        <button type="button" class="btn-danger settings-btn" id="uninst-btn" onclick="uninstallApp()" disabled>&#x1F5D1;&#xFE0F; Uninstall tdqsys from this PC</button>
+        <button type="button" class="btn-danger settings-btn" id="uninst-btn" onclick="uninstallApp()" disabled>&#x1F5D1;&#xFE0F; Uninstall TDQSYS from this PC</button>
     </div>
 
     <!-- ============ EDIT FORM ============ -->
@@ -283,7 +289,7 @@
     <!-- ============ WIZARD ============ -->
     <div class="modal" id="wizard-modal">
         <div class="modal-box">
-            <h2>Welcome to tdqsys</h2>
+            <h2>Welcome to TDQSYS</h2>
             <p>First-time setup. Let's customize your queue system before the crew starts using it.</p>
             <pre class="wizard-steps">
   1) Pick brand colors &amp; car models
@@ -301,7 +307,7 @@
         <div class="modal-box">
             <h2 id="unlock-title">You are about to edit system settings</h2>
             <p id="unlock-msg">Changing brands, car models, colors, or ad settings affects the entire queue system used on every screen and phone.</p>
-            <p id="unlock-warn" style="display:none; color:#ffd966;">This is a triple-check. Once unlocked, settings are editable until you press "Cancel &amp; Relock". Blocking all other machines from changing anything is intentional: only this machine (the tdqsys shortcut) may reconfigure the system.</p>
+            <p id="unlock-warn" style="display:none; color:#ffd966;">This is a triple-check. Once unlocked, settings are editable until you press "Cancel &amp; Relock". Blocking all other machines from changing anything is intentional: only this machine (the TDQSYS shortcut) may reconfigure the system.</p>
             <input type="text" id="unlock-confirm-input" class="confirm-input" placeholder="Type CONFIRM to unlock" autocomplete="off">
             <div class="modal-actions">
                 <button class="btn-ghost settings-btn" onclick="closeUnlockModal()">Cancel</button>
@@ -360,7 +366,7 @@
             const data = await afFetchState();
             if (!data) {
                 document.getElementById('done-title').textContent = 'Connection error';
-                document.getElementById('done-msg').textContent = 'Could not reach the local machine. Settings require the tdqsys shortcut to be running.';
+                document.getElementById('done-msg').textContent = 'Could not reach the local machine. Settings require the TDQSYS shortcut to be running.';
                 openModal('done-modal');
                 return;
             }
@@ -424,11 +430,60 @@
         }
 
         function downloadUpdate() {
-            if (updateInfo && updateInfo.url && window.afDesktop && window.afDesktop.openExternal) {
-                window.afDesktop.openExternal(updateInfo.url);
-            } else {
-                alert('No download link available for this update.');
+            if (!window.afDesktop || !window.afDesktop.installUpdate) {
+                // No desktop bridge (plain browser or portable): old behaviour.
+                if (updateInfo && updateInfo.url && window.afDesktop && window.afDesktop.openExternal) {
+                    window.afDesktop.openExternal(updateInfo.url);
+                } else if (updateInfo && updateInfo.url) {
+                    window.location.href = updateInfo.url;
+                } else {
+                    alert('No download link available for this update.');
+                }
+                return;
             }
+            const btn = document.getElementById('upd-download-btn');
+            const wrap = document.getElementById('upd-progress');
+            const bar = document.getElementById('upd-progress-bar');
+            const text = document.getElementById('upd-progress-text');
+            btn.disabled = true;
+            btn.textContent = 'Updating\u2026';
+            wrap.classList.remove('hidden');
+            bar.style.width = '0%';
+            text.textContent = 'Downloading update\u2026';
+            window.afDesktop.installUpdate()
+                .then((r) => {
+                    if (r && !r.ok) {
+                        btn.disabled = false;
+                        btn.textContent = 'Retry Update';
+                        text.textContent = 'Update failed: ' + ((r && r.error) || r.reason || 'unknown error');
+                    } else {
+                        text.textContent = 'Installing\u2026 TDQSYS will close and reopen automatically.';
+                    }
+                })
+                .catch((e) => {
+                    btn.disabled = false;
+                    btn.textContent = 'Retry Update';
+                    text.textContent = 'Update failed: ' + e.message;
+                });
+        }
+
+        if (window.afDesktop && window.afDesktop.onUpdateProgress) {
+            window.afDesktop.onUpdateProgress((p) => {
+                const wrap = document.getElementById('upd-progress');
+                const bar = document.getElementById('upd-progress-bar');
+                const text = document.getElementById('upd-progress-text');
+                if (!wrap || !bar || !text) return;
+                wrap.classList.remove('hidden');
+                if (p.state === 'download' && p.percent != null) {
+                    bar.style.width = p.percent + '%';
+                    text.textContent = 'Downloading update\u2026 ' + p.percent + '%';
+                } else if (p.state === 'installing') {
+                    bar.style.width = '100%';
+                    text.textContent = 'Installing\u2026 TDQSYS will close and reopen automatically.';
+                } else if (p.state === 'error') {
+                    text.textContent = 'Update failed: ' + (p.error || 'unknown error');
+                }
+            });
         }
 
         if (window.afDesktop && window.afDesktop.onUpdateAvailable) {
@@ -936,7 +991,7 @@
                 btn.disabled = false;
                 hint.textContent = 'Installed version v' + info.version + '. Uninstall removes the program itself; your data folder (queue + videos) is kept on disk. Use "Backup Data Now" for a guaranteed copy before uninstalling.';
             } else if (info.mode === 'portable') {
-                hint.textContent = 'This is the portable version — there is no uninstaller. Exit tdqsys and delete the portable folder to remove it (that also removes your data).';
+                hint.textContent = 'This is the portable version — there is no uninstaller. Exit TDQSYS and delete the portable folder to remove it (that also removes your data).';
             } else {
                 hint.textContent = 'Development mode: no uninstall handling.';
             }
@@ -1007,7 +1062,7 @@
                     hydrateForm();
                 } else {
                     const msg =
-                        r.reason === 'not-a-backup' ? 'that file is not a valid tdqsys backup (no data.json found).' :
+                        r.reason === 'not-a-backup' ? 'that file is not a valid TDQSYS backup (no data.json found).' :
                         r.reason === 'bad-shape' ? 'the backup file is corrupted (invalid data.json contents).' :
                         r.reason === 'bad-data-json' ? 'the backup file is corrupted (data.json is not valid JSON).' :
                         (r.error || r.reason || 'unknown error');
@@ -1024,8 +1079,8 @@
             const status = document.getElementById('io-status');
             if (!window.afDesktop || !window.afDesktop.uninstallApp) return;
             if (!afIsLocal()) return;
-            if (!confirm('Uninstall tdqsys from this PC?\n\nYour data folder (queue state + videos) is left on disk. Use "Backup Data Now" first so you can restore after reinstalling.')) return;
-            if (!confirm('Last chance: are you sure you want to remove tdqsys from this PC? The app will close now and the Windows uninstaller will open.')) return;
+            if (!confirm('Uninstall TDQSYS from this PC?\n\nYour data folder (queue state + videos) is left on disk. Use "Backup Data Now" first so you can restore after reinstalling.')) return;
+            if (!confirm('Last chance: are you sure you want to remove TDQSYS from this PC? The app will close now and the Windows uninstaller will open.')) return;
             const r = await window.afDesktop.uninstallApp();
             if (r.ok) {
                 status.textContent = 'Uninstaller launched. The app is closing — follow the Windows uninstaller prompts.';

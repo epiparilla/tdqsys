@@ -1,4 +1,4 @@
-// tdqsys v2 - shared frontend helpers. Loaded by dashboard/display/client pages.
+// TDQSYS v2 - shared frontend helpers. Loaded by dashboard/display/client pages.
 // Renders the brand sections + queue cards from the state document
 //   returned by GET /api/data  ->  { config, queues, reannounce }.
 

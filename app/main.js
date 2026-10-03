@@ -1,11 +1,11 @@
-// tdqsys desktop app - main process.
+// TDQSYS desktop app - main process.
 // Responsibilities:
 //  1. Spawn/own the local queue engine (video_server.js) and TTS server (tts_server.py)
 //  2. Open the display window on the correct screen (auto-detect 2nd display)
 //  3. Own cloud sync (single push source) when AF_OWNER_SYNC is passed to the engine
 //  4. Open the settings/dashboard screen on the main (local) monitor
 // Portable mode: data and videos live next to the app (AF_DATA_DIR = __dirname).
-// Installed mode: AF_DATA_DIR = %APPDATA%/tdqsys (set by installer).
+// Installed mode: AF_DATA_DIR = %APPDATA%/TDQSYS (set by the desktop app).
 
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, dialog, shell } = require('electron');
 const { spawn, execSync } = require('child_process');
@@ -21,11 +21,11 @@ const APP_DIR = __dirname;
 // Dev (npx electron .): engine/TTS run from the project root; AF_DATA_DIR unset
 // the engine uses the project root data.json/videos exactly like `node video_server.js`.
 // Installed (NSIS): engine/TTS/site/models live in resources/server/; data + imported
-// videos go to %APPDATA%\tdqsys (AF_DATA_DIR). See assemble-server.ps1.
+// videos go to %APPDATA%\TDQSYS (AF_DATA_DIR). See assemble-server.ps1.
 const IS_INSTALLED = app.isPackaged;
 const RES_SERVER = IS_INSTALLED ? path.join(process.resourcesPath, 'server') : path.join(APP_DIR, '..');
 const BASE_DIR = IS_INSTALLED
-    ? (process.env.AF_DATA_DIR || path.join(app.getPath('appData'), 'tdqsys'))
+    ? (process.env.AF_DATA_DIR || path.join(app.getPath('appData'), 'TDQSYS'))
     : (process.env.AF_DATA_DIR || path.join(APP_DIR, '..'));
 const ENGINE_PATH = IS_INSTALLED
     ? path.join(RES_SERVER, 'video_server.js')
@@ -42,7 +42,7 @@ const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8001;
 // users" -> Program Files (or Program Files (x86)). Its presence also tells
 // "installed" apart from "portable", which extracts to a temp dir and has no
 // uninstaller at all.
-const PRODUCT_NAME = 'tdqsys Queue System';
+const PRODUCT_NAME = 'TDQSYS';
 function findUninstaller() {
     const dirs = [
         path.join(process.env.LOCALAPPDATA || '', 'Programs', PRODUCT_NAME),
@@ -267,6 +267,7 @@ async function checkForUpdates() {
             latest,
             url: (m && m.url) || null,
             notes: (m && m.notes) || null,
+            size: (m && m.size) || null,
             updateAvailable: latest ? compareVersions(latest, current) > 0 : false
         };
     } catch {
@@ -289,6 +290,123 @@ function startCloudSync() {
     cloudSyncTick();
 }
 
+// ---- In-app automatic update ("hot update") ----
+// The update button does NOT open a browser anymore. The app:
+//  1. downloads the NSIS installer to %TEMP% (progress pushed to the caller),
+//  2. verifies its size against the manifest,
+//  3. stops engine/TTS + every child process (nothing survives to block the
+//     file replace, so the NSIS close-check never has to complain),
+//  4. runs the installer silently, hands a detached helper the job of waiting
+//     for it and relaunching the freshly installed exe,
+//  5. quits. From the operator's view it's just "download -> restart on the
+//     new version".
+
+function sendUpdateProgress(win, payload) {
+    if (win && !win.isDestroyed()) win.webContents.send('af:update-progress', payload);
+}
+
+function downloadToFile(url, dest, onProgress) {
+    return new Promise((resolve, reject) => {
+        const u = new URL(url);
+        const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET' }, (res) => {
+            // GitHub release assets 302 to the CDN; follow redirects.
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                res.resume();
+                downloadToFile(res.headers.location, dest, onProgress).then(resolve, reject);
+                return;
+            }
+            if (res.statusCode !== 200) {
+                res.resume();
+                reject(new Error(`download failed (HTTP ${res.statusCode})`));
+                return;
+            }
+            const total = parseInt(res.headers['content-length'] || '0', 10) || 0;
+            const out = fs.createWriteStream(dest);
+            let received = 0;
+            res.on('data', (chunk) => { received += chunk.length; onProgress(received, total); });
+            res.on('error', (e) => { out.destroy(); reject(e); });
+            res.pipe(out);
+            out.on('error', (e) => { res.destroy(); reject(e); });
+            out.on('close', () => resolve({ path: dest, size: received }));
+        });
+        req.on('error', reject);
+        req.end();
+    });
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function applyUpdate(info, win) {
+    log(`applying update to v${info.latest} (${info.url})`);
+    sendUpdateProgress(win, { state: 'download', percent: 0 });
+
+    const dest = path.join(app.getPath('temp'), `TDQSYS-setup-${info.latest}.exe`);
+    try { fs.unlinkSync(dest); } catch { /* first download */ }
+    const result = await downloadToFile(info.url, dest, (received, total) => {
+        const percent = total ? Math.min(99, Math.round(received / total * 100)) : 0;
+        sendUpdateProgress(win, { state: 'download', percent, received, total });
+    });
+    const expected = parseInt(info.size || '0', 10);
+    if (expected && result.size !== expected) {
+        try { fs.unlinkSync(dest); } catch {}
+        throw new Error(`downloaded file is corrupt (${result.size} bytes, expected ${expected})`);
+    }
+    log(`download complete: ${result.size} bytes`);
+
+    // The new exe lands in the same install folder the uninstaller lives in.
+    const installDir = path.dirname(UNINSTALLER_EXE);
+    const newExe = path.join(installDir, `${PRODUCT_NAME}.exe`);
+
+    // Stop every child so the installer can replace files without a struggle.
+    app.isQuitting = true;
+    cleanup();
+    await sleep(1500);
+    killPortHolders([PORT, TTS_PORT]);
+
+    sendUpdateProgress(win, { state: 'installing', percent: 100 });
+
+    // Detached helper that does the install AFTER this process is fully gone:
+    // spawning the NSIS installer while TDQSYS is still alive makes it abort
+    // silently (that's the failure that twice left the app closed, un-installed
+    // and un-restarted).
+    //
+    // spawn(..., { detached: true }) is intentionally NOT used: on this Windows
+    // box a detached PowerShell child exits immediately without executing. So
+    // we write a .ps1 + a one-line .cmd and fire it via `cmd /c start`, which
+    // orphans the PowerShell process so it survives our own exit.
+    const tag = `TDQSYS-update-${info.latest}`;
+    const ps1 = path.join(app.getPath('temp'), `${tag}.ps1`);
+    const cmdFile = path.join(app.getPath('temp'), `${tag}.cmd`);
+    const updateLog = path.join(app.getPath('temp'), `${tag}.log`);
+    try { fs.unlinkSync(updateLog); } catch {}
+    const psContent =
+        `$log = '${updateLog}'; ` +
+        `"start $(Get-Date -Format o)" | Set-Content $log; ` +
+        `$deadline = (Get-Date).AddSeconds(180); $ready = $false; ` +
+        `while ((Get-Date) -lt $deadline) { ` +
+        `  $running = @(Get-Process -Name 'TDQSYS','tts_server' -ErrorAction SilentlyContinue); ` +
+        `  if ($running.Count -eq 0) { $ready = $true; break }; ` +
+        `  Start-Sleep -Milliseconds 400; ` +
+        `}; ` +
+        `"app exited: $ready" | Add-Content $log; ` +
+        `$ins = Start-Process -FilePath '${dest}' -ArgumentList '/S' -Wait -PassThru; ` +
+        `"installer exit: $($ins.ExitCode)" | Add-Content $log; ` +
+        `$launched = Start-Process -FilePath '${newExe}' -PassThru; ` +
+        `"relaunched pid: $($launched.Id)" | Add-Content $log; ` +
+        `Start-Sleep -Seconds 5; ` +
+        `Remove-Item -LiteralPath '${dest}' -Force -ErrorAction SilentlyContinue; ` +
+        `Remove-Item -LiteralPath '${ps1}','${cmdFile}' -Force -ErrorAction SilentlyContinue; ` +
+        `"done $(Get-Date -Format o)" | Add-Content $log`;
+    try { fs.writeFileSync(ps1, psContent, 'utf8'); } catch {}
+    const cmdContent = `@echo off\r\nstart "" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0${path.basename(ps1)}"`;
+    try { fs.writeFileSync(cmdFile, cmdContent, 'utf8'); } catch {}
+
+    const helper = spawn('cmd.exe', ['/c', cmdFile], { detached: false, stdio: 'ignore', windowsHide: true });
+    helper.unref();
+
+    setTimeout(() => app.quit(), 250);
+}
+
 // ---- Firewall automation (best-effort, one-time per install) ----
 // The engine (8081) and TTS (8001) listen on 0.0.0.0 (LAN/phone access), so
 // Windows Firewall pops an "allow access" alert on first bind. The portable
@@ -305,7 +423,7 @@ function firewallMarkerOk() {
 }
 
 function writeFirewallScript() {
-    const script = path.join(app.getPath('temp'), 'tdqsys-firewall.ps1');
+    const script = path.join(app.getPath('temp'), 'TDQSYS-firewall.ps1');
     const esc = (s) => String(s).replace(/'/g, "''");
     const lines = [
         'function Add-Rule($name,$port) {',
@@ -315,8 +433,8 @@ function writeFirewallScript() {
         '  return $LASTEXITCODE',
         '}',
         `$d = '${esc(FW_DONE)}'`,
-        `$ok1 = Add-Rule "tdqsys engine (TCP ${PORT})" ${PORT}`,
-        `$ok2 = Add-Rule "tdqsys tts (TCP ${TTS_PORT})" ${TTS_PORT}`,
+        `$ok1 = Add-Rule "TDQSYS engine (TCP ${PORT})" ${PORT}`,
+        `$ok2 = Add-Rule "TDQSYS tts (TCP ${TTS_PORT})" ${TTS_PORT}`,
         'if ($ok1 -eq 0 -and $ok2 -eq 0) {',
         '  New-Item -ItemType File -Force -Path $d | Out-Null',
         '}',
@@ -489,14 +607,14 @@ app.whenReady().then(() => {
     setTimeout(backgroundUpdateCheck, 15000);
 
     tray = new Tray(path.join(APP_DIR, 'icon.png'));
-    tray.setToolTip('tdqsys Queue System');
+    tray.setToolTip('TDQSYS');
     tray.setContextMenu(Menu.buildFromTemplate([
         { label: 'Open Dashboard', click: () => openDashboardWindow() },
         { label: 'Open TV Display', click: () => openDisplayWindow() },
         { type: 'separator' },
         { label: 'Restart', click: () => restartSystem() },
         { type: 'separator' },
-        { label: 'Quit tdqsys', click: () => { app.isQuitting = true; app.quit(); } }
+        { label: 'Quit TDQSYS', click: () => { app.isQuitting = true; app.quit(); } }
     ]));
 
     app.on('before-quit', () => { app.isQuitting = true; cleanup(); });
@@ -586,9 +704,28 @@ ipcMain.handle('af:chooseVideos', async () => {
 ipcMain.handle('af:dataDir', () => BASE_DIR);
 ipcMain.handle('af:displayMode', (_e, mode) => { displayMode = mode; });
 
-// Software updates: renderer-triggered check + open download URL in browser.
+// Software updates: renderer-triggered check; in-app auto-update (download ->
+// silent install -> restart, no browser). openExternal stays for misc links.
 ipcMain.handle('af:checkUpdates', () => checkForUpdates());
 ipcMain.handle('af:openExternal', (_e, url) => { if (url) shell.openExternal(url); });
+ipcMain.handle('af:installUpdate', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    try {
+        const info = await checkForUpdates();
+        if (!info || !info.updateAvailable || !info.url) return { ok: false, reason: 'no-update' };
+        if (!UNINSTALLER_EXE) {
+            // Portable builds have no fixed install folder to relaunch, so they
+            // keep the old browser-download behaviour.
+            if (info.url) shell.openExternal(info.url);
+            return { ok: false, reason: 'portable' };
+        }
+        await applyUpdate(info, win);
+        return { ok: true };
+    } catch (e) {
+        if (win && !win.isDestroyed()) win.webContents.send('af:update-progress', { state: 'error', error: e.message });
+        return { ok: false, reason: 'error', error: e.message };
+    }
+});
 
 // ---- App info: mode (installed / portable / dev), data dir, uninstaller ----
 ipcMain.handle('af:appInfo', () => {
@@ -633,14 +770,14 @@ ipcMain.handle('af:backupData', async () => {
     try {
         const stamp = new Date().toISOString().slice(0, 10);
         const r = await dialog.showSaveDialog({
-            title: 'Backup tdqsys data',
-            defaultPath: path.join(app.getPath('documents'), `tdqsys-backup-${stamp}.zip`),
-            filters: [{ name: 'tdqsys Backup', extensions: ['zip'] }]
+            title: 'Backup TDQSYS data',
+            defaultPath: path.join(app.getPath('documents'), `TDQSYS-backup-${stamp}.zip`),
+            filters: [{ name: 'TDQSYS Backup', extensions: ['zip'] }]
         });
         if (r.canceled || !r.filePath) return { ok: false, canceled: true };
 
         // Stage a copy of the live data (atomic against the engine's own writes).
-        const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'tdqsys-bak-'));
+        const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'TDQSYS-bak-'));
         try {
             let items = 0;
             fs.mkdirSync(path.join(stage, 'videos'), { recursive: true });
@@ -677,14 +814,14 @@ ipcMain.handle('af:backupData', async () => {
 ipcMain.handle('af:restoreData', async () => {
     try {
         const r = await dialog.showOpenDialog({
-            title: 'Restore tdqsys data from a backup',
+            title: 'Restore TDQSYS data from a backup',
             properties: ['openFile'],
-            filters: [{ name: 'tdqsys Backup', extensions: ['zip'] }]
+            filters: [{ name: 'TDQSYS Backup', extensions: ['zip'] }]
         });
         if (r.canceled || !r.filePaths.length) return { ok: false, canceled: true };
         const zip = r.filePaths[0];
 
-        const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'tdqsys-rst-'));
+        const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'TDQSYS-rst-'));
         const out = await runPowershell(
             `Expand-Archive -LiteralPath ${pshQuote(zip)} -DestinationPath ${pshQuote(stage)} -Force`);
         if (out.code !== 0) {
@@ -748,7 +885,7 @@ ipcMain.handle('af:restoreData', async () => {
 });
 
 // ---- Uninstall: hand off to the NSIS uninstaller, then close the app ----
-// The uninstaller keeps the %APPDATA%\tdqsys data folder by default, so queue
+// The uninstaller keeps the %APPDATA%\TDQSYS data folder by default, so queue
 // state survives; the user is still prompted to make a backup first in the UI.
 ipcMain.handle('af:uninstallApp', () => {
     if (!fs.existsSync(UNINSTALLER_EXE)) return { ok: false, reason: 'no-uninstaller' };

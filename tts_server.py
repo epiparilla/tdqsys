@@ -15,7 +15,7 @@ app = FastAPI()
 
 FROZEN = getattr(sys, "frozen", False)
 
-# Installed build: AF_DATA_DIR = %APPDATA%\tdqsys (set by the desktop app), so
+# Installed build: AF_DATA_DIR = %APPDATA%\TDQSYS (set by the desktop app), so
 # data.json + audio_cache live outside Program Files. Dev: fall back to the
 # script's own folder (project root), matching pre-installer behavior.
 def data_dir():

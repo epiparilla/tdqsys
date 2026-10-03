@@ -1,5 +1,6 @@
 {
-  "version": "1.0.0",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.0.0/tdqsys-setup-1.0.0.exe",
-  "notes": "Initial release."
+  "version": "1.1.7",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.7/tdqsys-setup-1.1.7.exe",
+  "size": 225597988,
+  "notes": "Fixed ad rotation hung after the first video: ads now play back-to-back with fade transitions and a random 10-30s gap between each one (cruise starts, video ends, queue returns)."
 }

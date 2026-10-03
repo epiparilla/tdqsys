@@ -10,7 +10,12 @@ contextBridge.exposeInMainWorld('afDesktop', {
     setDisplayMode: (mode) => ipcRenderer.invoke('af:displayMode', mode),
     // Software updates: check the hosted version.json and compare to app version.
     checkUpdates: () => ipcRenderer.invoke('af:checkUpdates'),
-    // Open a URL in the default browser (used by the download-update button).
+    // Hot update: download the installer in-app, install silently, restart on
+    // the new version (no browser). Progress comes via onUpdateProgress().
+    installUpdate: () => ipcRenderer.invoke('af:installUpdate'),
+    // Subscribe to in-app update progress/state pushed during the install.
+    onUpdateProgress: (cb) => ipcRenderer.on('af:update-progress', (_e, info) => cb(info)),
+    // Open a URL in the default browser (misc external links).
     openExternal: (url) => ipcRenderer.invoke('af:openExternal', url),
     // App metadata: install mode / version / data dir / uninstaller existence.
     appInfo: () => ipcRenderer.invoke('af:appInfo'),

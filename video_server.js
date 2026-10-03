@@ -371,7 +371,7 @@ const server = http.createServer((req, res) => {
 if (!fs.existsSync(VIDEOS_DIR)) fs.mkdirSync(VIDEOS_DIR);
 
 server.listen(PORT, '0.0.0.0', () => {
-    log(`tdqsys Queue Engine & Offline Hub running on http://localhost:${PORT}`);
+    log(`TDQSYS Engine & Offline Hub running on http://localhost:${PORT}`);
     log(`Hostname: ${HOSTNAME()}   Site: ${SITE()}   CloudBase: ${CLOUD_BASE() || '(disabled)'}`);
 }).on('error', (err) => {
     if (err.code === 'EADDRINUSE') {

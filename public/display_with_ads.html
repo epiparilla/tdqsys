@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tdqsys TV Display</title>
+    <title>TDQSYS TV Display</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -215,10 +215,23 @@
         });
 
         // --------- AUTOMATED VIDEO AD ENGINE ---------
+        // State machine: GAP (queue numbers, random wait) -> LOADING (assign src)
+        // -> PLAYING (play) -> GAP -> ... forever.
+        // Single-flight token prevents overlapping load()/play() promises from
+        // aborting each other (the "Autoplay blocked / interrupted by a new
+        // load or pause" cascades that used to leave the element paused forever).
         let adVideos = [];
         let currentAdIndex = 0;
         let adTimer = null;
         let adConfig = { minSec: 120, maxSec: 180, enabled: true };
+        let adState = 'GAP';
+        let adToken = 0;
+        let adCanplayTO = null;
+        let adGapTimer = null;
+        let adStallIv = null;
+        let adLastCt = -1;
+        let adStaleTicks = 0;
+        let adHideTO = null;
 
         async function fetchLocalVideos() {
             try {
@@ -236,37 +249,125 @@
             }
         }
 
+        function clearAdTimers() {
+            if (adCanplayTO) { clearTimeout(adCanplayTO); adCanplayTO = null; }
+            if (adGapTimer) { clearTimeout(adGapTimer); adGapTimer = null; }
+        }
+
+        function stopAdWatchdog() {
+            if (adStallIv) { clearInterval(adStallIv); adStallIv = null; }
+            adLastCt = -1;
+            adStaleTicks = 0;
+        }
+
+        function startAdWatchdog() {
+            stopAdWatchdog();
+            adStallIv = setInterval(() => {
+                if (adState !== 'PLAYING') { adStaleTicks = 0; return; }
+                const v = document.getElementById('ad-video');
+                if (v.ended) return;
+                if (v.paused) adStaleTicks++;
+                else if (v.readyState >= 2) {
+                    const ct = v.currentTime;
+                    adStaleTicks = (Math.abs(ct - adLastCt) < 0.05) ? adStaleTicks + 1 : 0;
+                    adLastCt = ct;
+                }
+                if (adStaleTicks >= 3) {
+                    console.warn("Stall watchdog: playback frozen ~" + (adStaleTicks * 2) + "s. Advancing.");
+                    endAd();
+                }
+            }, 2000);
+        }
+
         function scheduleNextAd() {
             if (adVideos.length === 0) return;
-            const min = Math.max(1, adConfig.minSec) * 1000;
-            const max = Math.max(min, adConfig.maxSec) * 1000;
-            const waitTimeMs = Math.floor(Math.random() * (max - min + 1) + min);
+            clearAdTimers();
+            adState = 'GAP';
+            adToken++;
+            // Both gaps are SECONDS: keep min<=max in seconds, then convert to ms.
+            const minSec = Math.max(1, adConfig.minSec || 1);
+            const maxSec = Math.max(minSec, adConfig.maxSec || minSec);
+            const waitTimeMs = Math.floor(Math.random() * ((maxSec - minSec + 1) * 1000) + minSec * 1000);
             console.log(`Next ad scheduled in ${waitTimeMs / 1000} seconds.`);
-            adTimer = setTimeout(playNextAd, waitTimeMs);
+            const token = adToken;
+            adGapTimer = setTimeout(() => { if (token === adToken) playNextAd(); }, waitTimeMs);
         }
 
         function playNextAd() {
             if (adVideos.length === 0) return;
+            clearAdTimers();
+            const token = ++adToken;
+            adState = 'LOADING';
             const overlay = document.getElementById('video-overlay');
             const player = document.getElementById('ad-video');
+            if (adHideTO) { clearTimeout(adHideTO); adHideTO = null; }
             overlay.style.display = 'block';
-            player.src = adVideos[currentAdIndex];
+            void overlay.offsetWidth;
+            overlay.style.opacity = '1';
+            const url = adVideos[currentAdIndex];
             currentAdIndex = (currentAdIndex + 1) % adVideos.length;
-            player.play().catch(e => {
-                console.error("Autoplay blocked. Skipping ad.", e);
+            try { player.pause(); } catch (e) { }
+            player.removeAttribute('src');
+            player.src = url;
+            console.log("Playing ad: " + url.split('/').pop());
+
+            const onCanplay = () => {
+                if (token !== adToken) return; // superseded by a newer ad
+                clearAdTimers();
+                adState = 'PLAYING';
+                adLastCt = -1;
+                adStaleTicks = 0;
+                startAdWatchdog();
+                const p = player.play();
+                if (p && typeof p.then === 'function') p.catch((e) => {
+                    if (token !== adToken) return; // superseded
+                    if (e && e.name === 'AbortError') {
+                        // A newer load()/pause() superseded this play attempt.
+                        // Benign: advance to the next gap instead of erroring out.
+                        console.warn("play() superseded (AbortError) - benign, moving on.");
+                    } else {
+                        console.error("play() rejected: " + (e && e.message));
+                    }
+                    endAd();
+                });
+            };
+            player.addEventListener('canplay', onCanplay, { once: true });
+
+            adCanplayTO = setTimeout(() => {
+                if (token !== adToken) return;
+                console.warn("canplay timeout for " + url.split('/').pop() + ". Skipping ad.");
+                player.removeEventListener('canplay', onCanplay);
                 endAd();
-            });
+            }, 8000);
         }
 
+        // A file that fails to load/decode must never kill the rotation:
+        // skip it and schedule the next ad. Stray errors in GAP (empty src)
+        // are ignored.
+        document.getElementById('ad-video').onerror = function () {
+            if (adState === 'GAP') return;
+            console.error("Ad video failed to load/decode. Skipping.");
+            endAd();
+        };
+
         document.getElementById('ad-video').onended = function () {
+            if (adState === 'GAP') return;
+            console.log("Ad ended -> gap.");
             endAd();
         };
 
         function endAd() {
             const overlay = document.getElementById('video-overlay');
             const player = document.getElementById('ad-video');
-            player.src = "";
-            overlay.style.display = 'none';
+            stopAdWatchdog();
+            clearAdTimers();
+            const token = ++adToken;
+            adState = 'GAP';
+            try { player.pause(); } catch (e) { }
+            player.removeAttribute('src');
+            overlay.style.opacity = '0';
+            if (adHideTO) clearTimeout(adHideTO);
+            adHideTO = setTimeout(() => { if (token === adToken) overlay.style.display = 'none'; }, 500);
             scheduleNextAd();
         }
 
