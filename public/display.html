@@ -37,6 +37,7 @@
         let dataStore = null;
         let lastLocalUpdate = 0;
         let modelLookup = {}; // brandKey -> [{label, prefix, pronounce}, ...]
+        let lastConfigSignature = ''; // layout fingerprint; drives grid rebuilds
 
         // --------- VOICE SYSTEM LOGIC (unchanged behavior) ---------
         let voiceEnabled = false;
@@ -140,12 +141,26 @@
         }
 
         // --------- BACKEND POLLING ---------
+        // Fingerprint of everything that decides WHICH cards exist. Enabling a
+        // brand or adding/removing cars changes config without changing any
+        // queue number, so polling alone cannot notice it -- the grid has to be
+        // rebuilt when this changes.
+        function configSignature(config) {
+            return (config.brands || []).map(b =>
+                [b.key, b.name, b.color, (b.models || []).map(m => [m.label, m.prefix, m.pronounce].join('~')).join('~')].join('^')
+            ).join('|');
+        }
+
         async function pollData() {
             let data = await afFetchState();
             if (!data) return;
             if (Date.now() - lastLocalUpdate < 3000) return;
 
-            if (!dataStore) {
+            const signature = configSignature(data.config || {});
+
+            // First paint, or Settings changed the layout: rebuild the grid.
+            if (!dataStore || signature !== lastConfigSignature) {
+                lastConfigSignature = signature;
                 buildDisplay(data);
                 dataStore = data;
                 renderAll(data);
@@ -215,6 +230,7 @@
             } else if (event.key === 'queueDataSync') {
                 const data = JSON.parse(event.newValue);
                 if (data && data.config) {
+                    lastConfigSignature = configSignature(data.config);
                     buildDisplay(data);
                     dataStore = data;
                     renderAll(data);
