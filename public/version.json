@@ -1,6 +1,7 @@
 {
-  "version": "1.1.9",
+  "version": "1.1.10",
   "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.9/tdqsys-setup-1.1.9.exe",
   "size": 225601724,
-  "notes": "Collision-proof cloud keys: every installation now gets an immutable Instance ID (a permanent UUID) that the cloud mirror is keyed against, so two PCs can never overwrite each other — even if they use the same location label. The label is now just a friendly display name (rename anytime in Settings > System Identity). Your mirror link is shown in Settings with a Copy button, in the form https://tdqsys.pages.dev/client.html?id=INSTANCE. Existing installs keep their data: your PC's Instance ID is generated automatically on first launch after updating. Backups still carry your id, so a reinstall + restore keeps the same mirror link."
+  "notes": "Collision-proof cloud keys: every installation now gets an immutable Instance ID (a permanent UUID) that the cloud mirror is keyed against, so two PCs can never overwrite each other — even if they use the same location label. The label is now just a friendly display name (rename anytime in Settings > System Identity). Your mirror link is shown in Settings with a Copy button, in the form https://tdqsys.pages.dev/client.html?id=INSTANCE. Existing installs keep their data: your PC's Instance ID is generated automatically on first launch after updating. Backups still carry your id, so a reinstall + restore keeps the same mirror link.",
+  "installerBytes": 225601724
 }
