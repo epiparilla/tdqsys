@@ -10,19 +10,53 @@
 
     <h1 style="margin-bottom: 1rem; font-family: 'Syncopate', sans-serif;">TDQSYS QUEUE SYSTEM</h1>
 
-    <div style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center;">
-        <!-- Only the mobile status viewer is published for now. The dashboard,
-             TV display and display+ads routes are intentionally unlinked; the
-             /display stub forwards here, and the others stay reachable by URL
-             (or from the desktop app).
+    <!--
+        ONE file, TWO audiences. video_server.js serves this same page for the
+        local engine's "/" and main.js opens it in the desktop app, while
+        Cloudflare Pages serves it as the public website. So the local-only
+        links are marked data-hub="local" and removed below when the page is
+        NOT on the local box - the website publishes only the phone viewer,
+        the local hub keeps the full set.
+    -->
+    <div id="hub-links" style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center;">
+        <a data-hub="local" href="dashboard.html" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
+            &#x1F5A5;&#xFE0F; Facilitator Dashboard
+        </a>
 
-             The ?id= is REQUIRED. Without it the viewer has no instance to
-             read and silently falls back to the legacy sites/auto-01 record.
-             Change HUB_INSTANCE_ID when this installation is re-keyed. -->
+        <a data-hub="local" href="display_with_ads.html" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
+            &#x1F4E2; TV Display + Video Ads
+        </a>
+
+        <!-- The ?id= is REQUIRED on the cloud: without it the viewer has no
+             instance to read and refuses to guess a location. Locally it is
+             ignored - the engine is already this location's live data. -->
         <a href="client.html?id=8c8b6714-f300-413f-bf75-e1156662acfb" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
             &#x1F4F1; Mobile Status Viewer
         </a>
     </div>
+
+    <script>
+        // Runs synchronously right after the links are parsed, so the local-only
+        // buttons are gone before the page paints.
+        (function () {
+            var host = window.location.hostname;
+            var local = !host                                   // file:// or app protocol
+                || host === 'localhost'
+                || host === '127.0.0.1'
+                || host === '[::1]'
+                || !!window.afDesktop;                          // inside the desktop app
+            if (!local) {
+                try {
+                    local = host === (localStorage.getItem('af_hostname') || 'tdqsys.local');
+                } catch (e) {
+                    local = host === 'tdqsys.local';
+                }
+            }
+            if (local) return;
+            var extra = document.querySelectorAll('[data-hub="local"]');
+            for (var i = 0; i < extra.length; i++) extra[i].parentNode.removeChild(extra[i]);
+        })();
+    </script>
 
     <div id="update-pill" style="display:none; margin-top:1rem; padding:0.6rem 1.2rem; border:1px solid #EB0A1E; border-radius:999px; font-size:0.9rem; cursor:pointer;" onclick="updateNow()">
         &#x2B07; <span style="color:#fff; text-decoration:underline;">New version available - click to update</span>
