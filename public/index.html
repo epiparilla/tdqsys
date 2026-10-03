@@ -11,18 +11,10 @@
     <h1 style="margin-bottom: 1rem; font-family: 'Syncopate', sans-serif;">TDQSYS QUEUE SYSTEM</h1>
 
     <div style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center;">
-        <a href="dashboard.html" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
-            &#x1F5A5;&#xFE0F; Facilitator Dashboard
-        </a>
-
-        <a href="display_with_ads.html" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
-            &#x1F4E2; TV Display + Video Ads
-        </a>
-
-        <a href="display.html" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
-            &#x1F4FA; TV Display (No Ads)
-        </a>
-
+        <!-- Only the mobile status viewer is published for now. The dashboard,
+             TV display and display+ads routes are intentionally unlinked; the
+             /display stub forwards here, and the others stay reachable by URL
+             (or from the desktop app). -->
         <a href="client.html" target="_blank" class="link-button" style="padding: 1.5rem 2rem; font-size: 1.2rem;">
             &#x1F4F1; Mobile Status Viewer
         </a>
