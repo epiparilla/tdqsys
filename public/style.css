@@ -351,11 +351,6 @@ input[type=number] {
  * RESPONSIVE
  * ------------------------------------- */
 @media (max-width: 768px) {
-    body {
-        overflow-y: auto;
-        height: auto;
-    }
-
     .controls-wrapper {
         flex-direction: column;
     }
@@ -372,50 +367,190 @@ input[type=number] {
     .dashboard-header h1 {
         font-size: 1.5rem;
     }
+}
 
-    /* Display mobile overrides */
+/* -------------------------------------
+ * PHONE DISPLAY
+ * Two cards per row in portrait. Rows run from a 2-row minimum to a
+ * 6-row maximum (--rows, written by buildDisplay). Every row is an equal
+ * slice of the viewport, so the grid fills the screen with no dead space
+ * and never scrolls: past 6 rows the cards simply get shorter, and
+ * --rows-scale shrinks the type to stay legible.
+ * ------------------------------------- */
+@media (max-width: 768px) and (orientation: portrait) {
+    html,
+    body {
+        height: 100%;
+    }
+
+    body {
+        /* Display boards are fixed-size: cards shrink, the page never scrolls. */
+        overflow: hidden;
+        height: 100vh;
+        height: 100dvh;
+    }
+
     .stacked-container {
-        height: auto;
+        height: 100vh;
+        height: 100dvh;
+        width: 100vw;
+        display: flex;
+        flex-direction: column;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        box-sizing: border-box;
     }
 
     .brand-section {
-        flex: none;
-        padding: 1rem;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        flex: var(--flex-grow, 1) 1 auto;
+        min-height: 0;
+        padding: 0.45rem 0.5rem 0.5rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .brand-section::before {
+        height: 3px;
     }
 
     .brand-header {
+        flex: 0 0 auto;
         flex-direction: column;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.15rem;
+        margin-bottom: 0.4rem;
     }
 
     .brand-header h1 {
-        font-size: 1.8rem;
+        font-size: calc(clamp(0.95rem, 4.4vw, 1.5rem) * var(--rows-scale, 1));
+        letter-spacing: 2px;
+        text-shadow: 0px 2px 10px var(--brand-accent);
+    }
+
+    .brand-header p {
+        font-size: calc(clamp(0.55rem, 2.4vw, 0.7rem) * var(--rows-scale, 1));
+        letter-spacing: 1px;
+    }
+
+    .queue-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr));
+        gap: calc(0.5rem * var(--rows-scale, 1));
+        align-content: stretch;
+        justify-content: stretch;
+        flex: 1 1 auto;
+        min-height: 0;
     }
 
     .unit-card {
-        flex: 1 1 calc(50% - 1rem);
-        max-width: calc(50% - 1rem);
+        flex: none;
+        width: auto;
+        max-width: none;
         min-width: 0;
+        min-height: 0;
+        padding: calc(0.35rem * var(--rows-scale, 1));
+        border-radius: 12px;
+        gap: 0.1rem;
     }
 
+    .unit-card::before {
+        height: 3px;
+    }
+
+    /* Long model names wrap to two lines instead of truncating to nothing. */
     .unit-label {
-        font-size: clamp(0.6rem, 2.8vw, 0.9rem);
+        font-size: calc(clamp(0.55rem, 2.5vw, 0.8rem) * var(--rows-scale, 1));
+        letter-spacing: 0.5px;
+        line-height: 1.15;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
     .unit-number {
-        font-size: 2.2rem;
+        font-size: calc(clamp(1.7rem, 8.5vw, 3rem) * var(--rows-scale, 1));
+        text-shadow: 0 0 12px var(--brand-accent);
     }
 
-    .queue-grid {
-        gap: 0.5rem;
+    .unit-number-wrapper {
+        min-height: 0;
+    }
+
+    .prefix {
+        font-size: 0.62em;
+        margin-right: 2px;
+    }
+
+    /* Touch-sized controls instead of the desktop fullscreen affordances. */
+    #fs-prompt {
+        bottom: max(12px, env(safe-area-inset-bottom));
+        right: max(12px, env(safe-area-inset-right));
+        padding: 12px 16px;
+        font-size: 0.85rem;
+    }
+
+    #start-overlay h1 {
+        font-size: clamp(1.5rem, 8vw, 2.2rem);
+        margin-bottom: 0.75rem;
+    }
+
+    #start-overlay p {
+        font-size: clamp(0.9rem, 4vw, 1.1rem);
+        padding: 0 1.5rem;
     }
 }
 
-/* Landscape phone: 3 columns */
-@media (min-width: 600px) and (max-width: 768px) {
+/* Landscape phone: three cards per row, same equal-slice rows. */
+@media (max-width: 1024px) and (orientation: landscape) and (max-height: 600px) {
+    .stacked-container {
+        height: 100vh;
+        height: 100dvh;
+    }
+
+    .brand-section {
+        min-height: 0;
+        padding: 0.35rem 0.5rem;
+    }
+
+    .brand-header {
+        margin-bottom: 0.25rem;
+    }
+
+    .brand-header h1 {
+        font-size: clamp(0.85rem, 2.4vh, 1.15rem);
+        letter-spacing: 2px;
+    }
+
     .queue-grid {
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-rows: repeat(var(--rows-landscape, 2), minmax(0, 1fr));
+        gap: 0.4rem;
+        align-content: stretch;
+        justify-content: stretch;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .unit-card {
+        flex: none;
+        width: auto;
+        max-width: none;
+        min-width: 0;
+        min-height: 0;
+        padding: 0.25rem;
+        border-radius: 10px;
+    }
+
+    .unit-label {
+        font-size: 0.7rem;
+    }
+
+    .unit-number {
+        font-size: 2rem;
     }
 }

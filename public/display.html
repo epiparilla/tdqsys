@@ -84,6 +84,14 @@
                 section.dataset.brandKey = brand.key;
                 section.style.setProperty('--brand-accent', brand.color);
                 section.style.setProperty('--flex-grow', Math.max(1, Math.ceil(brand.models.length / 4)));
+                // Phone layout hints: two cards per row in portrait, three in
+                // landscape. --rows is the real row count so every card fits on
+                // screen; --rows-scale shrinks the type once rows pass 6 so a
+                // crowded brand stays readable instead of scrolling.
+                const modelCount = (brand.models || []).length;
+                section.style.setProperty('--rows', Math.max(1, Math.ceil(modelCount / 2)));
+                section.style.setProperty('--rows-landscape', Math.max(1, Math.ceil(modelCount / 3)));
+                section.style.setProperty('--rows-scale', Math.min(1, 6 / Math.max(2, Math.ceil(modelCount / 2))));
 
                 const header = document.createElement('header');
                 header.className = 'brand-header';
