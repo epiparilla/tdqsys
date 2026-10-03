@@ -19,8 +19,18 @@ export async function onRequest(context) {
             // The mirror is keyed by the INSTANCE id (immutable per installation).
             // Saving under a bare site label is still allowed for legacy payloads,
             // but every current build posts its own instanceId.
-            const instanceId = (url.searchParams.get("id") || "").toLowerCase();
+            const instanceId = (url.searchParams.get("id") || "").trim().toLowerCase();
             const site = (url.searchParams.get("site") || "auto-01").toLowerCase();
+
+            // Never write a key from an unvalidated id: that would scatter
+            // unreachable records and hide the bad id instead of surfacing it.
+            if (instanceId && !/^[0-9a-f-]{1,64}$/.test(instanceId)) {
+                return new Response(JSON.stringify({
+                    error: "Invalid instance id",
+                    detail: "id must be 1-64 hex characters and dashes"
+                }), { status: 400, headers: CORS_HEADERS });
+            }
+
             const key = instanceId ? `instances/${instanceId}/state` : `sites/${site}/state`;
 
             let state = reqJson;
