@@ -1,7 +1,7 @@
 {
   "name": "tdqsys-queue-desktop",
   "productName": "TDQSYS",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "TDQSYS - desktop app (Windows installer build)",
   "main": "main.js",
   "author": "TDQSYS",
@@ -61,5 +61,3 @@
     }
   }
 }
-
-

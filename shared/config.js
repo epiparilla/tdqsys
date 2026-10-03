@@ -5,14 +5,21 @@ const SCHEMA_VERSION = 2;
 const MAX_TOTAL_CARS = 12;
 const MAX_BRANDS = 2;
 
+// Unique-per-location site id. Fresh installs get one of these so two PCs never
+// collide on the same cloud mirror key; the operator can rename it in Settings.
+function randomSite() {
+    const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `auto-${rnd}`;
+}
+
 // Factory defaults for a brand-new installation. The operator configures the
 // real brands/cars through the first-run wizard; until then the system shows a
-// single generic car: Brand 1 is enabled, Brand 2 is disabled (a brand being
-// "disabled" simply means it is absent from config.brands).
+// single generic car on the display so it's obvious nothing is set up yet.
+// Brand 2 is disabled (absent from config.brands) until configured.
 function defaultModels() {
     return {
         brand1: [
-            { label: "Model 1", prefix: "AA", pronounce: "A A" }
+            { label: "Car 1", prefix: "AA", pronounce: "A A" }
         ],
         brand2: []
     };
@@ -22,7 +29,7 @@ function defaultConfig() {
     const models = defaultModels();
     return {
         schemaVersion: SCHEMA_VERSION,
-        site: "auto-01",
+        site: randomSite(),
         hostname: "tdqsys.local",
         cloudBase: "https://tdqsys.pages.dev",
         wizardDone: false,
@@ -163,6 +170,7 @@ module.exports = {
     SCHEMA_VERSION,
     MAX_TOTAL_CARS,
     MAX_BRANDS,
+    randomSite,
     defaultConfig,
     defaultModels,
     defaultState,

@@ -22,23 +22,6 @@
         <!-- Brand sections rendered from config via af.js -->
     </main>
 
-    <!-- RESET ALL BUTTON -->
-    <button id="reset-all-btn" onclick="startResetConfirmation()">
-        Reset All to Zero
-    </button>
-
-    <!-- 2-LEVEL CONFIRMATION MODAL -->
-    <div id="reset-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:99999; justify-content:center; align-items:center;">
-        <div style="background:#1a1a2e; color:white; padding:2rem 2.5rem; border-radius:12px; text-align:center; font-family:Inter,sans-serif; max-width:400px;">
-            <h2 id="reset-modal-title" style="margin:0 0 0.5rem 0;">Are you sure?</h2>
-            <p id="reset-modal-message" style="opacity:0.7; margin:0 0 1.5rem 0;">This will reset all queue values to zero.</p>
-            <div style="display:flex; gap:1rem; justify-content:center;">
-                <button onclick="cancelResetConfirmation()" style="padding:8px 20px; border-radius:6px; border:1px solid rgba(255,255,255,0.3); background:transparent; color:white; cursor:pointer; font-size:0.9rem;">Cancel</button>
-                <button id="reset-modal-confirm-btn" onclick="confirmResetStep()" style="padding:8px 20px; border-radius:6px; border:none; background:#dc2626; color:white; cursor:pointer; font-size:0.9rem;">Confirm</button>
-            </div>
-        </div>
-    </div>
-
     <script src="af.js"></script>
     <script>
         let dataStore = null; // { config, queues, reannounce }
@@ -146,40 +129,6 @@
             saveTimeout = setTimeout(() => {
                 afSaveState(dataStore);
             }, 500);
-        }
-
-        // --------- RESET ALL CONFIRMATION ---------
-        let resetStep = 0;
-
-        function startResetConfirmation() {
-            resetStep = 1;
-            document.getElementById('reset-modal-title').textContent = 'Reset all queue values to zero?';
-            document.getElementById('reset-modal-message').textContent = 'This cannot be undone. All unit counters will be cleared.';
-            document.getElementById('reset-modal-confirm-btn').textContent = 'Yes, continue';
-            document.getElementById('reset-modal-confirm-btn').style.background = '#dc2626';
-            document.getElementById('reset-modal').style.display = 'flex';
-        }
-
-        function confirmResetStep() {
-            if (resetStep === 1) {
-                resetStep = 2;
-                document.getElementById('reset-modal-title').textContent = 'Final confirmation';
-                document.getElementById('reset-modal-message').textContent = 'This will immediately reset every unit to 00. Proceed?';
-                document.getElementById('reset-modal-confirm-btn').textContent = 'Reset everything';
-                document.getElementById('reset-modal-confirm-btn').style.background = '#b91c1c';
-            } else if (resetStep === 2) {
-                Object.keys(dataStore.queues).forEach(brandKey => {
-                    Object.keys(dataStore.queues[brandKey]).forEach(unit => {
-                        setQueue(brandKey, parseInt(unit, 10), 0);
-                    });
-                });
-                cancelResetConfirmation();
-            }
-        }
-
-        function cancelResetConfirmation() {
-            resetStep = 0;
-            document.getElementById('reset-modal').style.display = 'none';
         }
 
         // INIT

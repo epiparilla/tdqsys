@@ -21,6 +21,25 @@ function afApiBase() {
     return afIsLocal() ? `http://${afHostname()}` : '';
 }
 
+// Cloud mirror per site: the web viewer (https://tdqsys.pages.dev/client.html)
+// can watch any location by ?site=NAME or by the saved selection. Local pages
+// ignore this — each PC's engine is already that location's live data.
+function afCloudSite() {
+    try {
+        const qs = new URLSearchParams(window.location.search).get('site');
+        if (qs && /^[A-Za-z0-9._-]{1,64}$/.test(qs)) return qs;
+        const saved = localStorage.getItem('af_site');
+        if (saved && /^[A-Za-z0-9._-]{1,64}$/.test(saved)) return saved;
+    } catch (e) { /* ignore */ }
+    return 'auto-01';
+}
+
+// Extra query string appended ONLY to cloud-origin calls; the local engine
+// ignores the site parameter since it holds a single location's data.
+function afCloudQuery() {
+    return afIsLocal() ? '' : `?site=${encodeURIComponent(afCloudSite())}`;
+}
+
 // Build a brand section (header + grid) into the given container.
 // container: element; brand: config brand object; gridId: base id for the grid.
 function buildBrandSection(container, brand, gridId) {
@@ -116,7 +135,7 @@ async function afFetchState() {
     } catch (e) { /* fall through */ }
     if (!afIsLocal()) {
         try {
-            const r = await fetch('/api/data');
+            const r = await fetch(`/api/data${afCloudQuery()}`);
             if (r.ok) return await r.json();
         } catch (e) { /* both failed */ }
     }
@@ -131,14 +150,16 @@ async function afFetchConfig() {
     } catch (e) { /* fall through */ }
     if (!afIsLocal()) {
         try {
-            const r = await fetch('/api/config');
+            const r = await fetch(`/api/config${afCloudQuery()}`);
             if (r.ok) return await r.json();
         } catch (e) { /* both failed */ }
     }
     return null;
 }
 
-// Persist state: local-first when local, cloud otherwise (best-effort).
+// Persist state. The cloud (https://tdqsys.pages.dev/...) is a READ-ONLY
+// mirror: only the Electron app on the PC pushes to it. Remote viewers must
+// not write, so this is a no-op for cloud-origin pages.
 async function afSaveState(state) {
     if (afIsLocal()) {
         await fetch(`${afApiBase()}/api/save`, {
@@ -146,13 +167,9 @@ async function afSaveState(state) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state)
         }).catch(() => {});
-    } else {
-        await fetch('/api/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(state)
-        }).catch(() => {});
+        return true;
     }
+    return false;
 }
 
 // Config change detection: true if the two configs differ in any user setting

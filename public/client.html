@@ -19,6 +19,14 @@
     </style>
 </head>
 <body>
+    <div style="display:none;" id="site-picker">
+        <div style="text-align:center; padding:12px; background:#111; color:#eee; font-size:0.85rem;">
+            <label for="site-input" style="opacity:0.7; margin-right:0.4rem;">Location</label>
+            <input type="text" id="site-input" style="background:#1a1a2e; color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:5px 10px; width:140px;">
+            <button onclick="selectSite()" style="margin-left:0.4rem; padding:5px 14px; border-radius:6px; border:none; background:#EB0A1E; color:#fff; cursor:pointer;">Watch</button>
+        </div>
+    </div>
+
     <div class="stacked-container" id="brand-sections">
         <!-- Brand sections rendered from config via af.js -->
     </div>
@@ -31,6 +39,23 @@
     <script>
         let dataStore = null;
         let modelLookup = {};
+
+        function selectSite() {
+            const v = document.getElementById('site-input').value.trim();
+            if (!/^[A-Za-z0-9._-]{1,64}$/.test(v)) return;
+            try { localStorage.setItem('af_site', v); } catch (e) {}
+            dataStore = null;
+            document.getElementById('site-input').value = v;
+            pollData(true);
+        }
+
+        function initSitePicker() {
+            // Only the cloud mirror (multi-location viewer) needs the picker.
+            if (afIsLocal()) return;
+            const bar = document.getElementById('site-picker');
+            bar.style.display = 'block';
+            document.getElementById('site-input').value = afCloudSite();
+        }
 
         function buildDisplay(state) {
             const container = document.getElementById('brand-sections');
@@ -133,6 +158,7 @@
             }
         });
 
+        initSitePicker();
         pollData(true);
         setInterval(() => pollData(false), 30000);
     </script>

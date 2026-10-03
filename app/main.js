@@ -742,9 +742,10 @@ ipcMain.handle('af:appInfo', () => {
         dataDir: BASE_DIR,
         uninstaller: UNINSTALLER_EXE,
         firstRun: FIRST_RUN,
-        // TRUE when data.json already existed at launch — i.e. a previous install's
-        // queue state survived on disk and was picked up automatically. Used by the
-        // settings page to tell the operator "your data came back" without a backup.
+        // TRUE when data.json already existed at launch — i.e. a previous
+        // install's data survived on disk. Since uninstall now wipes the data
+        // folder and reinstall starts generic, this is informational only; the
+        // backup file is the single supported way to restore queue state.
         dataRestored: !FIRST_RUN,
         videoCount
     };
@@ -885,8 +886,11 @@ ipcMain.handle('af:restoreData', async () => {
 });
 
 // ---- Uninstall: hand off to the NSIS uninstaller, then close the app ----
-// The uninstaller keeps the %APPDATA%\TDQSYS data folder by default, so queue
-// state survives; the user is still prompted to make a backup first in the UI.
+// The NSIS uninstaller keeps %APPDATA%\TDQSYS untouched by default. Since TDQSYS
+// is per-location data, uninstalling must leave the PC clean: once the uninstall
+// is confirmed (app folder fully removed) we also wipe the local data folder, so
+// a reinstall starts from the generic fresh state. The ONLY way to get queue
+// state back is the backup file, so the UI still prompts for a backup first.
 ipcMain.handle('af:uninstallApp', () => {
     if (!fs.existsSync(UNINSTALLER_EXE)) return { ok: false, reason: 'no-uninstaller' };
     app.isQuitting = true;     // engines/TTS must not resurrect
@@ -895,18 +899,25 @@ ipcMain.handle('af:uninstallApp', () => {
     child.unref();
     // The NSIS uninstaller removes every file but cannot delete its own working
     // directory, so an empty app folder is left behind. Once it exits, sweep the
-    // folder away ONLY if it is empty (never remove a half-uninstalled install).
+    // folder away ONLY if it is empty (never remove a half-uninstalled install),
+    // and only then delete the data folder so a reinstall starts generic.
     try {
         const installDir = path.dirname(process.execPath);
+        const dataDir = BASE_DIR;
         const uninstPid = child.pid;
         const sweepScript =
             `$dir = ${pshQuote(installDir)}; ` +
+            `$data = ${pshQuote(dataDir)}; ` +
             `$unpid = ${uninstPid}; ` +
             `$deadline = (Get-Date).AddSeconds(120); ` +
             `while ((Get-Date) -lt $deadline) { ` +
             `  Start-Sleep -Milliseconds 400; ` +
             `  try { $items = @(Get-ChildItem -LiteralPath $dir -Recurse -Force -ErrorAction Stop) } catch { break }; ` +
-            `  if ($items.Count -eq 0) { Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue; break }; ` +
+            `  if ($items.Count -eq 0) { ` +
+            `    Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue; ` +
+            `    Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction SilentlyContinue; ` +
+            `    break ` +
+            `  }; ` +
             `  if (-not (Get-Process -Id $unpid -ErrorAction SilentlyContinue)) { break } ` +
             `}`;
         const sweep = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', sweepScript],

@@ -1,6 +1,6 @@
 {
-  "version": "1.1.7",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.7/tdqsys-setup-1.1.7.exe",
-  "size": 225597988,
-  "notes": "Fixed ad rotation hung after the first video: ads now play back-to-back with fade transitions and a random 10-30s gap between each one (cruise starts, video ends, queue returns)."
+  "version": "1.1.8",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.8/tdqsys-setup-1.1.8.exe",
+  "size": 225599685,
+  "notes": "Independent multi-location operation: each install/PC is its own location and gets a unique Site ID (rename it in Settings > System Identity). Cloud is now a read-only per-location mirror, never overwrites local data. Reinstall starts fresh with a generic 1-brand/1-car config; the only way to restore data is the backup file, and uninstalling removes the data folder. 'Reset All to Zero' moved from the dashboard into Settings (Danger Zone). Web viewers can watch any location via ?site=NAME."
 }

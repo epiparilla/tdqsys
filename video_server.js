@@ -38,6 +38,18 @@ if (fs.existsSync(DATA_FILE)) {
     } catch (e) {
         log("Failed to parse local data.json, starting fresh.");
     }
+} else {
+    // Fresh install: defaultState() assigns a brand-new unique site id so this
+    // location never collides with another PC on the cloud mirror. Persist it
+    // right away so the identity is stable across restarts (data.json is a true
+    // read/write mirror of localData once it exists).
+    log(`Fresh start - new site id "${localData.config.site}" (rename it in Settings for this location).`);
+    log("First run uses a generic 1-brand/1-car config; configure it in the wizard.");
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(localData));
+    } catch (e) {
+        log("Could not persist fresh data.json: " + e.message);
+    }
 }
 
 const HOSTNAME = () => (localData.config && localData.config.hostname) || 'tdqsys.local';
@@ -48,45 +60,6 @@ const SITE = () => (localData.config && localData.config.site) || 'auto-01';
 // Computed per-use so settings saves take effect without a restart.
 const CLOUD_DATA_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/data?site=${SITE()}` : null; };
 const CLOUD_SAVE_URL = () => { const cb = CLOUD_BASE(); return cb ? `${cb}/api/save?site=${SITE()}` : null; };
-
-// Auto-seed: Pull latest data from Cloudflare on startup if local is empty
-function isDataEmpty(data) {
-    const q = data.queues || {};
-    return Object.values(q).every((brandQueues) => {
-        const vals = Object.values(brandQueues || {});
-        return vals.every(v => v === 0);
-    });
-}
-
-function seedFromCloud() {
-    const url = CLOUD_DATA_URL();
-    if (!url) { log("No cloud base configured — starting locally."); return; }
-    log("Local data is empty — seeding from Cloudflare...");
-    https.get(url, (res) => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
-        res.on('end', () => {
-            try {
-                const cloudData = JSON.parse(body);
-                if (cloudData && cloudData.queues) {
-                    localData = cloudData;
-                    fs.writeFileSync(DATA_FILE, JSON.stringify(localData));
-                    log("Successfully seeded local data from Cloudflare!");
-                }
-            } catch (e) {
-                log("Failed to parse Cloudflare seed response.");
-            }
-        });
-    }).on('error', (err) => {
-        log("Could not reach Cloudflare to seed data (no internet?). Starting with zeros.");
-    });
-}
-
-if (isDataEmpty(localData)) {
-    seedFromCloud();
-} else {
-    log("Local data loaded — skipping cloud seed.");
-}
 
 // ---- CONNECTIVITY WATCHDOG ----
 // Under the desktop app the Electron main process owns cloud sync (single
