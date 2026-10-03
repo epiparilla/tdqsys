@@ -4,21 +4,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TDQSYS TV Display</title>
+    <title>TDQSYS Queue Viewer</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Pull-to-refresh indicator. Lives only on this page; the TV board
+           (display.html) has no markup for it and is unaffected. */
+        html,
+        body {
+            overscroll-behavior: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #ptr {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            background: rgba(10, 10, 10, 0.92);
+            border-bottom: 1px solid var(--brand-accent, #EB0A1E);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transform: translateY(-56px);
+            transition: transform 0.22s ease;
+            z-index: 9000;
+            pointer-events: none;
+        }
+
+        #ptr-arrow {
+            font-size: 1.1rem;
+            line-height: 1;
+            color: var(--brand-accent, #EB0A1E);
+        }
+    </style>
 </head>
 
 <body style="overflow: hidden;">
 
-    <!-- Fallback fullscreen button (auto-hides once fullscreen activates) -->
-    <div id="fs-prompt" onclick="goFullscreen()" style="position:fixed; bottom:20px; right:20px; z-index:99999; background:rgba(0,0,0,0.7); color:white; padding:10px 18px; border-radius:8px; cursor:pointer; font-family:Inter,sans-serif; font-size:0.9rem; border:1px solid rgba(255,255,255,0.3); transition:opacity 0.5s;">
-        ⛶ Click to Fullscreen
-    </div>
-
-    <!-- AUTOPLAY UNLOCK OVERLAY -->
-    <div id="start-overlay" onclick="startDisplay()" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--bg-main); z-index:999999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; font-family:Inter,sans-serif; cursor:pointer; text-align:center;">
-        <h1 style="font-size: 3rem; margin-bottom: 1rem;">TV DISPLAY SYSTEM</h1>
-        <p style="font-size: 1.5rem; opacity: 0.7;">Click anywhere to start the queue and enable video ads.</p>
+    <!-- PULL TO REFRESH INDICATOR -->
+    <div id="ptr">
+        <div id="ptr-arrow">↓</div>
+        <div id="ptr-label">Pull to refresh</div>
     </div>
 
     <!-- FULL SCREEN AD OVERLAY -->
@@ -395,30 +430,76 @@
             scheduleNextAd();
         }
 
-        // --------- FULLSCREEN HELPER ---------
-        function goFullscreen() {
-            const el = document.documentElement;
-            if (el.requestFullscreen) el.requestFullscreen();
-            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        // --------- VIEWER STARTUP ---------
+        // No tap-to-start gate and no fullscreen here: this page is the remote
+        // queue viewer, so it renders the moment data arrives. Voice and video
+        // ads both target localhost (the location's own PC), so they are only
+        // wired up when this page is opened there -- on a phone they would
+        // just error, and the ad overlay has nothing to unlock.
+        function startViewer() {
+            const onLocalBox = afIsLocal();
+            voiceEnabled = onLocalBox;
+            if (onLocalBox) fetchLocalVideos();
         }
 
-        function startDisplay() {
-            document.getElementById('start-overlay').style.display = 'none';
-            voiceEnabled = true;
-            const unlockAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
-            unlockAudio.play().catch(() => {});
-            goFullscreen();
-            fetchLocalVideos();
+        startViewer();
+
+        // -------------------------------------
+        // PULL TO REFRESH
+        // This board is fixed-size and never scrolls, so a downward drag from
+        // anywhere reloads it. The indicator tracks the finger with a
+        // rubber-band curve, arms past PTR_TRIGGER, and snaps back otherwise.
+        // -------------------------------------
+        const PTR_H = 56;      // indicator height, matches the CSS
+        const PTR_MAX = 110;   // furthest the finger drag can pull it
+        const PTR_TRIGGER = 64; // pull distance that arms the reload
+        const ptr = document.getElementById('ptr');
+        const ptrArrow = document.getElementById('ptr-arrow');
+        const ptrLabel = document.getElementById('ptr-label');
+        let ptrStartY = 0;
+        let ptrPull = 0;
+        let ptrActive = false;
+
+        function ptrRender() {
+            ptr.style.transform = `translateY(${ptrPull - PTR_H}px)`;
+            const armed = ptrPull >= PTR_TRIGGER;
+            ptrArrow.style.transform = armed ? 'rotate(180deg)' : 'rotate(0deg)';
+            ptrArrow.style.opacity = String(Math.min(1, 0.4 + (ptrPull / PTR_TRIGGER) * 0.6));
+            ptrLabel.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
         }
 
-        document.addEventListener('fullscreenchange', () => {
-            const btn = document.getElementById('fs-prompt');
-            if (document.fullscreenElement) {
-                btn.style.opacity = '0';
-                btn.style.pointerEvents = 'none';
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            ptrStartY = e.touches[0].clientY;
+            ptrActive = window.scrollY <= 0;
+            ptrPull = 0;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', (e) => {
+            // Pinch-zoom (2 fingers) is left alone; only a single downward
+            // drag is claimed, so the gesture never blocks the page.
+            if (!ptrActive || e.touches.length !== 1) return;
+            const dy = e.touches[0].clientY - ptrStartY;
+            if (dy <= 0) {
+                if (ptrPull !== 0) { ptrPull = 0; ptrRender(); }
+                return;
+            }
+            ptrPull = Math.min(PTR_MAX, dy * 0.5); // rubber-band
+            if (e.cancelable) e.preventDefault();
+            ptrRender();
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => {
+            if (!ptrActive) return;
+            ptrActive = false;
+            if (ptrPull >= PTR_TRIGGER) {
+                ptrLabel.textContent = 'Refreshing';
+                ptr.style.transition = 'transform 0.15s ease';
+                ptr.style.transform = `translateY(${PTR_TRIGGER - PTR_H}px)`;
+                setTimeout(() => location.reload(), 200);
             } else {
-                btn.style.opacity = '1';
-                btn.style.pointerEvents = 'auto';
+                ptrPull = 0;
+                ptrRender();
             }
         });
 
