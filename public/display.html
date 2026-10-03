@@ -5,17 +5,66 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TDQSYS TV Display</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        body { overflow-y: auto; height: auto; }
+        .split-container { flex-direction: column; height: auto; }
+        .stacked-container { height: auto; }
+        .stacked-container .brand-section { min-height: 30vh; border-right: none; }
+        .queue-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .unit-card { padding: 1rem 0.5rem; }
+        .unit-number { font-size: 4rem; }
+        @media (min-width: 600px) {
+            .queue-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
 </head>
 <body>
+    <div style="display:none;" id="site-picker">
+        <div style="text-align:center; padding:12px; background:#111; color:#eee; font-size:0.85rem;">
+            <label for="site-input" style="opacity:0.7; margin-right:0.4rem;">Instance / mirror link</label>
+            <input type="text" id="site-input" placeholder="paste ?id=... or instance id" style="background:#1a1a2e; color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:5px 10px; width:260px;">
+            <button onclick="selectSite()" style="margin-left:0.4rem; padding:5px 14px; border-radius:6px; border:none; background:#EB0A1E; color:#fff; cursor:pointer;">Watch</button>
+        </div>
+    </div>
+
     <div class="stacked-container" id="brand-sections">
         <!-- Brand sections rendered from config via af.js -->
+    </div>
+
+    <div style="text-align: center; padding: 10px; background: #111; color: #666; font-size: 0.8rem;" id="footer-note">
+        Status syncs automatically every 30 seconds
     </div>
 
     <script src="af.js"></script>
     <script>
         let dataStore = null;
-        let lastLocalUpdate = 0;
         let modelLookup = {};
+
+        function selectSite() {
+            let v = document.getElementById('site-input').value.trim();
+            // Accept a full mirror link (https://...client.html?id=uuid) or a bare id.
+            if (v.includes('=')) {
+                try { v = new URL(v).searchParams.get('id') || ''; } catch (e) { v = ''; }
+            }
+            v = String(v).toLowerCase();
+            if (!/^[0-9a-fA-F-]{1,64}$/.test(v)) { alert('That is not a valid TDQSYS instance link.'); return; }
+            try { localStorage.setItem('af_instance_id', v); } catch (e) {}
+            document.getElementById('site-input').value = v;
+            dataStore = null;
+            pollData(true);
+        }
+
+        function initSitePicker() {
+            // Only the cloud mirror (multi-location viewer) needs the picker.
+            if (afIsLocal()) return;
+            const bar = document.getElementById('site-picker');
+            bar.style.display = 'block';
+            document.getElementById('site-input').value = afInstanceId() || '';
+            if (!afInstanceId()) {
+                document.getElementById('footer-note').textContent =
+                    'Open a location\u2019s mirror link from TDQSYS \u2192 Settings \u2192 System Identity, or paste an instance id above.';
+            }
+        }
 
         function buildDisplay(state) {
             const container = document.getElementById('brand-sections');
@@ -28,13 +77,15 @@
                 section.className = 'brand-section';
                 section.dataset.brandKey = brand.key;
                 section.style.setProperty('--brand-accent', brand.color);
-                section.style.setProperty('--flex-grow', Math.max(1, Math.ceil(brand.models.length / 4)));
 
                 const header = document.createElement('header');
                 header.className = 'brand-header';
                 const h1 = document.createElement('h1');
                 h1.textContent = brand.name;
                 header.appendChild(h1);
+                const p = document.createElement('p');
+                p.textContent = 'Test Drive Queue';
+                header.appendChild(p);
                 section.appendChild(header);
 
                 const grid = document.createElement('div');
@@ -50,9 +101,9 @@
                     card.className = 'unit-card';
                     card.id = `card-${brand.key}-${i}`;
                     card.innerHTML = `
-                        <div class="unit-label" style="line-height: 1.2;">${model.label}</div>
+                        <div class="unit-label">${model.label}</div>
                         <div class="unit-number-wrapper">
-                            <div class="unit-number" id="num-${brand.key}-${i}"><span class="prefix">${model.prefix}</span>00</div>
+                            <div class="unit-number" id="num-${brand.key}-${i}">0</div>
                         </div>
                     `;
                     grid.appendChild(card);
@@ -60,28 +111,36 @@
             });
         }
 
-        function setNumber(brandKey, unit, prefix, value) {
-            const el = document.getElementById(`num-${brandKey}-${unit}`);
-            if (!el) return;
-            const formattedVal = String(value).padStart(2, '0');
-            el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
-        }
-
         function renderAll(state) {
             (state.config.brands || []).forEach(brand => {
                 brand.models.forEach((model, idx) => {
                     const i = idx + 1;
-                    const v = (state.queues[brand.key] && state.queues[brand.key][i]) || 0;
-                    setNumber(brand.key, i, model.prefix, v);
+                    const el = document.getElementById(`num-${brand.key}-${i}`);
+                    if (el) {
+                        const v = (state.queues[brand.key] && state.queues[brand.key][i]) || 0;
+                        el.innerText = v;
+                    }
                 });
             });
+        }
+
+        function animateChange(brandKey, unit, newValue) {
+            const el = document.getElementById(`num-${brandKey}-${unit}`);
+            const card = document.getElementById(`card-${brandKey}-${unit}`);
+            if (el && el.innerText != newValue) {
+                el.innerText = newValue;
+                el.classList.remove('animate-pop');
+                card.classList.remove('flash-brand');
+                void el.offsetWidth;
+                void card.offsetWidth;
+                el.classList.add('animate-pop');
+                card.classList.add('flash-brand');
+            }
         }
 
         async function pollData(isInitial = false) {
             const data = await afFetchState();
             if (!data) return;
-            if (Date.now() - lastLocalUpdate < 3000 && !isInitial) return;
-
             if (isInitial) {
                 if (!dataStore) buildDisplay(data);
                 dataStore = data;
@@ -92,19 +151,7 @@
                         const i = idx + 1;
                         const v = (data.queues[brand.key] && data.queues[brand.key][i]) || 0;
                         const old = (dataStore.queues[brand.key] && dataStore.queues[brand.key][i]) || 0;
-                        if (old !== v) {
-                            const el = document.getElementById(`num-${brand.key}-${i}`);
-                            const card = document.getElementById(`card-${brand.key}-${i}`);
-                            if (el && el.textContent != model.prefix + String(v).padStart(2, '0')) {
-                                setNumber(brand.key, i, model.prefix, v);
-                                el.classList.remove('animate-pop');
-                                card.classList.remove('flash-brand');
-                                void el.offsetWidth;
-                                void card.offsetWidth;
-                                el.classList.add('animate-pop');
-                                card.classList.add('flash-brand');
-                            }
-                        }
+                        if (old !== v) animateChange(brand.key, i, v);
                     });
                 });
                 dataStore = data;
@@ -114,32 +161,15 @@
         window.addEventListener('storage', (event) => {
             if (event.key === 'queueUpdate') {
                 const msg = JSON.parse(event.newValue);
-                lastLocalUpdate = Date.now();
-                const prefix = (modelLookup[msg.brand] && modelLookup[msg.brand][msg.unit-1] && modelLookup[msg.brand][msg.unit-1].prefix) || '';
-                const el = document.getElementById(`num-${msg.brand}-${msg.unit}`);
-                if (el) {
-                    setNumber(msg.brand, msg.unit, prefix, parseInt(msg.val, 10));
-                    el.classList.remove('animate-pop');
-                    const card = document.getElementById(`card-${msg.brand}-${msg.unit}`);
-                    if (card) card.classList.remove('flash-brand');
-                }
+                animateChange(msg.brand, msg.unit, parseInt(msg.val, 10));
                 if (!dataStore.queues[msg.brand]) dataStore.queues[msg.brand] = {};
                 dataStore.queues[msg.brand][msg.unit] = parseInt(msg.val, 10);
-            } else if (event.key === 'queueDataSync') {
-                const data = JSON.parse(event.newValue);
-                if (data && data.config) {
-                    if (!dataStore) buildDisplay(data);
-                    dataStore = data;
-                    renderAll(data);
-                }
             }
         });
 
-        const IS_MOBILE = window.matchMedia('(max-width: 768px)').matches;
-        const POLL_INTERVAL = IS_MOBILE ? 30000 : 2000;
-
+        initSitePicker();
         pollData(true);
-        setInterval(() => pollData(false), POLL_INTERVAL);
+        setInterval(() => pollData(false), 30000);
     </script>
 </body>
 </html>
