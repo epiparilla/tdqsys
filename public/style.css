@@ -376,8 +376,13 @@ input[type=number] {
  * slice of the viewport, so the grid fills the screen with no dead space
  * and never scrolls: past 6 rows the cards simply get shorter, and
  * --rows-scale shrinks the type to stay legible.
+ *
+ * `pointer: coarse` is load-bearing, not decoration. Width alone also
+ * matches the desktop app's 640x400 preview window, which would silently
+ * get the phone layout. Coarse pointer = real touch device, so the TV and
+ * the preview keep the desktop grid.
  * ------------------------------------- */
-@media (max-width: 768px) and (orientation: portrait) {
+@media (max-width: 768px) and (orientation: portrait) and (pointer: coarse) {
     html,
     body {
         height: 100%;
@@ -504,8 +509,9 @@ input[type=number] {
     }
 }
 
-/* Landscape phone: three cards per row, same equal-slice rows. */
-@media (max-width: 1024px) and (orientation: landscape) and (max-height: 600px) {
+/* Landscape phone: three cards per row, same equal-slice rows. Touch only,
+   for the same reason as the portrait block above. */
+@media (max-width: 1024px) and (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
     .stacked-container {
         height: 100vh;
         height: 100dvh;
