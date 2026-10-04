@@ -975,25 +975,56 @@
         // Lock / unlock
         // ---------------------------------------------------------------
         function requestUnlock() {
-            // Triple check: initial warning -> typed confirm -> unlock
-            document.getElementById('unlock-title').textContent = 'You are about to edit system settings';
-            document.getElementById('unlock-msg').textContent = 'Changing brands, car models, colors, or ad settings affects the entire queue system used on every screen and phone.';
-            document.getElementById('unlock-warn').style.display = 'block';
-            document.getElementById('unlock-confirm-input').value = '';
+            const input = document.getElementById('unlock-confirm-input');
             const btn = document.getElementById('unlock-final-btn');
+            if (!input || !btn) return;
+
+            // These are cosmetic. If any lookup throws, the modal must still open
+            // below: previously an early throw left the confirm box on screen with
+            // no handler attached, so it looked disabled and swallowed typing.
+            try {
+                document.getElementById('unlock-title').textContent = 'You are about to edit system settings';
+                document.getElementById('unlock-msg').textContent = 'Changing brands, car models, colors, or ad settings affects the entire queue system used on every screen and phone.';
+                const warn = document.getElementById('unlock-warn');
+                if (warn) warn.style.display = 'block';
+            } catch (e) { /* cosmetic only */ }
+
+            input.value = '';
             btn.disabled = true;
             btn.textContent = 'Unlock Edit Mode';
-            document.getElementById('unlock-confirm-input').oninput = function () {
-                btn.disabled = (this.value.trim().toUpperCase() !== 'CONFIRM');
-            };
-            document.getElementById('unlock-confirm-input').onkeydown = function (e) {
-                if (e.key === 'Enter' && this.value.trim().toUpperCase() === 'CONFIRM') {
+
+            // addEventListener with a stashed reference, rather than oninput=, so
+            // re-entering edit mode can neither drop the handler nor stack
+            // duplicates.
+            if (input._unlockSync) input.removeEventListener('input', input._unlockSync);
+            input._unlockSync = () => { btn.disabled = input.value.trim().toUpperCase() !== 'CONFIRM'; };
+            input.addEventListener('input', input._unlockSync);
+            input.oninput = null;
+
+            if (input._unlockKey) input.removeEventListener('keydown', input._unlockKey);
+            input._unlockKey = (e) => {
+                if (e.key === 'Enter' && input.value.trim().toUpperCase() === 'CONFIRM') {
                     e.preventDefault();
                     doUnlock();
                 }
             };
+            input.addEventListener('keydown', input._unlockKey);
+            input.onkeydown = null;
+
             openModal('unlock-modal');
-            setTimeout(() => document.getElementById('unlock-confirm-input').focus(), 50);
+            focusUnlockInput(0);
+        }
+
+        // focus() is a silent no-op on an element that is not focusable yet, and
+        // the modal only just went from display:none. That failure is invisible
+        // and reads exactly like a disabled input, so retry a few times and
+        // confirm the field actually holds focus before giving up.
+        function focusUnlockInput(attempt) {
+            const input = document.getElementById('unlock-confirm-input');
+            if (!input || attempt > 12) return;
+            input.focus();
+            if (document.activeElement === input) return;
+            setTimeout(() => focusUnlockInput(attempt + 1), 60);
         }
 
         function doUnlock() {
@@ -1016,12 +1047,18 @@
             document.getElementById('unlock-bar').classList.remove('hidden');
             document.getElementById('unlock-bar-bottom').classList.remove('hidden');
             document.getElementById('discard-btn').classList.add('hidden');
-            // Rebuild from saved state
-            buildBrandEditors();
-            hydrateForm();
-            renderIdentity();
-            document.getElementById('import-status').textContent = '';
-            document.getElementById('video-file-input').value = '';
+            // Rebuilding from saved state must not be able to strand the page:
+            // an exception here used to skip the rest and leave a half-relocked
+            // UI behind.
+            try {
+                buildBrandEditors();
+                hydrateForm();
+                renderIdentity();
+                document.getElementById('import-status').textContent = '';
+                document.getElementById('video-file-input').value = '';
+            } catch (e) {
+                console.error('Relock cleanup failed:', e);
+            }
         }
 
         // ---------------------------------------------------------------
@@ -1048,17 +1085,35 @@
             }
 
             const oldConfig = stateDoc.config || {};
-            const configChanged = !afConfigEqual(oldConfig, newConfig);
+            // afConfigEqual deliberately ignores `site`: for cloud sync the
+            // location label is cosmetic and renaming a location should not
+            // count as a structural change. But the label IS editable on this
+            // page, so it has to be compared here -- otherwise renaming a
+            // location reports "No configuration changes detected".
+            const labelChanged =
+                String(oldConfig.site || '').trim() !== String(newConfig.site || '').trim();
+            const structureChanged = !afConfigEqual(oldConfig, newConfig);
 
-            if (!configChanged) {
-                // Only queue data identical config — just save state as-is
+            if (!labelChanged && !structureChanged) {
+                // Nothing changed at all -- only queue data is different.
                 alert('No configuration changes detected.');
                 return;
             }
 
             pendingClearPreserve = newConfig;
-            const brandsChanged = !JSON.stringify((oldConfig.brands||[]).map(b=>b.key))
-                || !JSON.stringify((newConfig.brands||[]).map(b=>b.key));
+
+            // Only ask about queue numbers when the brand/car layout actually
+            // moved. A rename or an ad-interval tweak leaves the queues exactly
+            // as they were, so prompting "keep or clear numbers?" there is
+            // noise -- and the old check below could never be true anyway,
+            // because !JSON.stringify(anything) is always false.
+            const brandsChanged =
+                JSON.stringify(oldConfig.brands || []) !== JSON.stringify(newConfig.brands || []);
+            if (!brandsChanged) {
+                changedAction('keep');
+                return;
+            }
+
             document.getElementById('cc-msg').textContent =
                 'Your brand / car setup changed. What should happen to the current queue numbers?\n\n' +
                 '• Keep Existing Numbers: cars that still exist keep their current count at the same position.\n' +
