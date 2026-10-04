@@ -58,10 +58,22 @@
         })();
     </script>
 
+    <!-- Last-resort escape hatch. Settings is where software updates live, so a
+         hub that hides it can strand someone on an old build with no way out.
+         This one is deliberately NOT data-hub="local" and is never removed. On
+         the website it is simply a small footer link. -->
+    <noscript>
+        <p style="margin-top:1.5rem;"><a href="settings.html" class="link-button">Settings</a></p>
+    </noscript>
+
     <div id="update-pill" style="display:none; margin-top:1rem; padding:0.6rem 1.2rem; border:1px solid #EB0A1E; border-radius:999px; font-size:0.9rem; cursor:pointer;" onclick="updateNow()">
         &#x2B07; <span style="color:#fff; text-decoration:underline;">New version available - click to update</span>
     </div>
     <div id="update-pill-progress" style="display:none; margin-top:0.5rem; font-size:0.8rem; opacity:0.85;"></div>
+
+    <p style="margin-top:1.5rem; font-size:0.8rem; opacity:0.6;">
+        <a href="settings.html" style="color:inherit;">Settings</a>
+    </p>
 
 </body>
 <script>

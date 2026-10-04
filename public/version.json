@@ -1,8 +1,8 @@
 {
-  "version": "1.1.12",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.12/tdqsys-setup-1.1.12.exe",
-  "size": 225608500,
-  "installerBytes": 225608500,
-  "portableBytes": 218973058,
-  "notes": "Restores the full hub in the local app. public/index.html serves two audiences - the local engine (video_server.js serves it for '/') and the desktop app open it directly, while Cloudflare Pages serves the same file as the public website. Trimming the website to just the Mobile Status Viewer had also gutted the local hub. Local-only links are now removed at parse time when the page is not on the local box, so the installed app and LAN show Facilitator Dashboard, TV Display + Video Ads and Mobile Status Viewer, while https://tdqsys.pages.dev/ still shows only the Mobile Status Viewer. Also: /display is a real 404, and a bare /client with no ?id= shows a 'No location selected' panel instead of silently rendering the shared sites/auto-01 record."
+  "version": "1.1.13",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.13/tdqsys-setup-1.1.13.exe",
+  "size": 225608792,
+  "installerBytes": 225608792,
+  "portableBytes": 219068090,
+  "notes": "Software updates are now re-checked while the app runs - the manifest was polled once, 15s after launch, so a version published while TDQSYS was already open went unnoticed until a manual restart. It now re-checks every 30 minutes and still checks on launch. Settings can no longer be stranded: a permanent Settings link now sits at the bottom of the hub and is never removed by the local/website filter, since Settings is where updates live and a hub that hides it can leave you stuck on an old build. Also: full local hub restored (Facilitator Dashboard, TV Display + Video Ads, Mobile Status Viewer) while https://tdqsys.pages.dev/ still publishes only the Mobile Status Viewer; /display is a real 404; a bare /client with no ?id= shows a 'No location selected' panel instead of silently rendering another location's queue."
 }

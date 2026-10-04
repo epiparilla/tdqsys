@@ -170,6 +170,7 @@ function startTTS() {
 // machine doesn't burn KV write operations. A slow keep-alive force-pushes
 // once in a while as a safety net (e.g. cloud-side reset).
 let cloudTimer = null;
+let updatePollTimer = null;         // re-checks the manifest while running
 let lastPushedHash = null;
 let lastPushAt = 0;
 const FORCE_PUSH_MS = 15 * 60 * 1000;   // re-push at most ~96x/day, even if unchanged
@@ -603,8 +604,12 @@ app.whenReady().then(() => {
     setTimeout(() => { if (displayMode === 'auto') openDisplayWindow(); }, 6000); // after engine boots
 
     // Update check: once the engine+config are up, look for a newer build and
-    // push af:update-available to any open window if one exists.
+    // push af:update-available to any open window if one exists. Then keep
+    // re-checking: a version published while the app is already running used
+    // to go unnoticed until the next manual restart, which left people stuck
+    // on an old build wondering why the update pill never appeared.
     setTimeout(backgroundUpdateCheck, 15000);
+    updatePollTimer = setInterval(backgroundUpdateCheck, 30 * 60 * 1000);
 
     tray = new Tray(path.join(APP_DIR, 'icon.png'));
     tray.setToolTip('TDQSYS');
@@ -636,6 +641,7 @@ function restartSystem() {
 
 function cleanup() {
     if (cloudTimer) clearInterval(cloudTimer);
+    if (updatePollTimer) clearInterval(updatePollTimer);
 
     // Item 6 — "absolute shutdown": layered kills so nothing survives a quit.
     // 1) Graceful SIGTERM to both children.
