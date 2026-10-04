@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDQSYS - Queue Viewer</title>
+    <!--
+        /display is retired as a TV board (that content ships as
+        display_with_ads.html, which is what the desktop app opens). This route
+        is kept only as a convenience alias to the queue viewer.
+
+        It deliberately forwards WITHOUT injecting an instance id. An earlier
+        version hard-coded one, which meant this URL silently showed a specific
+        location's queue to anyone who opened it - including on phones. With no
+        ?id= the viewer shows its "No location selected" panel and asks, instead
+        of guessing.
+    -->
+    <meta http-equiv="refresh" content="0; url=client.html">
+    <link rel="canonical" href="client.html">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // Preserve an explicit ?id= if the caller already knows the location.
+        var id = new URLSearchParams(window.location.search).get('id');
+        window.location.replace('client.html' + (id ? '?id=' + encodeURIComponent(id) : ''));
+    </script>
+</head>
+
+<body style="display:flex; justify-content:center; align-items:center; height:100vh; flex-direction:column; text-align:center; gap:1rem;">
+    <h1 style="font-family:'Syncopate',sans-serif; font-size:1.6rem;">TV DISPLAY RETIRED</h1>
+    <p style="opacity:0.7;">Taking you to the queue viewer&hellip;</p>
+    <a href="client.html" class="link-button">Open the queue viewer</a>
+</body>
+
+</html>
