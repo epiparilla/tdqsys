@@ -1,8 +1,8 @@
 {
-  "version": "1.1.13",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.13/tdqsys-setup-1.1.13.exe",
-  "size": 225608792,
-  "installerBytes": 225608792,
-  "portableBytes": 219068090,
-  "notes": "Software updates are now re-checked while the app runs - the manifest was polled once, 15s after launch, so a version published while TDQSYS was already open went unnoticed until a manual restart. It now re-checks every 30 minutes and still checks on launch. Settings can no longer be stranded: a permanent Settings link now sits at the bottom of the hub and is never removed by the local/website filter, since Settings is where updates live and a hub that hides it can leave you stuck on an old build. Also: full local hub restored (Facilitator Dashboard, TV Display + Video Ads, Mobile Status Viewer) while https://tdqsys.pages.dev/ still publishes only the Mobile Status Viewer; /display is a real 404; a bare /client with no ?id= shows a 'No location selected' panel instead of silently rendering another location's queue."
+  "version": "1.1.14",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.14/tdqsys-setup-1.1.14.exe",
+  "size": 225621672,
+  "installerBytes": 225621672,
+  "portableBytes": 218994857,
+  "notes": "New: a QR code for your mirror link in Settings, with Download PNG and Download SVG (print) buttons. It is generated from the mirror-link field itself so it can never drift from the link you share, drawn at integer module scale with the spec's 4-module quiet zone so it stays scannable in print. Also: software updates are now re-checked every 30 minutes while the app runs instead of once at launch; a permanent Settings link on the hub so updates can never be stranded; the full local hub is restored (Facilitator Dashboard, TV Display + Video Ads, Mobile Status Viewer) while the website still publishes only the Mobile Status Viewer; /display is retired and forwards without choosing a location; a bare /client with no ?id= shows a 'No location selected' panel; malformed instance ids return 400; and the queue grid rebuilds when Settings changes the layout."
 }
