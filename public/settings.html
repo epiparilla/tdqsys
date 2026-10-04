@@ -199,6 +199,22 @@
                 <button type="button" class="btn-ghost settings-btn" style="flex:0 0 auto; padding:0.4rem 1rem;" onclick="copyMirrorLink()">&#x1F4CB; Copy</button>
             </div>
             <div class="hint">Opens the read-only web viewer for THIS location on any phone. Paste it into the viewer's "Instance / mirror link" box, or open it directly.</div>
+
+            <!-- Print/share QR. Regenerated from the field above, so it can never
+                 disagree with the link. Canvas is rendered at integer module
+                 scale: fractional cells look fine on screen but blur when
+                 printed, and a blurred QR will not scan. -->
+            <div style="display:flex; gap:1rem; align-items:center; margin-top:0.9rem; flex-wrap:wrap;">
+                <canvas id="mirror-qr-canvas" width="512" height="512" role="img"
+                        aria-label="QR code linking to this location's queue viewer"
+                        style="width:150px; height:150px; background:#fff; border-radius:8px; padding:6px; box-sizing:content-box; flex:0 0 auto; image-rendering:pixelated;"></canvas>
+
+                <div id="mirror-qr-actions" style="display:flex; flex-direction:column; gap:0.4rem; align-items:flex-start;">
+                    <button type="button" class="btn-ghost settings-btn" onclick="downloadMirrorQr('png')">&#x2B07; Download PNG</button>
+                    <button type="button" class="btn-ghost settings-btn" onclick="downloadMirrorQr('svg')">&#x2B07; Download SVG (print)</button>
+                    <div class="hint" style="max-width:22rem;">Scan to open this location's viewer. PNG/SVG are sized for printing on a sign or handout.</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -405,6 +421,8 @@
     </div>
 
     <script src="af.js"></script>
+    <!-- Local, not a CDN: Settings must still work when the internet is down. -->
+    <script src="vendor/qrcode-generator.js"></script>
     <script>
         // ---------------------------------------------------------------
         // State
@@ -581,6 +599,96 @@
             set('cfg-instance', id);
             const base = (c.cloudBase || '').replace(/\/+$/, '');
             set('cfg-mirrorlink', id ? `${base}/client.html?id=${id}` : '');
+            // Keep the QR tied to the link rather than duplicating the value.
+            renderMirrorQr();
+        }
+
+        // ---------------------------------------------------------------
+        // Mirror link QR code
+        // ---------------------------------------------------------------
+        // Drawn straight from whatever is currently in the mirror-link field,
+        // so it cannot drift out of sync with the link people are told to
+        // share. Errors are swallowed: a QR failure must never take Settings
+        // down with it.
+        let mirrorQrObj = null;
+
+        function renderMirrorQr() {
+            const field = document.getElementById('cfg-mirrorlink');
+            const canvas = document.getElementById('mirror-qr-canvas');
+            const actions = document.getElementById('mirror-qr-actions');
+            if (!field || !canvas || typeof qrcode !== 'function') return;
+
+            const link = (field.value || '').trim();
+            if (!link) {
+                mirrorQrObj = null;
+                canvas.hidden = true;
+                if (actions) actions.hidden = true;
+                return;
+            }
+
+            try {
+                // Type 0 lets the library pick the smallest version that fits.
+                const qr = qrcode(0, 'M');
+                qr.addData(link);
+                qr.make();
+                mirrorQrObj = qr;
+
+                const count = qr.getModuleCount();
+                const quiet = 4;                       // spec-mandated quiet zone
+                const total = count + quiet * 2;
+                const cell = Math.max(2, Math.floor(1024 / total)); // integer = crisp
+                const size = cell * total;
+
+                canvas.width = size;
+                canvas.height = size;
+                canvas.hidden = false;
+
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, size, size);
+                ctx.fillStyle = '#000000';
+                for (let r = 0; r < count; r++) {
+                    for (let c = 0; c < count; c++) {
+                        if (qr.isDark(r, c)) {
+                            ctx.fillRect((c + quiet) * cell, (r + quiet) * cell, cell, cell);
+                        }
+                    }
+                }
+                if (actions) actions.hidden = false;
+            } catch (err) {
+                mirrorQrObj = null;
+                canvas.hidden = true;
+                if (actions) actions.hidden = true;
+                console.error('Could not build mirror link QR:', err);
+            }
+        }
+
+        function downloadMirrorQr(format) {
+            const field = document.getElementById('cfg-mirrorlink');
+            if (!mirrorQrObj || !field) return;
+
+            const id = (field.value.match(/id=([0-9a-f-]+)/i) || [])[1] || 'location';
+            const name = `tdqsys-queue-${id.slice(0, 8)}`;
+            let href = null;
+            let mime = null;
+
+            if (format === 'svg') {
+                // Vector output: stays sharp at any print size.
+                href = 'data:image/svg+xml;charset=utf-8,' +
+                    encodeURIComponent(mirrorQrObj.createSvgTag(8, 4));
+                mime = 'svg';
+            } else {
+                const canvas = document.getElementById('mirror-qr-canvas');
+                href = canvas.toDataURL('image/png');
+                mime = 'png';
+            }
+
+            const a = document.createElement('a');
+            a.href = href;
+            a.download = `${name}.${mime}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
 
         // ---------------------------------------------------------------
