@@ -35,8 +35,12 @@ Do three things with that output:
 2. Back the private key up to **two separate physical places**. Not the cloud,
    not a synced folder. A USB stick in a different building is the bar.
 
-3. Print it and store the printout with your paperwork. Encrypted backups that
-   you have never restored from are not a backup.
+3. Print the **private key file** and store the printout with your paperwork.
+   Encrypted backups that you have never restored from are not a backup.
+
+`keygen` prints the *public* key — that is the block you paste into
+`license.js`. Printing it is not a backup of anything. The private key is only
+ever written to `~/.tdqsys/private.pem`; open that file to print it.
 
 `keygen` refuses to overwrite an existing key. Losing the key is not something
 the tool can undo for you.

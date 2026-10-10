@@ -103,12 +103,18 @@ function cmdKeygen(args) {
   try { fs.chmodSync(PRIVATE_PATH, 0o600); } catch (e) { /* Windows ignores POSIX modes */ }
 
   console.log('\n  TDQSYS licence key generated.\n');
-  console.log('  PRIVATE KEY (never leaves this machine, never gets committed):');
+  console.log('  PRIVATE KEY');
   console.log(`    ${PRIVATE_PATH}\n`);
-  console.log('  BACK IT UP NOW, IN TWO SEPARATE PHYSICAL PLACES, AND PRINT IT.\n');
-  console.log('  If you lose it, no customer can ever be licensed again - the apps');
-  console.log('  already shipped carry only the public half.\n');
-  console.log('  Paste this public key into license.js, replacing the empty');
+  console.log('  The PEM printed at the bottom of this screen is the PUBLIC key. It');
+  console.log('  goes in the app. Printing it is NOT a backup - anyone holding it can');
+  console.log('  read your licences, but nobody holding it can issue new ones.');
+  console.log('\n  What you must back up is the PRIVATE KEY FILE above. Open it, print');
+  console.log('  it, and store two copies in two separate physical places, plus one');
+  console.log('  printed copy with your paperwork.');
+  console.log('\n  If you lose it you can never license anyone again: every app already');
+  console.log('  shipped carries only the public half, and nothing can make them');
+  console.log('  accept a new key without a rebuild and a reinstall at each site.\n');
+  console.log('  Paste this PUBLIC key into license.js, replacing the empty');
   console.log('  TRUSTED_PUBLIC_KEYS array:\n');
   console.log(pubPem.split('\n').filter(Boolean).map((l) => `    ${l}`).join('\n'));
   console.log('\n  Use the whole PEM above as the `pem` value of a TRUSTED_PUBLIC_KEYS');
