@@ -19,6 +19,26 @@ npx wrangler pages deploy "public" --project-name tdqsys --commit-dirty=true --s
 Deploys are not atomic with git — commit and push **and** deploy; neither
 implies the other.
 
+## Tests
+
+```powershell
+node tests\run.js
+```
+
+Zero dependencies (`node:test` only), so it runs on a clean checkout with no
+`npm install`. The suite boots the real engine against a temp data dir on port
+18081 — it can never touch a live location.
+
+**Run it before publishing anything.** It cannot ship to customers: the
+`build.files` whitelist is `main.js`, `preload.js`, `icon.png` and
+`extraResources` copies only `app/server`.
+
+Current state: 99 passing, 1 skipped (the optional QR end-to-end decode, which
+needs `jsqr`).
+
+Every test maps to a defect that actually occurred. If a change is subtle enough
+to be dangerous, add the test that would have caught it.
+
 ## Build / release
 
 ```powershell

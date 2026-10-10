@@ -128,6 +128,16 @@ function startEngine() {
     });
     engineProcess.stdout.on('data', d => log(`engine: ${d.toString().trim()}`));
     engineProcess.stderr.on('data', d => log(`engine: ${d.toString().trim()}`));
+    // spawn() emits 'error' when the binary cannot be launched at all (missing
+    // file, bad path, permission denied). With no listener that is an unhandled
+    // error event, which takes the whole app down instead of retrying - and
+    // Node emits 'close', not 'exit', in that case, so the handler below would
+    // never get a chance to restart us.
+    engineProcess.on('error', (err) => {
+        log(`engine failed to start: ${err.message}`);
+        if (app.isQuitting) return;
+        setTimeout(startEngine, 2000);
+    });
     engineProcess.on('exit', (code) => {
         if (app.isQuitting) return;   // real quit: never resurrect
         log(`engine exited (${code}). Restarting in 2s...`);
@@ -158,6 +168,12 @@ function startTTS() {
     }
     ttsProcess.stdout.on('data', d => log(`tts: ${d.toString().trim()}`));
     ttsProcess.stderr.on('data', d => log(`tts: ${d.toString().trim()}`));
+    // Same reasoning as the engine: an unhandled 'error' from spawn() kills the
+    // app rather than degrading. Most likely here is dev mode where `python`
+    // may not exist on the PATH.
+    ttsProcess.on('error', (err) => {
+        log(`tts failed to start: ${err.message}`);
+    });
     ttsProcess.on('exit', (code) => {
         log(`tts exited (${code}). Restarting in 3s...`);
         setTimeout(() => { if (!app.isQuitting) startTTS(); }, 3000);
@@ -402,10 +418,21 @@ async function applyUpdate(info, win) {
     const cmdContent = `@echo off\r\nstart "" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0${path.basename(ps1)}"`;
     try { fs.writeFileSync(cmdFile, cmdContent, 'utf8'); } catch {}
 
+    // The helper is cmd.exe: present on Windows, absent everywhere else, and
+    // spawn can also fail on Windows for permission reasons. Without an
+    // 'error' listener that emitted event is unhandled and CRASHES the app.
+    // We also must not quit on the way out if the helper never started, or the
+    // operator loses the running app for an update that is not happening.
+    let helperStarted = false;
     const helper = spawn('cmd.exe', ['/c', cmdFile], { detached: false, stdio: 'ignore', windowsHide: true });
+    helper.on('error', (err) => {
+        log(`update helper failed to start: ${err.message}`);
+        sendUpdateProgress(window, { state: 'error', error: `Could not start the updater: ${err.message}` });
+    });
+    helper.once('spawn', () => { helperStarted = true; });
     helper.unref();
 
-    setTimeout(() => app.quit(), 250);
+    setTimeout(() => { if (helperStarted) app.quit(); }, 250);
 }
 
 // ---- Firewall automation (best-effort, one-time per install) ----
@@ -902,6 +929,10 @@ ipcMain.handle('af:uninstallApp', () => {
     app.isQuitting = true;     // engines/TTS must not resurrect
     cleanup();
     const child = spawn(UNINSTALLER_EXE, [], { detached: true, stdio: 'ignore' });
+    // Without this, a failed launch (permissions, a corrupt uninstaller) is an
+    // unhandled 'error' event - it crashes the app in the middle of an
+    // uninstall, which is the worst possible moment to lose it.
+    child.on('error', (err) => log(`uninstaller failed to start: ${err.message}`));
     child.unref();
     // The NSIS uninstaller removes every file but cannot delete its own working
     // directory, so an empty app folder is left behind. Once it exits, sweep the
@@ -928,6 +959,9 @@ ipcMain.handle('af:uninstallApp', () => {
             `}`;
         const sweep = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', sweepScript],
             { detached: true, stdio: 'ignore', windowsHide: true });
+        // Same reasoning: a failed sweep must not take the app down. The
+        // uninstall itself has already completed at this point.
+        sweep.on('error', (err) => log(`post-uninstall sweep failed to start: ${err.message}`));
         sweep.unref();
     } catch { /* best-effort — uninstall still completed normally */ }
     setTimeout(() => app.quit(), 800);
