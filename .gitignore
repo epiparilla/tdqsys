@@ -44,3 +44,9 @@ tdqsys-portable-*.exe
 lazytech*.png
 # Untracked working notes
 opencode_macos_conversion_task.md
+
+# Never commit key material - the private half stays offline
+*.pem
+*.key
+*.pfx
+*.p12
