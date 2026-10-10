@@ -206,6 +206,8 @@
                       style="width:100%; margin-top:0.8rem; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.82rem;"
                       placeholder="Paste your licence code here (TDQS1....)"></textarea>
             <div style="display:flex; gap:0.6rem; margin-top:0.7rem; flex-wrap:wrap;">
+                <input type="file" id="licence-import" accept=".license,.txt,text/plain" style="display:none;" onchange="importLicenceFile(event)">
+                <button type="button" class="btn-ghost settings-btn" onclick="document.getElementById('licence-import').click()">&#x1F4C1; Import licence file</button>
                 <button type="button" class="btn-primary settings-btn" onclick="activateLicence()">Activate</button>
                 <span id="licence-activate-msg" style="align-self:center; font-size:0.85rem; opacity:0.8;"></span>
             </div>
@@ -381,7 +383,7 @@
                 <label>Reset All to Zero</label>
                 <div class="hint">Clears every unit counter for this location immediately. Only the current machine can do this. This writes straight to local data — use a backup first if you need the old numbers.</div>
             </div>
-            <button type="button" class="btn-danger settings-btn" data-confirm="true" onclick="startReset()">&#x1F91B; Reset All to Zero</button>
+            <button type="button" class="btn-danger settings-btn" data-confirm="true" id="reset-all-btn" onclick="startReset()">&#x1F91B; Reset All to Zero</button>
         </div>
     </div>
 
@@ -537,7 +539,37 @@
 
         function setText(id, v) { document.getElementById(id).textContent = v; }
 
-        function renderLicence(st) {
+        function applyLicenceLocks(st) {
+    if (!st) return;
+
+    // Everything inside the editable form is already inert while locked, but
+    // Reset All to Zero sits outside it in the Danger Zone, so it needs its own
+    // switch. Clearing every counter is a write and must be gated like any
+    // other - otherwise an expired booth could still wipe its own numbers.
+    const resetBtn = document.getElementById('reset-all-btn');
+    if (resetBtn) {
+    resetBtn.disabled = !st.canWrite;
+        resetBtn.style.opacity = st.canWrite ? '' : '0.35';
+        resetBtn.style.cursor = st.canWrite ? '' : 'not-allowed';
+    resetBtn.title = st.canWrite ? ''
+            : 'This licence does not allow changes. Activate a licence to reset.';
+    }
+
+    if (st.canWrite) return;
+
+    if (unlocked) {
+        unlocked = false;
+        document.getElementById('lock-banner').style.display = 'block';
+        document.getElementById('lock-banner').textContent =
+            '🔒 Settings are locked because this licence does not allow changes.';
+        document.getElementById('settings-form').style.opacity = '0.55';
+        document.getElementById('settings-form').style.pointerEvents = 'none';
+        document.getElementById('unlock-bar').classList.remove('hidden');
+        document.getElementById('unlock-bar-bottom').classList.remove('hidden');
+    }
+}
+
+function renderLicence(st) {
             if (!st) return;
             licenceState = st;
 
@@ -568,20 +600,11 @@
                     : (st.detail || '');
             }
 
-            // Re-lock the settings if the licence no longer permits changes.
-            // Update and this Licence card sit outside #settings-form, so
-            // they stay usable - the operator must never be locked out of
-            // their own way out.
-            if (!st.canWrite && unlocked) {
-                unlocked = false;
-                document.getElementById('lock-banner').style.display = 'block';
-                document.getElementById('lock-banner').textContent =
-                    '🔒 Settings are locked because this licence does not allow changes.';
-                document.getElementById('settings-form').style.opacity = '0.55';
-                document.getElementById('settings-form').style.pointerEvents = 'none';
-                document.getElementById('unlock-bar').classList.remove('hidden');
-                document.getElementById('unlock-bar-bottom').classList.remove('hidden');
-            }
+// Re-lock the settings and disable Danger Zone writes if the licence
+            // no longer permits changes. Update and this Licence card sit
+            // outside #settings-form, so they stay usable - the operator must
+            // never be locked out of their own way out.
+        applyLicenceLocks(st);
         }
 
         function escHtml(s) {
@@ -609,6 +632,27 @@
         function licenceActivateMsg(t) {
             const el = document.getElementById('licence-activate-msg');
             if (el) el.textContent = t;
+        }
+
+        async function importLicenceFile(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const code = text.trim();
+                if (!code.startsWith('TDQS1.')) {
+                    licenceActivateMsg('File does not contain a valid TDQSYS licence code.');
+                    return;
+                }
+                const input = document.getElementById('licence-code-input');
+                input.value = code;
+                licenceActivateMsg('Licence loaded. Click Activate to apply.');
+            } catch (e) {
+                licenceActivateMsg('Failed to read file: ' + e.message);
+            } finally {
+                // Reset file input so same file can be re-imported
+                event.target.value = '';
+            }
         }
 
         async function activateLicence() {
@@ -1544,9 +1588,18 @@
         // ---------------------------------------------------------------
         let resetStep = 0;
 
-        function startReset() {
-            if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return; }
-            resetStep = 1;
+function startReset() {
+if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return; }
+    // Clearing every counter is a write, so it is subject to the same licence
+    // gate as the queue. The button is also disabled outright when expired;
+    // this guard covers a stale click and the case where the licence lapses
+    // while the confirm modal is already open.
+    if (licenceState && !licenceState.canWrite) {
+    alert('This licence does not allow changes.\n\n'
+            + 'Resetting every counter cannot be done until you activate a licence.');
+    return;
+    }
+    resetStep = 1;
             document.getElementById('reset-modal-title').textContent = 'Reset all queue values to zero?';
             document.getElementById('reset-modal-message').textContent = 'This cannot be undone. All unit counters for this location will be cleared.';
             document.getElementById('reset-confirm-input').value = '';
