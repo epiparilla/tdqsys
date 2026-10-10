@@ -31,6 +31,23 @@ function writeLicence(engine, code) {
   );
 }
 
+describe('packaging', () => {
+  const assemble = fs.readFileSync(path.join(__dirname, '..', 'app', 'assemble-server.ps1'), 'utf8');
+
+  test('stages license.js and shared/licence.js into the app', () => {
+    // video_server.js requires both. A build missing either throws on startup
+    // and the booth never comes up, which is not a good place to find out.
+    assert.match(assemble, /license\.js'\)\s+\$stage/, 'license.js is not staged');
+    assert.match(assemble, /shared\\licence\.js'\)\s+\(Join-Path \$stage 'shared'\)/,
+      'shared/licence.js is not staged');
+  });
+
+  test('never stages the private key or the owner tooling', () => {
+    assert.ok(!/tools/i.test(assemble), 'the owner tooling must never ship');
+    assert.ok(!/\.pem|private\.key/i.test(assemble), 'no key material may be staged');
+  });
+});
+
 describe('unlicensed engine', () => {
   let engine;
   before(async () => { engine = await startEngine({ licensed: false }); });

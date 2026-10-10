@@ -156,6 +156,10 @@ function unlockEnv({ focusWorks = true, missingTitle = false } = {}) {
   vm.createContext(ctx);
   const code = `
     var unlocked = false;
+    // requestUnlock() refuses to open while the licence does not allow changes.
+    // These tests cover the unlock flow itself, so it starts out licensed.
+    var licenceState = { canWrite: true };
+    var alert = function () { ctx.__alerted = true; };
     function doUnlock() { unlocked = true; }
     function openModal() { ctx.__modalOpened = true; }
     ${extractFunction(html, 'requestUnlock')}
@@ -254,4 +258,38 @@ test('Settings links to itself are never removed by any filter', () => {
   // user on an old build.
   assert.ok(/href="settings\.html"/.test(readPublic('index.html')),
     'the hub no longer offers a route to Settings');
+});
+// --- Licence card -----------------------------------------------------------
+
+test('the licence card sits outside the locked settings form', () => {
+  // An expired licence greys out the settings, but the operator must still be
+  // able to reach renewal. Putting the card inside the form would trap them.
+  const formStart = html.indexOf('<form id="settings-form"');
+  const formEnd = html.indexOf('</form>');
+  const card = html.indexOf('id="licence-card"');
+  assert.ok(card > -1, 'the licence card is missing');
+  assert.ok(card < formStart || card > formEnd, 'the licence card is inside the locked form');
+});
+
+test('the Updates card stays outside the locked settings form', () => {
+  // An expired licence must never block the operator from fixing the problem,
+  // and updates are how a booth gets un-stuck.
+  const formStart = html.indexOf('<form id="settings-form"');
+  const updates = html.indexOf('Software Updates');
+  assert.ok(updates > -1, 'the Updates card is missing');
+  assert.ok(updates < formStart, 'Updates moved inside the locked form');
+});
+
+test('Settings can reach the licence API and paste a code', () => {
+for (const fn of ['fetchLicence', 'renderLicence', 'activateLicence']) {
+    assert.ok(html.includes('function ' + fn + '('), fn + ' is missing');
+  }
+  assert.match(html, /api\/license/, 'Settings never talks to the licence API');
+});
+
+test('an expired licence keeps Edit Mode from opening', () => {
+  // Otherwise the operator walks into a form they can fill in but cannot save,
+  // with no explanation of why.
+  assert.match(html, /function requestUnlock\(\)[\s\S]*?licenceState[\s\S]*?canWrite/,
+    'requestUnlock does not consult the licence');
 });

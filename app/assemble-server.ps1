@@ -7,8 +7,13 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
 Copy-Item (Join-Path $root 'video_server.js')      $stage
+# license.js verifies the signature; shared/licence.js stores the code and
+# decides whether writes are allowed. video_server.js requires both, so a build
+# without them throws on startup and the booth never comes up.
+Copy-Item (Join-Path $root 'license.js')           $stage
 New-Item -ItemType Directory -Path (Join-Path $stage 'shared') -Force | Out-Null
 Copy-Item (Join-Path $root 'shared\config.js')     (Join-Path $stage 'shared')
+Copy-Item (Join-Path $root 'shared\licence.js')    (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'public')               (Join-Path $stage 'public') -Recurse
 Remove-Item (Join-Path $stage 'public\.wrangler') -Recurse -Force -ErrorAction SilentlyContinue
 # downloads/ = installer/portable binaries for the update-check page; they are

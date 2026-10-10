@@ -180,6 +180,38 @@
         <div id="nonlocal-warning" class="lock-banner hidden">Settings are only available on the local machine (the one running the TDQSYS shortcut).</div>
     </div>
 
+    <!-- ============ LICENCE ============
+         Deliberately OUTSIDE #settings-form: an expired licence greys out the
+         settings, but renewal and Updates must stay reachable, or the operator
+         has no way out of the state we put them in. -->
+    <div class="settings-card" id="licence-card">
+        <h2>Licence</h2>
+        <div id="licence-banner" class="lock-banner hidden"></div>
+        <div class="status-grid">
+            <div class="status-item"><strong>Status</strong><span id="lic-state">-</span></div>
+            <div class="status-item"><strong>Licensed to</strong><span id="lic-customer">-</span></div>
+            <div class="status-item"><strong>Valid from</strong><span id="lic-from">-</span></div>
+            <div class="status-item"><strong>Valid until</strong><span id="lic-until">-</span></div>
+        </div>
+        <div id="licence-detail" class="hint" style="margin-top:0.7rem;"></div>
+
+        <details id="licence-activate-wrap" style="margin-top:1rem;">
+            <summary style="cursor:pointer; font-weight:600;">Activate or renew a licence</summary>
+            <p style="opacity:0.6; font-size:0.85rem; margin:0.7rem 0;">
+                Send us this location's Instance ID (shown above). We will send you a licence
+                code to paste here. It is stored on this machine and never needs entering again.
+            </p>
+            <button type="button" class="btn-ghost settings-btn" onclick="copyLicenceRequest()">&#x1F4CB; Copy activation request</button>
+            <textarea id="licence-code-input" rows="3" spellcheck="false"
+                      style="width:100%; margin-top:0.8rem; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.82rem;"
+                      placeholder="Paste your licence code here (TDQS1....)"></textarea>
+            <div style="display:flex; gap:0.6rem; margin-top:0.7rem; flex-wrap:wrap;">
+                <button type="button" class="btn-primary settings-btn" onclick="activateLicence()">Activate</button>
+                <span id="licence-activate-msg" style="align-self:center; font-size:0.85rem; opacity:0.8;"></span>
+            </div>
+        </details>
+    </div>
+
     <!-- ============ INSTANCE IDENTITY (read-only, always available) ============ -->
     <div class="settings-card">
         <h2>Instance &amp; Mirror Link</h2>
@@ -460,12 +492,153 @@
             buildBrandEditors();
             hydrateForm();
             runUpdateCheck();
+
+            // Licence before the wizard: on a fresh install there is no licence
+            // yet, and the operator needs to see activation before configuration.
+            renderLicence(await fetchLicence());
+
+            // A licence can lapse mid-shift, so do not trust the first answer.
+            setInterval(async () => { renderLicence(await fetchLicence()); }, 60000);
             const appInfo = await applyAppInfo();
 
             // First-run wizard: shows on a genuinely fresh install (no previous
             // local data), or whenever the config hasn't declared wizardDone.
             if ((stateDoc.config && stateDoc.config.wizardDone !== true) || (appInfo && appInfo.firstRun)) {
                 openModal('wizard-modal');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Licence
+        // ---------------------------------------------------------------
+        // Tracked separately from `unlocked`: an expired licence re-locks the
+        // settings even if the operator had already entered edit mode, because a
+        // licence can lapse in the middle of a shift.
+        let licenceState = null;
+
+        const LICENCE_TEXT = {
+            valid:           'Licensed',
+            expired:         'Expired',
+            not_yet_active:  'Not active yet',
+            wrong_location:  'Issued to another location',
+            invalid:         'Not valid',
+            no_licence:      'Not activated'
+        };
+
+        async function fetchLicence() {
+            try {
+                const r = await fetch(`${afApiBase()}/api/license`);
+                if (!r.ok) return null;
+                return await r.json();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setText(id, v) { document.getElementById(id).textContent = v; }
+
+        function renderLicence(st) {
+            if (!st) return;
+            licenceState = st;
+
+            setText('lic-state', LICENCE_TEXT[st.state] || st.state);
+            setText('lic-customer', st.customer || '-');
+            setText('lic-from', st.from || '-');
+            setText('lic-until', st.until || '-');
+
+            const el = document.getElementById('lic-state');
+            if (el) el.style.color = st.canWrite ? '#4ade80' : '#f87171';
+
+            const banner = document.getElementById('licence-banner');
+            if (st.canWrite) {
+                banner.classList.add('hidden');
+            } else {
+                banner.classList.remove('hidden');
+                banner.innerHTML = st.state === 'expired'
+                    ? '&#x1F512; This licence expired on <strong>' + escHtml(st.until) + '</strong>. '
+                      + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a renewal.'
+                    : '&#x1F512; This location is not licensed. '
+                      + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a licence.';
+            }
+
+            const detail = document.getElementById('licence-detail');
+            if (detail) {
+                detail.textContent = st.canWrite
+                    ? 'This location is licensed. Nothing to do.'
+                    : (st.detail || '');
+            }
+
+            // Re-lock the settings if the licence no longer permits changes.
+            // Update and this Licence card sit outside #settings-form, so
+            // they stay usable - the operator must never be locked out of
+            // their own way out.
+            if (!st.canWrite && unlocked) {
+                unlocked = false;
+                document.getElementById('lock-banner').style.display = 'block';
+                document.getElementById('lock-banner').textContent =
+                    '🔒 Settings are locked because this licence does not allow changes.';
+                document.getElementById('settings-form').style.opacity = '0.55';
+                document.getElementById('settings-form').style.pointerEvents = 'none';
+                document.getElementById('unlock-bar').classList.remove('hidden');
+                document.getElementById('unlock-bar-bottom').classList.remove('hidden');
+            }
+        }
+
+        function escHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        async function copyLicenceRequest() {
+            const instance = (stateDoc && stateDoc.config && stateDoc.config.instanceId) || '';
+            const site = (stateDoc && stateDoc.config && stateDoc.config.site) || '';
+            const text = [
+                'TDQSYS activation request',
+                '',
+                'Instance ID: ' + instance,
+                'Location label: ' + site
+            ].join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                licenceActivateMsg('Activation details copied. Send them to us to get your code.');
+            } catch (e) {
+                licenceActivateMsg('Copy failed - the Instance ID above can be read out instead.');
+            }
+        }
+
+        function licenceActivateMsg(t) {
+            const el = document.getElementById('licence-activate-msg');
+            if (el) el.textContent = t;
+        }
+
+        async function activateLicence() {
+            const input = document.getElementById('licence-code-input');
+            const code = (input.value || '').trim();
+            if (!code) { licenceActivateMsg('Paste a licence code first.'); return; }
+
+            licenceActivateMsg('Checking…');
+            try {
+                const r = await fetch(`${afApiBase()}/api/license`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const doc = await r.json();
+                const st = doc.status || {};
+
+                if (doc.stored) {
+                    licenceActivateMsg('Licence activated.');
+                    input.value = '';
+                    renderLicence(await fetchLicence());
+                    if (st.canWrite) {
+                        document.getElementById('lock-banner').textContent =
+                            '🔒 Settings are locked and read-only. Use "Enter Edit Mode" to change them.';
+                    }
+                } else {
+                    licenceActivateMsg(st.detail || 'That licence was not accepted.');
+                }
+            } catch (e) {
+                licenceActivateMsg('Could not reach the local machine.');
             }
         }
 
@@ -975,6 +1148,18 @@
         // Lock / unlock
         // ---------------------------------------------------------------
         function requestUnlock() {
+            // An expired or unlicensed booth is read-only. Refuse here rather
+            // than letting the operator in and failing every save with a 403
+            // they cannot see the cause of.
+            if (licenceState && !licenceState.canWrite) {
+                const what = licenceState.state === 'expired'
+                    ? 'This licence expired on ' + (licenceState.until || 'an unknown date') + '.'
+                    : 'This location is not licensed.';
+                alert(what +
+                    '\n\nThe booth still serves cars, but settings cannot be changed until you activate a licence. Use the Licence section above.');
+                return;
+            }
+
             const input = document.getElementById('unlock-confirm-input');
             const btn = document.getElementById('unlock-final-btn');
             if (!input || !btn) return;
