@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { defaultState, migrateLegacy, ensureInstanceId } = require('./shared/config');
+const licence = require('./shared/licence');
 
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
 // Data location: override from Electron (portable -> beside exe; installed -> %APPDATA%).
@@ -129,6 +130,35 @@ if (!OWNER_SYNC) {
     log("Running under desktop app — cloud sync is owned by Electron main.");
 }
 
+// ---------------------------------------------------------------------------
+// Licence gate
+// ---------------------------------------------------------------------------
+
+// Re-read on every request rather than caching: an operator can paste a renewal
+// while the booth is running, and the clock guard has to run on every check.
+function licenceStatus() {
+    return licence.status(INSTANCE(), { dataDir: DATA_DIR });
+}
+
+/**
+ * Refuse a write when the licence does not currently allow one.
+ * Reads are never blocked - an expired booth must keep serving cars.
+ */
+function gateWrite(req, res) {
+    const st = licenceStatus();
+    if (st.canWrite) return true;
+
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+        error: 'Licence does not allow changes.',
+        licenceState: st.state,
+        licenceDetail: st.detail,
+        canWrite: false
+    }));
+    log(`Refused ${req.method} ${req.url} - licence ${st.state}: ${st.detail || 'no detail'}`);
+    return false;
+}
+
 const server = http.createServer((req, res) => {
     // 1. Massive CORS allowance so Cloudflare site can access local files securely
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -167,7 +197,48 @@ const server = http.createServer((req, res) => {
         return res.end(JSON.stringify(localData.config));
     }
 
+    // 3. Licence status. Readable in every state, including expired - Settings
+    // must be able to show why nothing is saving and offer a renewal.
+    if (req.url === '/api/license' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(licenceStatus()));
+    }
+
+    if (req.url === '/api/license' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const incoming = JSON.parse(body || '{}');
+
+                // The operator asks the machine to describe itself so the code
+                // they send us can be checked against the right instance.
+                if (incoming && incoming.describe) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({
+                        instanceId: INSTANCE(),
+                        site: (localData.config && localData.config.site) || null,
+                        status: licenceStatus()
+                    }));
+                }
+
+                const result = licence.activate(incoming.code, INSTANCE());
+                res.writeHead(result.stored ? 200 : 400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({
+                    stored: result.stored,
+                    status: result.stored ? licenceStatus() : result.status
+                }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Could not read that licence code.' }));
+            }
+        });
+        return;
+    }
+
     if (req.url === '/api/save' && req.method === 'POST') {
+        if (!gateWrite(req, res)) return;
+        const previous = localData;
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
         req.on('end', () => {
@@ -176,6 +247,13 @@ const server = http.createServer((req, res) => {
                 if (incoming && incoming.queues && incoming.config) {
                     // Full state doc: keep incoming config too (settings/wizard save)
                     localData = incoming;
+                    // The instance id is minted once and then belongs to this
+                    // installation forever. It is the licence binding AND the
+                    // cloud key, so a caller posting a config without one - or
+                    // with someone else's - must never be allowed to change it.
+                    const mine = (previous && previous.config && previous.config.instanceId)
+                        || localData.config.instanceId;
+                    if (mine) localData.config.instanceId = mine;
                 } else if (incoming && incoming.queues) {
                     // Queue-only save from dashboard: preserve local config + reannounce marker
                     localData.queues = incoming.queues;
@@ -220,6 +298,7 @@ const server = http.createServer((req, res) => {
 
     // 4. Video Import -> Receives a raw video file and saves it into /videos
     if (req.url.startsWith('/api/import') && req.method === 'POST') {
+        if (!gateWrite(req, res)) return;
         const url = new URL(req.url, `http://${req.headers.host}`);
         const name = decodeURIComponent(url.searchParams.get('name') || '');
         if (!name || !/\.(mp4|webm)$/i.test(name)) {
@@ -255,6 +334,7 @@ const server = http.createServer((req, res) => {
 
     // 4.5 Clear Videos -> Deletes every mp4/webm in the videos folder
     if (req.url === '/api/clearVideos' && req.method === 'POST') {
+        if (!gateWrite(req, res)) return;
         fs.readdir(VIDEOS_DIR, (err, files) => {
             if (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
