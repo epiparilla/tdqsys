@@ -1,8 +1,6 @@
 {
-  "version": "1.1.15",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.15/tdqsys-setup-1.1.15.exe",
-  "size": 225622437,
-  "installerBytes": 225622437,
-  "portableBytes": 218826987,
-  "notes": "Fixes: renaming a location no longer reports 'No configuration changes detected' (the change check ignored the location label, which is editable in Settings). The unlock confirm box no longer intermittently ignores typing - the CONFIRM handler is now attached before the cosmetic text updates so it cannot be skipped, and focus retries until it actually takes instead of firing once on a fixed delay. The 'keep or clear numbers?' prompt now appears only when the brand or car layout actually changed; its guard was previously always false. Relocking settings can no longer leave the page half-locked. Also in this build: a QR code for your mirror link in Settings with PNG/SVG download, software updates re-checked every 30 minutes while running, Settings always reachable from the hub, and the full local hub restored."
+  "version": "1.1.16",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.16/tdqsys-setup-1.1.16.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.16/tdqsys-portable-1.1.16.exe",
+  "installerBytes": 225635524
 }
