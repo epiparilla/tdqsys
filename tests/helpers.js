@@ -30,11 +30,23 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readPublic = (name) => fs.readFileSync(path.join(PUBLIC, name), 'utf8');
 const exists = (rel) => fs.existsSync(path.join(ROOT, rel));
 
-/** Extract a top-level `function name(...) { ... }` block from source text. */
+/**
+ * Extract a top-level `function name(...) { ... }` block from source text.
+ *
+ * Keeps a preceding `async ` if there is one. Dropping it silently turns
+ * `await` inside the body into a syntax error that looks like the page itself
+ * is malformed.
+ */
 function extractFunction(src, name) {
-  const start = src.indexOf(`function ${name}(`);
-  if (start < 0) throw new Error(`function ${name} not found`);
-  let i = src.indexOf('{', start);
+  const needle = `function ${name}(`;
+  const at = src.indexOf(needle);
+  if (at < 0) throw new Error(`function ${name} not found`);
+
+  let start = at;
+  const before = src.slice(Math.max(0, at - 6), at);
+  if (/async\s+$/.test(before)) start = at - 'async '.length;
+
+  let i = src.indexOf('{', at);
   let depth = 0;
   for (let k = i; k < src.length; k++) {
     if (src[k] === '{') depth++;

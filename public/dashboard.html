@@ -16,6 +16,9 @@
             <a href="display_with_ads.html" target="_blank" class="link-button">Open Display Screen (New Window)</a>
             <a href="settings.html" class="link-button" id="settings-link">System Settings</a>
         </div>
+        <p id="save-rejected" style="display:none; margin-top:0.8rem; padding:0.7rem 1rem; border:1px solid #f87171; border-radius:10px; color:#fca5a5; font-size:0.9rem;">
+            <strong>Not saving.</strong> <span id="save-rejected-why"></span>
+        </p>
     </header>
 
     <main class="controls-wrapper" id="brand-sections">
@@ -126,9 +129,29 @@
 
         function backgroundSave() {
             clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                afSaveState(dataStore);
+            saveTimeout = setTimeout(async () => {
+                const ok = await afSaveState(dataStore);
+                const banner = document.getElementById('save-rejected');
+                if (!banner) return;
+                // Hide it again once a save is accepted, so a transient failure
+                // does not leave a permanent "broken" warning.
+                banner.style.display = ok ? 'none' : 'block';
             }, 500);
+        }
+
+        // The engine can refuse a write (full disk, or a licence refusal once
+        // licensing lands). Show it instead of letting the operator believe the
+        // number they just ticked over was stored.
+        if (typeof afOnSaveRejected === 'function') {
+            afOnSaveRejected((detail) => {
+                const banner = document.getElementById('save-rejected');
+                const why = document.getElementById('save-rejected-why');
+                if (banner && why) {
+                    why.textContent = 'The queue engine rejected this change (' + detail +
+                        '). Numbers shown here are not being saved.';
+                    banner.style.display = 'block';
+                }
+            });
         }
 
         // INIT

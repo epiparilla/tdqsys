@@ -232,19 +232,47 @@ function afRenderNoLocation(container, opts) {
     });
 }
 
+// Notifies the page that a write was refused. Registered by operator-facing
+// pages (dashboard, settings) so they can disable controls and explain why;
+// optional, so a read-only page never has to define it.
+let afSaveRejectedHandler = null;
+function afOnSaveRejected(fn) { afSaveRejectedHandler = fn; }
+
 // Persist state. The cloud (https://tdqsys.pages.dev/...) is a READ-ONLY
 // mirror: only the Electron app on the PC pushes to it. Remote viewers must
 // not write, so this is a no-op for cloud-origin pages.
+//
+// Returns true only when the engine actually accepted the write. This used to
+// swallow the response and always return true, so a rejected save (a full disk,
+// or a 403 once licensing lands) looked exactly like a successful one - the
+// operator watches their number tick over, and nothing was ever persisted.
 async function afSaveState(state) {
-    if (afIsLocal()) {
-        await fetch(`${afApiBase()}/api/save`, {
+    if (!afIsLocal()) return false;
+    let res;
+    try {
+        res = await fetch(`${afApiBase()}/api/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state)
-        }).catch(() => {});
-        return true;
+        });
+    } catch (e) {
+        console.error('Save failed: the engine could not be reached.', e);
+        return false;
     }
-    return false;
+    if (!res.ok) {
+        // Surface why. A licence refusal must be visible, not silent.
+        let detail = `HTTP ${res.status}`;
+        try {
+            const body = await res.json();
+            if (body && body.error) detail = body.error;
+            if (body && body.notAfter) detail += ` (valid until ${body.notAfter})`;
+        } catch (e) { /* not JSON; the status line will do */ }
+        console.error(`Save rejected by the engine: ${detail}`);
+        try { if (afSaveRejectedHandler) afSaveRejectedHandler(detail, res.status); }
+        catch (e) { /* a broken handler must not break the save path */ }
+        return false;
+    }
+    return true;
 }
 
 // Config change detection: true if the two configs differ in any user setting
