@@ -257,13 +257,25 @@ describe('request', () => {
 });
 
 describe('verify', () => {
-  test('decodes a code and warns when the key is not trusted', () => {
-    const code = issueCode(['--from', '11-01', '--until', '11-06', '--customer', 'Acme']);
+  test('a licence signed by anyone else is refused', () => {
+    // These licences are signed with the throwaway key this file generates in
+    // its temp home, but they CLAIM key id k1 - which is the real key now
+    // pasted into license.js. So this is the forgery case: right key id, wrong
+    // signature. It must not pass, whatever the key id claims.
+    const code = issueCode(['--from', '11-01', '--until', '11-06', '--customer', 'Forged']);
     const r = run(['verify', code]);
-    assert.notEqual(r.code, 0, 'untrusted key should be reported');
+    assert.notEqual(r.code, 0, 'a forged licence must not verify');
     assert.match(r.out, /PAYLOAD/);
-    assert.match(r.out, /Acme/);
-    assert.match(r.out, /not in TRUSTED_PUBLIC_KEYS|refuse this licence/);
+    assert.match(r.out, /Forged/, 'the payload should still be shown so it can be eyeballed');
+    assert.match(r.out, /INVALID/,
+      'the signature must be reported as invalid against the trusted key');
+  });
+
+  test('a code naming an unknown key id is called out by name', () => {
+    const code = issueCode(['--from', '11-01', '--until', '11-06', '--key-id', 'k9']);
+    const r = run(['verify', code]);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /k9 is not in TRUSTED_PUBLIC_KEYS|refuse this licence/);
   });
 
   test('accepts a code from a file, which is how owners paste large codes', () => {

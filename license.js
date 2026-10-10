@@ -59,7 +59,9 @@ const CLOCK_TOLERANCE_MS = 2 * 60 * 60 * 1000; // 2 hours
 //
 // Keep the old key alongside the new one during a rotation so existing
 // customers keep working; drop it once the last old licence has expired.
-const TRUSTED_PUBLIC_KEYS = Object.freeze([]);
+const TRUSTED_PUBLIC_KEYS = Object.freeze([
+  { keyId: 'k1', pem: `-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA6eL3G9eyiSE8tumciNHFOM0Q8fP3rOG+qlidSw4RikA=\n-----END PUBLIC KEY-----` }
+]);
 
 const KEY_IDS = Object.freeze(TRUSTED_PUBLIC_KEYS.map((k) => k.keyId));
 
