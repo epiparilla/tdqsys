@@ -102,10 +102,10 @@ confirmation** so an edited request cannot slip past unnoticed.
 
 ```
 # ONE TIME - offline, on a machine not connected to the cloud
-node tools/license.mjs keygen
+node tools/license.js keygen
 
 # PER CUSTOMER
-node tools/license.mjs issue --instance <uuid> --customer "Acme" \
+node tools/license.js issue --instance <uuid> --customer "Acme" \
         --from 11-01 --until 11-06
 ```
 
@@ -141,7 +141,7 @@ project rather than a rewrite.
 | 5 | `main.js` 3-state gate before `startEngine()` | No licence → activation only |
 | 6 | Licence card: status, dates, generate request, paste key | Reachable when expired |
 | 7 | Wizard — activation ahead of configuration | Fresh-install test |
-| 8 | `tools/license.mjs` + `LICENSING.md` + gitignore | Issue a licence end-to-end |
+| 8 | `tools/license.js` + `LICENSING.md` + gitignore | Issue a licence end-to-end |
 
 ## Tests
 

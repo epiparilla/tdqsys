@@ -22,7 +22,7 @@ const notes = [];
 if (!Array.isArray(license.TRUSTED_PUBLIC_KEYS) || license.TRUSTED_PUBLIC_KEYS.length === 0) {
   problems.push(
     'TRUSTED_PUBLIC_KEYS is empty. Every licence would be rejected.\n' +
-    '     Generate a keypair with:  node tools/license.mjs keygen\n' +
+    '     Generate a keypair with:  node tools/license.js keygen\n' +
     '     then paste the printed public key into license.js before building.'
   );
 }

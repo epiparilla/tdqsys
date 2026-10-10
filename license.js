@@ -49,7 +49,7 @@ const CLOCK_TOLERANCE_MS = 2 * 60 * 60 * 1000; // 2 hours
 // ---------------------------------------------------------------------------
 // Trusted public keys.
 //
-// PASTE THE PUBLIC KEY FROM `node tools/license.mjs keygen` HERE BEFORE THE
+// PASTE THE PUBLIC KEY FROM `node tools/license.js keygen` HERE BEFORE THE
 // FIRST RELEASE BUILD. An empty list means NO licence can ever validate, which
 // is the safe failure: the app ships closed rather than open.
 //
