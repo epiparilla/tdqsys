@@ -16,6 +16,10 @@
             <a href="display_with_ads.html" target="_blank" class="link-button">Open Display Screen (New Window)</a>
             <a href="settings.html" class="link-button" id="settings-link">System Settings</a>
         </div>
+        <p id="licence-locked" style="display:none; margin-top:0.8rem; padding:0.7rem 1rem; border:1px solid #fbbf24; border-radius:10px; color:#fcd34d; font-size:0.9rem;">
+            <strong>Controls disabled.</strong> <span id="licence-locked-why"></span>
+            Cars are still being served and the queue below still shows live values — they just cannot be changed.
+        </p>
         <p id="save-rejected" style="display:none; margin-top:0.8rem; padding:0.7rem 1rem; border:1px solid #f87171; border-radius:10px; color:#fca5a5; font-size:0.9rem;">
             <strong>Not saving.</strong> <span id="save-rejected-why"></span>
         </p>
@@ -30,10 +34,73 @@
         let dataStore = null; // { config, queues, reannounce }
         let saveTimeout = null;
         let modelLookup = {}; // brandKey -> [{label, prefix, pronounce}, ...]
+        let licenceCanWrite = true; // until proven otherwise
+        let licenceStatus = null; // last successful /api/license answer
 
         // Settings is local-machine only in the packaged app; hide the link on phones.
         if (!afIsLocal()) {
             document.getElementById('settings-link').style.display = 'none';
+        }
+
+        // ---------------------------------------------------------------
+        // Licence lock
+        // ---------------------------------------------------------------
+        // An expired licence must not feel live. Previously the controls stayed
+        // tappable: the number changed on screen, the save was refused, and it
+        // silently snapped back a moment later. An operator reasonably read
+        // that as a software fault. Better to refuse the tap outright and say
+        // why, while the board keeps showing live values.
+        async function fetchLicence() {
+            try {
+                const r = await fetch(`${afApiBase()}/api/license`);
+                if (!r.ok) return null;
+                return await r.json();
+            } catch (e) {
+                return null;   // engine restarting; leave controls as they are
+            }
+        }
+
+        function applyLicenceLock(st) {
+            if (!st) return;
+            licenceCanWrite = !!st.canWrite;
+
+            // The queue controls only. The two header links stay live on
+            // purpose: an operator whose licence lapsed still needs the display
+            // screen and, more importantly, Settings to renew.
+            document.querySelectorAll('#brand-sections button, #brand-sections input')
+                .forEach((el) => {
+                    el.disabled = !licenceCanWrite;
+                    el.style.opacity = licenceCanWrite ? '' : '0.35';
+                    el.style.cursor = licenceCanWrite ? '' : 'not-allowed';
+                });
+
+            const banner = document.getElementById('licence-locked');
+            const why = document.getElementById('licence-locked-why');
+            if (!banner || !why) return;
+
+            if (licenceCanWrite) {
+                banner.style.display = 'none';
+            } else {
+                why.textContent = st.state === 'expired'
+                    ? 'This licence expired on ' + (st.until || 'an unknown date') + '.'
+                    : 'This location is not licensed.';
+                banner.style.display = 'block';
+            }
+        }
+
+        async function refreshLicence() {
+            const st = await fetchLicence();
+            if (st) {
+                licenceStatus = st;
+                applyLicenceLock(st);
+            }
+        }
+
+        function refuseIfLocked() {
+            if (licenceCanWrite) return false;
+            const banner = document.getElementById('licence-locked');
+            if (banner) banner.style.display = 'block';
+            return true;
         }
 
         function buildDashboard(state) {
@@ -85,10 +152,15 @@
                 dataStore = data;
                 buildDashboard(dataStore);
                 try { localStorage.setItem('queueDataSync', JSON.stringify(dataStore)); } catch (e) {}
+                // buildDashboard() recreates every control, so the lock has to be
+                // re-applied after each rebuild or the first render would be
+                // tappable until the next poll.
+                if (licenceStatus) applyLicenceLock(licenceStatus);
             }
         }
 
         function updateQueue(brandKey, unit, delta) {
+            if (refuseIfLocked()) return;
             const input = document.getElementById(`input-${brandKey}-${unit}`);
             let current = parseInt(input.value, 10);
             if (isNaN(current)) current = 0;
@@ -100,6 +172,7 @@
         }
 
         function setQueue(brandKey, unit, value) {
+            if (refuseIfLocked()) return;
             let newVal = parseInt(value, 10);
             if (isNaN(newVal) || newVal < 0) newVal = 0;
             if (newVal > 999) newVal = 999;
@@ -108,6 +181,7 @@
         }
 
         function reannounce(brandKey, unit) {
+            if (refuseIfLocked()) return;
             const val = document.getElementById(`input-${brandKey}-${unit}`).value;
             const ts = Date.now();
             try {
@@ -118,6 +192,9 @@
         }
 
         function commitChange(brandKey, unit, val) {
+            // The single point every queue change funnels through, so the lock
+            // is enforced here as well as at each handler.
+            if (refuseIfLocked()) return;
             if (!dataStore.queues[brandKey]) dataStore.queues[brandKey] = {};
             dataStore.queues[brandKey][unit] = val;
 
@@ -155,7 +232,12 @@
         }
 
         // INIT
-        fetchInitialData();
+        // Licence first: a board that renders tappable controls before we know
+        // the licence state gives the operator a fraction of a second in which
+        // a tap looks like it worked.
+        refreshLicence().then(() => fetchInitialData());
+        // A licence can lapse mid-shift, so re-check rather than trusting boot.
+        setInterval(refreshLicence, 60000);
     </script>
 </body>
 
