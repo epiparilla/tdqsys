@@ -111,6 +111,49 @@ function openLocalWindow({ page, width, height, fullscreen = false, x = undefine
     return win;
 }
 
+// ---- Licence status ----
+// The engine always starts: an expired booth must keep serving cars, and the
+// engine is what answers /api/license. So this is not a "do we run" gate - it
+// decides what the operator sees and keeps the window title honest about why
+// saving has stopped.
+function licEngineUrl() { return `http://localhost:${PORT}/api/license`; }
+
+async function refreshLicence() {
+    try {
+        const r = await fetch(licEngineUrl());
+        if (!r.ok) return null;
+        return await r.json();
+    } catch (e) {
+        return null;   // engine still coming up, or restarting
+    }
+}
+
+function applyLicenceToTitle(st) {
+    const win = dashboardWindow;
+    if (!win || win.isDestroyed() || !st) return;
+
+    if (st.canWrite) {
+        if (win.__licenceTitle) { win.setTitle('TDQSYS'); win.__licenceTitle = false; }
+        return;
+    }
+    // Deliberately a title, not a modal: a licence can lapse mid-shift and a
+    // dialog that steals focus from a working booth is worse than the problem.
+    const label = st.state === 'expired' ? 'Licence expired' : 'Not licensed';
+    if (win.__licenceTitle !== label) {
+        win.setTitle(`TDQSYS - ${label}`);
+        win.__licenceTitle = label;
+    }
+}
+
+async function pollLicence() {
+    const st = await refreshLicence();
+    if (!st) return;
+    if (!st.canWrite && !app.isQuitting) {
+        log(`licence ${st.state}: ${st.detail || 'no detail'} (changes are disabled)`);
+    }
+    applyLicenceToTitle(st);
+}
+
 // ---- Engine & TTS process management ----
 function startEngine() {
     log(`starting engine ${ENGINE_PATH} (port ${PORT}) dataDir=${BASE_DIR}`);
@@ -593,6 +636,12 @@ function openDashboardWindow() {
         minWidth: 600, minHeight: 400
     });
     dashboardWindow.on('close', () => { dashboardWindow = null; });
+
+    // A licence can lapse while the app is open, so re-check periodically and
+    // let the title reflect it rather than letting saves fail silently.
+    pollLicence();
+    setInterval(pollLicence, 60000);
+
     dashboardWindow.webContents.setWindowOpenHandler(({ url }) => {
         // Links that open "display in new window" -> manage through our own window
         if (url.includes('display')) {
