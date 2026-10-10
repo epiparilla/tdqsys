@@ -132,17 +132,25 @@ function applyLicenceToTitle(st) {
     const win = dashboardWindow;
     if (!win || win.isDestroyed() || !st) return;
 
-    if (st.canWrite) {
-        if (win.__licenceTitle) { win.setTitle('TDQSYS'); win.__licenceTitle = false; }
-        return;
+    // The page owns document.title, and it finishes loading AFTER our first
+    // poll resolves - so a title set here would be overwritten a moment later.
+    // Owning the title outright keeps the licence state visible no matter which
+    // page is loaded or when.
+    if (win.__ownTitle !== true) {
+        win.__ownTitle = true;
+        win.on('page-title-updated', (e) => {
+            e.preventDefault();
+            applyLicenceToTitle(win.__lastLicence);
+        });
     }
-    // Deliberately a title, not a modal: a licence can lapse mid-shift and a
-    // dialog that steals focus from a working booth is worse than the problem.
-    const label = st.state === 'expired' ? 'Licence expired' : 'Not licensed';
-    if (win.__licenceTitle !== label) {
-        win.setTitle(`TDQSYS - ${label}`);
-        win.__licenceTitle = label;
-    }
+    win.__lastLicence = st;
+
+    const label = st.canWrite
+        ? null
+        : (st.state === 'expired' ? 'Licence expired' : 'Not licensed');
+    if (label) win.setTitle(`TDQSYS - ${label}`);
+    else if (win.__licenceTitle) win.setTitle('TDQSYS');
+    win.__licenceTitle = label;
 }
 
 async function pollLicence() {

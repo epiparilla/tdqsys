@@ -159,6 +159,42 @@ function gateWrite(req, res) {
     return false;
 }
 
+/**
+ * Merge incoming queue values into the existing queues, keyed by brand and car.
+ *
+ * A save that only mentions some cars must not DELETE the others. The queue
+ * layout is owned by config: every car that config declares keeps a slot, and
+ * the incoming value wins only where one was actually sent. Replacing the
+ * object wholesale meant a partial payload silently removed cars the operator
+ * had configured - and, because the mirror is pushed to the cloud, removed
+ * them from every phone too.
+ *
+ * Unknown brands/cars in the incoming payload are ignored rather than stored,
+ * so a stale client cannot resurrect a car the operator has since deleted.
+ */
+function mergeQueues(existing, incoming, config) {
+    const out = {};
+    const brands = (config && config.brands) || [];
+
+    for (const brand of brands) {
+        const key = brand.key;
+        const prev = (existing && existing[key]) || {};
+        const next = (incoming && incoming[key]) || {};
+        const slots = {};
+        (brand.models || []).forEach((_, idx) => {
+            const slot = String(idx + 1);
+            let v = next[slot];
+            if (v === undefined || v === null || v === '' || isNaN(parseInt(v, 10))) {
+                v = prev[slot];
+            }
+            slots[slot] = (v === undefined || v === null || v === '' || isNaN(parseInt(v, 10)))
+                ? 0 : Math.max(0, parseInt(v, 10));
+        });
+        out[key] = slots;
+    }
+    return out;
+}
+
 const server = http.createServer((req, res) => {
     // 1. Massive CORS allowance so Cloudflare site can access local files securely
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -254,9 +290,13 @@ const server = http.createServer((req, res) => {
                     const mine = (previous && previous.config && previous.config.instanceId)
                         || localData.config.instanceId;
                     if (mine) localData.config.instanceId = mine;
+                    // Same reasoning for the cars: a partial payload must not be
+                    // able to delete a brand or a car the operator configured.
+                    localData.queues = mergeQueues(
+                        (previous && previous.queues) || {}, localData.queues, localData.config);
                 } else if (incoming && incoming.queues) {
                     // Queue-only save from dashboard: preserve local config + reannounce marker
-                    localData.queues = incoming.queues;
+                    localData.queues = mergeQueues(localData.queues, incoming.queues, localData.config);
                     if (incoming.reannounce) localData.reannounce = incoming.reannounce;
                 } else {
                     throw new Error("Invalid payload shape");

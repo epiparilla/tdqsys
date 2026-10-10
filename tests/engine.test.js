@@ -76,6 +76,54 @@ test('a full state save replaces config and queues together', async () => {
   assert.equal(after.config.site, 'round-trip-check');
 });
 
+test('a partial queue save does NOT delete the other cars', async () => {
+  // Regression. A queue-only save used to replace the whole queues object, so
+  // posting one car silently deleted every car the operator had configured -
+  // and, because the mirror is pushed to the cloud, deleted them from every
+  // phone too. The layout is owned by config; only values are merged.
+  const before = await (await get('/api/data')).json();
+  const key = before.config.brands[0].key;
+
+  // Deliberately partial: one brand, one car.
+  const res = await post('/api/save', { queues: { [key]: { 1: 7 } } });
+  assert.equal(res.status, 200);
+
+  const after = await (await get('/api/data')).json();
+  assert.equal(after.queues[key][1], 7, 'the sent value should win');
+
+  // Every car the config declares must still have a slot.
+  for (const brand of after.config.brands) {
+    const slots = after.queues[brand.key] || {};
+    brand.models.forEach((_, idx) => {
+      const slot = String(idx + 1);
+      assert.ok(slot in slots,
+        `a partial save deleted ${brand.key} car ${slot} (${brand.name})`);
+    });
+  }
+
+  assert.deepEqual(Object.keys(after.queues).sort(),
+    Object.keys(before.queues).sort(), 'a brand went missing');
+
+  // And the untouched cars kept their values.
+  const others = Object.keys(before.queues[key]).filter((k) => k !== '1');
+  for (const slot of others) {
+    if (before.queues[key][slot] === undefined) continue;
+    assert.equal(after.queues[key][slot], before.queues[key][slot],
+      `car ${slot} was reset by a save that never mentioned it`);
+  }
+});
+
+test('a save carrying an unknown car does not add it', async () => {
+  // The mirror of the case above: a stale client must not resurrect a car the
+  // operator has since deleted.
+  const before = await (await get('/api/data')).json();
+  const key = before.config.brands[0].key;
+  await post('/api/save', { queues: { [key]: { 99: 5 }, ghostbrand: { 1: 9 } } });
+  const after = await (await get('/api/data')).json();
+  assert.equal(after.queues[key][99], undefined, 'an undeclared car slot was stored');
+  assert.equal(after.queues.ghostbrand, undefined, 'an undeclared brand was stored');
+});
+
 test('a malformed save payload is rejected, not written', async () => {
   const before = await (await get('/api/data')).json();
   const res = await post('/api/save', { nonsense: true });
