@@ -31,7 +31,7 @@
     <!-- Issue Licence Section -->
     <section class="card" id="issue-section">
       <h2>📝 Issue Licence</h2>
-      <form id="issue-form">
+      <form id="issue-form" onsubmit="event.preventDefault(); return false;">
         <div class="field-row">
           <label>Instance ID <span class="required">*</span></label>
           <input type="text" id="issue-instance" placeholder="8c8b6714-f300-413f-bf75-e1156662acfb" required>
@@ -58,8 +58,9 @@
           <label>Key ID</label>
           <input type="text" id="issue-keyid" value="k1" placeholder="k1">
         </div>
+        <div id="issue-status" class="hint" style="margin:0.5rem 0; min-height:1.2rem;"></div>
         <div class="button-group">
-          <button type="submit" class="btn-primary">Issue Licence</button>
+          <button type="button" id="btn-issue" class="btn-primary">Issue Licence</button>
           <button type="button" id="btn-clear-issue" class="btn-ghost">Clear</button>
         </div>
       </form>

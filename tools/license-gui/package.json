@@ -1,9 +1,29 @@
 {
-  "name": "tdqsys-queue-desktop",
-  "productName": "TDQSYS",
-  "version": "1.1.15",
-  "description": "TDQSYS - desktop app (Windows installer build)",
+  "name": "tdqsys-license-authority",
+  "productName": "TDQSYS Licence Authority",
+  "version": "1.1.18",
+  "description": "TDQSYS - offline licence authority GUI",
   "main": "main.js",
-  "author": "TDQSYS",
-  "license": "UNLICENSED"
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.tdqsys.license-authority",
+    "productName": "TDQSYS Licence Authority",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": ["portable"],
+      "icon": "icon.ico"
+    },
+    "portable": {
+      "artifactName": "${productName} ${version} Portable.exe"
+    }
+  }
 }

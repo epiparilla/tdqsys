@@ -71,46 +71,76 @@ document.getElementById('btn-copy-public').addEventListener('click', async () =>
 
 // Issue Licence
 const issueForm = document.getElementById('issue-form');
-issueForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = issueForm.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  btn.textContent = 'Issuing…';
 
-  const args = {
-    instanceId: document.getElementById('issue-instance').value.trim(),
-    customer: document.getElementById('issue-customer').value.trim(),
-    site: document.getElementById('issue-site').value.trim(),
-    from: document.getElementById('issue-from').value,
-    until: document.getElementById('issue-until').value,
-    keyId: document.getElementById('issue-keyid').value.trim() || 'k1'
-  };
+async function performIssueLicence() {
+  const statusEl = document.getElementById('issue-status');
+  const instanceId = (document.getElementById('issue-instance').value || '').trim();
+  const customer = (document.getElementById('issue-customer').value || '').trim();
+  const site = (document.getElementById('issue-site').value || '').trim();
+  const from = (document.getElementById('issue-from').value || '').trim();
+  const until = (document.getElementById('issue-until').value || '').trim();
+  const keyId = (document.getElementById('issue-keyid').value || '').trim() || 'k1';
+
+  if (!instanceId) {
+    statusEl.innerHTML = '<span class="status-error">Instance ID is required.</span>';
+    document.getElementById('issue-instance').focus();
+    return;
+  }
+  if (!/^[0-9a-fA-F-]{1,64}$/.test(instanceId)) {
+    statusEl.innerHTML = '<span class="status-error">Invalid Instance ID format.</span>';
+    document.getElementById('issue-instance').focus();
+    return;
+  }
+  if (!from) {
+    statusEl.innerHTML = '<span class="status-error">"Valid From" date is required.</span>';
+    document.getElementById('issue-from').focus();
+    return;
+  }
+  if (!until) {
+    statusEl.innerHTML = '<span class="status-error">"Valid Until" date is required.</span>';
+    document.getElementById('issue-until').focus();
+    return;
+  }
+  if (until < from) {
+    statusEl.innerHTML = '<span class="status-error">"Valid Until" must be on or after "Valid From".</span>';
+    return;
+  }
+
+  const btn = document.getElementById('btn-issue');
+  if (btn) { btn.disabled = true; btn.textContent = 'Issuing…'; }
+  statusEl.textContent = 'Generating licence code…';
 
   try {
-    const res = await licenseAPI.issueLicence(args);
-    if (res.ok) {
+    const res = await licenseAPI.issueLicence({ instanceId, customer, site, from, until, keyId });
+    if (res && res.ok) {
       currentCode = res.code;
       currentPayload = res.payload;
       const ta = document.getElementById('issued-code');
       ta.value = res.code;
       show(document.getElementById('issue-result'));
-      alert('Licence issued!\n\nInstance: ' + res.payload.i +
-        '\nCustomer: ' + res.payload.c +
-        '\nValid: ' + res.payload.b + ' → ' + res.payload.x);
+      statusEl.innerHTML = '<span class="status-ok">✓ Licence code generated successfully!</span>';
+      document.getElementById('issue-result').scrollIntoView({ behavior: 'smooth' });
     } else {
-      alert('Issue failed: ' + res.error);
+      statusEl.innerHTML = '<span class="status-error">Failed: ' + (res?.error || 'Unknown error') + '</span>';
     }
   } catch (e) {
-    alert('Issue error: ' + e.message);
+    statusEl.innerHTML = '<span class="status-error">Error: ' + e.message + '</span>';
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Issue Licence';
+    if (btn) { btn.disabled = false; btn.textContent = 'Issue Licence'; }
   }
+}
+
+const btnIssue = document.getElementById('btn-issue');
+if (btnIssue) btnIssue.addEventListener('click', performIssueLicence);
+if (issueForm) issueForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  performIssueLicence();
 });
 
 document.getElementById('btn-clear-issue').addEventListener('click', () => {
   issueForm.reset();
   document.getElementById('issue-keyid').value = 'k1';
+  document.getElementById('issue-status').textContent = '';
   hide(document.getElementById('issue-result'));
   currentCode = '';
   currentPayload = null;
