@@ -323,7 +323,10 @@ async function checkForUpdates() {
         return { ok: false, reason: 'no-cloud-base', current, latest: null, url: null, notes: null };
     }
     try {
-        const res = await fetch(manifestUrl, { signal: AbortSignal.timeout(10000) });
+        const res = await fetch(manifestUrl, {
+            signal: AbortSignal.timeout(10000),
+            headers: { 'User-Agent': 'TDQSYS-Updater/1.0' }
+        });
         if (!res.ok) {
             return { ok: true, current, latest: null, url: null, notes: null }; // 404 => no published manifest yet
         }

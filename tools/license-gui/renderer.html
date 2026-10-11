@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TDQSYS Licence Authority</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>TDQSYS Licence Authority</h1>
+    <p class="subtitle">Offline Ed25519 licence issuance & management</p>
+  </header>
+
+  <main>
+    <!-- Key Management Section -->
+    <section class="card" id="key-section">
+      <h2>🔑 Authority Key</h2>
+      <div id="key-status"></div>
+      <div class="button-group">
+        <button id="btn-keygen" class="btn-primary">Generate Keypair</button>
+        <button id="btn-show-public" class="btn-ghost" disabled>Show Public Key</button>
+        <button id="btn-copy-public" class="btn-ghost" disabled>Copy Public Key</button>
+      </div>
+      <div id="public-key-display" class="hidden">
+        <label>Public Key (paste into license.js TRUSTED_PUBLIC_KEYS):</label>
+        <textarea id="public-key-text" readonly rows="6"></textarea>
+      </div>
+    </section>
+
+    <!-- Issue Licence Section -->
+    <section class="card" id="issue-section">
+      <h2>📝 Issue Licence</h2>
+      <form id="issue-form">
+        <div class="field-row">
+          <label>Instance ID <span class="required">*</span></label>
+          <input type="text" id="issue-instance" placeholder="8c8b6714-f300-413f-bf75-e1156662acfb" required>
+        </div>
+        <div class="field-row">
+          <label>Customer Name</label>
+          <input type="text" id="issue-customer" placeholder="Acme Auto Wash">
+        </div>
+        <div class="field-row">
+          <label>Site Label (optional)</label>
+          <input type="text" id="issue-site" placeholder="auto-PITS">
+        </div>
+        <div class="field-row two-cols">
+          <div>
+            <label>Valid From <span class="required">*</span></label>
+            <input type="date" id="issue-from" required>
+          </div>
+          <div>
+            <label>Valid Until <span class="required">*</span></label>
+            <input type="date" id="issue-until" required>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Key ID</label>
+          <input type="text" id="issue-keyid" value="k1" placeholder="k1">
+        </div>
+        <div class="button-group">
+          <button type="submit" class="btn-primary">Issue Licence</button>
+          <button type="button" id="btn-clear-issue" class="btn-ghost">Clear</button>
+        </div>
+      </form>
+      <div id="issue-result" class="hidden">
+        <label>Licence Code (copy or save to file):</label>
+        <textarea id="issued-code" readonly rows="6"></textarea>
+        <div class="button-group">
+          <button id="btn-copy-code" class="btn-primary">Copy Code</button>
+          <button id="btn-save-code" class="btn-ghost">Save to .license File</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Verify Licence Section -->
+    <section class="card" id="verify-section">
+      <h2>🔍 Verify Licence</h2>
+      <div class="button-group">
+        <button id="btn-verify-paste" class="btn-ghost">Paste Code to Verify</button>
+        <button id="btn-verify-file" class="btn-ghost">Verify .license File</button>
+      </div>
+      <textarea id="verify-input" class="hidden" rows="4" placeholder="Paste TDQS1... code here"></textarea>
+      <div id="verify-result" class="hidden">
+        <h3>Verification Result</h3>
+        <div id="verify-details"></div>
+      </div>
+    </section>
+
+    <!-- Read Request Section -->
+    <section class="card" id="request-section">
+      <h2>📥 Read Activation Request</h2>
+      <p class="hint">Load a request.json file from a customer to see what they're asking for.</p>
+      <div class="button-group">
+        <button id="btn-load-request" class="btn-primary">Load request.json</button>
+      </div>
+      <div id="request-result" class="hidden">
+        <h3>Request Details</h3>
+        <pre id="request-details"></pre>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>TDQSYS Licence Authority — Ed25519 offline licensing | Private key stored at <code>~/.tdqsys/private.pem</code></p>
+    </footer>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
