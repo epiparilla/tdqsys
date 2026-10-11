@@ -141,6 +141,24 @@ ipcMain.handle('open-external', async (_, url) => {
   await shell.openExternal(url);
 });
 
+ipcMain.handle('save-file', async (_, { filePath, content }) => {
+  try {
+    fs.writeFileSync(filePath, content, 'utf8');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('read-file', async (_, { filePath }) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { ok: true, content };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('save-dialog', async (_, options) => {
   const result = await dialog.showSaveDialog(mainWindow, options);
   return { canceled: result.canceled, filePath: result.filePath };

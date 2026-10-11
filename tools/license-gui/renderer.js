@@ -9,7 +9,7 @@ let currentPayload = null;
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
 function setText(el, text) { el.textContent = text; }
-function setHTML(el, html) { el.innerHTML = text; }
+function setHTML(el, html) { el.innerHTML = html; }
 
 // Key Management
 async function loadKeyStatus() {
@@ -130,9 +130,12 @@ document.getElementById('btn-save-code').addEventListener('click', async () => {
     filters: [{ name: 'Licence File', extensions: ['license', 'txt'] }]
   });
   if (!res.canceled && res.filePath) {
-    const fs = require('fs');
-    fs.writeFileSync(res.filePath, currentCode, 'utf8');
-    alert('Licence saved to:\n' + res.filePath);
+    const saveRes = await licenseAPI.saveFile(res.filePath, currentCode);
+    if (saveRes.ok) {
+      alert('Licence saved to:\n' + res.filePath);
+    } else {
+      alert('Failed to save licence file: ' + saveRes.error);
+    }
   }
 });
 
@@ -152,11 +155,15 @@ document.getElementById('btn-verify-file').addEventListener('click', async () =>
     filters: [{ name: 'Licence Files', extensions: ['license', 'txt'] }]
   });
   if (!res.canceled && res.filePaths.length > 0) {
-    const fs = require('fs');
-    const code = fs.readFileSync(res.filePaths[0], 'utf8').trim();
-    document.getElementById('verify-input').value = code;
-    show(document.getElementById('verify-input'));
-    await doVerify(code);
+    const readRes = await licenseAPI.readFile(res.filePaths[0]);
+    if (readRes.ok) {
+      const code = readRes.content.trim();
+      document.getElementById('verify-input').value = code;
+      show(document.getElementById('verify-input'));
+      await doVerify(code);
+    } else {
+      alert('Failed to read file: ' + readRes.error);
+    }
   }
 });
 

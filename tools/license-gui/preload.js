@@ -14,4 +14,6 @@ contextBridge.exposeInMainWorld('licenseAPI', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   showSaveDialog: (options) => ipcRenderer.invoke('save-dialog', options),
   showOpenDialog: (options) => ipcRenderer.invoke('open-dialog', options),
+  saveFile: (filePath, content) => ipcRenderer.invoke('save-file', { filePath, content }),
+  readFile: (filePath) => ipcRenderer.invoke('read-file', { filePath }),
 });
