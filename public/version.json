@@ -1,6 +1,6 @@
 {
-  "version": "1.1.16",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.16/tdqsys-setup-1.1.16.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.16/tdqsys-portable-1.1.16.exe",
+  "version": "1.1.18",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.18/tdqsys-setup-1.1.18.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.18/tdqsys-portable-1.1.18.exe",
   "installerBytes": 225635524
 }
