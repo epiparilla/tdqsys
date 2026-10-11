@@ -147,24 +147,33 @@ document.getElementById('btn-clear-issue').addEventListener('click', () => {
 });
 
 document.getElementById('btn-copy-code').addEventListener('click', async () => {
-  if (!currentCode) return;
-  await navigator.clipboard.writeText(currentCode);
+  const code = (currentCode || document.getElementById('issued-code').value || '').trim();
+  if (!code) return;
+  await navigator.clipboard.writeText(code);
   alert('Licence code copied to clipboard!');
 });
 
 document.getElementById('btn-save-code').addEventListener('click', async () => {
-  if (!currentCode) return;
+  const code = (currentCode || document.getElementById('issued-code').value || '').trim();
+  if (!code) {
+    alert('No licence code available to save. Please issue a licence first.');
+    return;
+  }
   const res = await licenseAPI.showSaveDialog({
-    title: 'Save Licence Code',
+    title: 'Save Licence File',
     defaultPath: 'licence.license',
-    filters: [{ name: 'Licence File', extensions: ['license', 'txt'] }]
+    filters: [
+      { name: 'Licence File (*.license)', extensions: ['license'] },
+      { name: 'Text File (*.txt)', extensions: ['txt'] },
+      { name: 'All Files (*.*)', extensions: ['*'] }
+    ]
   });
   if (!res.canceled && res.filePath) {
-    const saveRes = await licenseAPI.saveFile(res.filePath, currentCode);
-    if (saveRes.ok) {
+    const saveRes = await licenseAPI.saveFile(res.filePath, code);
+    if (saveRes && saveRes.ok) {
       alert('Licence saved to:\n' + res.filePath);
     } else {
-      alert('Failed to save licence file: ' + saveRes.error);
+      alert('Failed to save licence file: ' + (saveRes?.error || 'Unknown error'));
     }
   }
 });
