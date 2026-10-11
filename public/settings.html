@@ -674,10 +674,18 @@ function renderLicence(st) {
                     licenceActivateMsg('Licence activated.');
                     input.value = '';
                     renderLicence(await fetchLicence());
+                    if (window.afDesktop && window.afDesktop.notifyLicenceChanged) {
+                        window.afDesktop.notifyLicenceChanged();
+                    }
                     if (st.canWrite) {
                         document.getElementById('lock-banner').textContent =
                             '🔒 Settings are locked and read-only. Use "Enter Edit Mode" to change them.';
                     }
+                    try {
+                        stateDoc = await afFetchState();
+                        renderStatus();
+                        hydrateForm();
+                    } catch {}
                 } else {
                     licenceActivateMsg(st.detail || 'That licence was not accepted.');
                 }
@@ -1005,9 +1013,35 @@ function renderLicence(st) {
             wrap.appendChild(section);
 
             const listEl = section.querySelector('.model-list');
-            spec.models.forEach((m, i) => {
+            (spec.models || []).forEach((rawModel, i) => {
+                const m = normalizeModelClient(rawModel);
                 addModelRowEl(listEl, m.label, m.prefix, m.pronounce);
             });
+        }
+
+        function normalizeModelClient(m) {
+            if (!m) return { label: '', prefix: '', pronounce: '' };
+            if (typeof m === 'object' && !Array.isArray(m)) {
+                return {
+                    label: String(m.label || '').trim(),
+                    prefix: String(m.prefix || '').trim(),
+                    pronounce: String(m.pronounce || '').trim()
+                };
+            }
+            if (typeof m === 'string') {
+                const str = m.trim();
+                const lm = str.match(/label\s*=\s*([^;]+?)(?:;|\})/i);
+                const pm = str.match(/prefix\s*=\s*([^;]+?)(?:;|\})/i);
+                const rm = str.match(/pronounce\s*=\s*([^;}]+)/i);
+                if (lm || pm) {
+                    return {
+                        label: (lm ? lm[1] : '').trim(),
+                        prefix: (pm ? pm[1] : '').trim(),
+                        pronounce: (rm ? rm[1] : '').trim()
+                    };
+                }
+            }
+            return { label: String(m || '').trim(), prefix: '', pronounce: '' };
         }
 
         function addModelRow(btn) {

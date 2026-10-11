@@ -800,6 +800,7 @@ ipcMain.handle('af:displayMode', (_e, mode) => { displayMode = mode; });
 // Software updates: renderer-triggered check; in-app auto-update (download ->
 // silent install -> restart, no browser). openExternal stays for misc links.
 ipcMain.handle('af:checkUpdates', () => checkForUpdates());
+ipcMain.handle('af:licenceChanged', async () => { await pollLicence(); });
 ipcMain.handle('af:openExternal', (_e, url) => { if (url) shell.openExternal(url); });
 ipcMain.handle('af:installUpdate', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

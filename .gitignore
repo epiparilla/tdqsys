@@ -50,3 +50,5 @@ opencode_macos_conversion_task.md
 *.key
 *.pfx
 *.p12
+*.license
+*.tdqlic

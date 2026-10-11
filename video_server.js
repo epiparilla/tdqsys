@@ -2,7 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { defaultState, migrateLegacy, ensureInstanceId } = require('./shared/config');
+const { defaultState, migrateLegacy, ensureInstanceId, normalizeConfig } = require('./shared/config');
 const licence = require('./shared/licence');
 
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
@@ -28,10 +28,12 @@ if (fs.existsSync(DATA_FILE)) {
         const legacy = migrateLegacy(raw);
         if (legacy) {
             localData = legacy;
+            normalizeConfig(localData.config);
             fs.writeFileSync(DATA_FILE, JSON.stringify(localData));
             log("Migrated legacy v1 data.json into v2 schema.");
         } else if (raw && raw.config && raw.queues) {
             localData = raw;
+            normalizeConfig(localData.config);
             log("Successfully loaded local backup queue data.");
         } else {
             log("data.json has unrecognized shape, starting fresh.");
@@ -281,6 +283,7 @@ const server = http.createServer((req, res) => {
             try {
                 const incoming = JSON.parse(body);
                 if (incoming && incoming.queues && incoming.config) {
+                    normalizeConfig(incoming.config);
                     // Full state doc: keep incoming config too (settings/wizard save)
                     localData = incoming;
                     // The instance id is minted once and then belongs to this
@@ -324,6 +327,7 @@ const server = http.createServer((req, res) => {
         try {
             const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
             if (raw && raw.config && raw.queues) {
+                normalizeConfig(raw.config);
                 localData = raw;
                 log("Reloaded data.json from disk (backup restore).");
                 res.writeHead(200, { 'Content-Type': 'application/json' });

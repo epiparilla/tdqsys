@@ -111,8 +111,50 @@ function brandRules(config) {
     };
 }
 
+function normalizeModel(m) {
+    if (!m) return { label: '', prefix: '', pronounce: '' };
+    if (typeof m === 'object' && !Array.isArray(m)) {
+        return {
+            label: String(m.label || '').trim(),
+            prefix: String(m.prefix || '').trim(),
+            pronounce: String(m.pronounce || '').trim()
+        };
+    }
+    if (typeof m === 'string') {
+        const str = m.trim();
+        const labelMatch = str.match(/label\s*=\s*([^;]+?)(?:;|\})/i);
+        const prefixMatch = str.match(/prefix\s*=\s*([^;]+?)(?:;|\})/i);
+        const pronounceMatch = str.match(/pronounce\s*=\s*([^;}]+)/i);
+        if (labelMatch || prefixMatch) {
+            return {
+                label: (labelMatch ? labelMatch[1] : '').trim(),
+                prefix: (prefixMatch ? prefixMatch[1] : '').trim(),
+                pronounce: (pronounceMatch ? pronounceMatch[1] : '').trim()
+            };
+        }
+        try {
+            const parsed = JSON.parse(str);
+            if (parsed && typeof parsed === 'object') return normalizeModel(parsed);
+        } catch {}
+    }
+    return { label: String(m || '').trim(), prefix: '', pronounce: '' };
+}
+
+function normalizeConfig(config) {
+    if (!config || typeof config !== 'object') return config;
+    if (Array.isArray(config.brands)) {
+        config.brands.forEach(b => {
+            if (b && Array.isArray(b.models)) {
+                b.models = b.models.map(normalizeModel);
+            }
+        });
+    }
+    return config;
+}
+
 // Validate a config object. Returns { valid, errors[], total }.
 function validateConfig(config) {
+    normalizeConfig(config);
     const errors = [];
     const brands = (config && config.brands) || [];
 
@@ -215,6 +257,8 @@ module.exports = {
     brand2Enabled,
     brandRules,
     validateConfig,
+    normalizeModel,
+    normalizeConfig,
     reconcileQueues,
     migrateLegacy
 };

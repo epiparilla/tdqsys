@@ -113,10 +113,12 @@
                     const card = document.createElement('div');
                     card.className = 'unit-card';
                     card.id = `card-${brand.key}-${i}`;
+                    const label = (model && model.label) || `Car ${i}`;
+                    const prefix = (model && model.prefix) || '';
                     card.innerHTML = `
-                        <div class="unit-label" style="line-height: 1.2;">${model.label}</div>
+                        <div class="unit-label" style="line-height: 1.2;">${label}</div>
                         <div class="unit-number-wrapper">
-                            <div class="unit-number" id="num-${brand.key}-${i}"><span class="prefix">${model.prefix}</span>00</div>
+                            <div class="unit-number" id="num-${brand.key}-${i}"><span class="prefix">${prefix}</span>00</div>
                         </div>
                     `;
                     grid.appendChild(card);
@@ -132,9 +134,10 @@
                     if (!el) return;
                     const v = (state.queues[brand.key] && state.queues[brand.key][i]) || 0;
                     const formattedVal = String(v).padStart(2, '0');
-                    const displayValue = model.prefix + formattedVal;
+                    const prefix = (model && model.prefix) || '';
+                    const displayValue = prefix + formattedVal;
                     if (el.textContent != displayValue) {
-                        el.innerHTML = `<span class="prefix">${model.prefix}</span>${formattedVal}`;
+                        el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
                     }
                 });
             });

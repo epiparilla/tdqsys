@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('afDesktop', {
     restoreData: () => ipcRenderer.invoke('af:restoreData'),
     // Launch the NSIS uninstaller and quit (installed builds only).
     uninstallApp: () => ipcRenderer.invoke('af:uninstallApp'),
+    // Notify desktop that a licence code was activated so it updates window titles/status immediately.
+    notifyLicenceChanged: () => ipcRenderer.invoke('af:licenceChanged'),
     // Subscribe to background update-available events pushed by the main process.
     onUpdateAvailable: (cb) => ipcRenderer.on('af:update-available', (_e, info) => cb(info))
 });
