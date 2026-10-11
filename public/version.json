@@ -1,9 +1,9 @@
 {
-  "version": "1.1.18",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.18/tdqsys-setup-1.1.18.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.18/tdqsys-setup-1.1.18.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.18/tdqsys-portable-1.1.18.exe",
-  "size": 225635764,
-  "installerBytes": 225635764,
-  "notes": "TDQSYS 1.1.18: import licence file button and update engine fixes."
+  "version": "1.1.19",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.19/tdqsys-setup-1.1.19.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.19/tdqsys-setup-1.1.19.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.19/tdqsys-portable-1.1.19.exe",
+  "size": 225636574,
+  "installerBytes": 225636574,
+  "notes": "TDQSYS 1.1.19: auto-heal model configs, instant license activation, and stability updates."
 }

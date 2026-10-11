@@ -1,7 +1,7 @@
 {
   "name": "tdqsys-queue-desktop",
   "productName": "TDQSYS",
-  "version": "1.1.18",
+  "version": "1.1.19",
   "description": "TDQSYS - desktop app (Windows installer build)",
   "main": "main.js",
   "author": "TDQSYS",
@@ -11,7 +11,8 @@
     "assemble:server": "powershell -NoProfile -ExecutionPolicy Bypass -File assemble-server.ps1",
     "build:tts": "cd .. && python -m PyInstaller --onefile --name tts_server --clean --noconfirm --collect-data kokoro_onnx --collect-data language_tags --collect-all espeakng_loader --collect-all onnxruntime tts_server.py",
     "build:installer": "npm run assemble:server && npx electron-builder --win nsis",
-    "build:portable": "npm run assemble:server && npx electron-builder --win portable"
+    "build:portable": "npm run assemble:server && npx electron-builder --win portable",
+    "build:all": "npm run assemble:server && npx electron-builder --win nsis portable"
   },
   "devDependencies": {
     "electron": "^33.2.0",

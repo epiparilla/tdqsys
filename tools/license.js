@@ -312,9 +312,19 @@ function cmdVerify(args) {
   }
 }
 
+function cmdClear() {
+  const licenceFile = path.join(KEY_DIR, 'license.json');
+  if (fs.existsSync(licenceFile)) {
+    fs.unlinkSync(licenceFile);
+    console.log(`\n  Successfully removed active licence at:\n  ${licenceFile}\n`);
+  } else {
+    console.log(`\n  No active licence found at:\n  ${licenceFile}\n`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 
-const COMMANDS = { keygen: cmdKeygen, issue: cmdIssue, verify: cmdVerify, request: cmdRequest };
+const COMMANDS = { keygen: cmdKeygen, issue: cmdIssue, verify: cmdVerify, request: cmdRequest, clear: cmdClear };
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._.shift();
@@ -329,6 +339,7 @@ if (!cmd || !COMMANDS[cmd]) {
     issue     Sign a licence. Prints what it is about to issue first; pass
               --yes to emit the code.
     verify    Decode a licence and check its signature.
+    clear     Remove the currently active licence from ~/.tdqsys/license.json.
 
   issue examples
     node tools/license.js issue --request client-request.json \\
