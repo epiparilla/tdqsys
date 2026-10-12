@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('licenseAPI', {
   showOpenDialog: (options) => ipcRenderer.invoke('open-dialog', options),
   saveFile: (filePath, content) => ipcRenderer.invoke('save-file', { filePath, content }),
   readFile: (filePath) => ipcRenderer.invoke('read-file', { filePath }),
-  revokeLicence: (args) => ipcRenderer.invoke('revoke-licence', args)
+  revokeLicence: (args) => ipcRenderer.invoke('revoke-licence', args),
+  reinstateLicence: (args) => ipcRenderer.invoke('reinstate-licence', args)
 });

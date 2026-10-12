@@ -38,11 +38,13 @@ function isRevoked(dataDir) {
 
 function recordRevocation(reason, instanceId, dataDir) {
   fs.mkdirSync(LICENCE_DIR, { recursive: true });
+  const prev = readStored();
   const doc = {
     revoked: true,
     revokedAt: Date.now(),
     instanceId: instanceId || null,
-    reason: reason || 'This licence was remotely revoked by the administrator.'
+    reason: reason || 'This licence was remotely revoked by the administrator.',
+    previousLicence: prev && prev.code ? prev.code : null
   };
   try { fs.writeFileSync(REVOKED_FILE, JSON.stringify(doc, null, 2)); } catch (e) {}
   if (dataDir) {
@@ -60,6 +62,16 @@ function clearRevocation(dataDir) {
   if (dataDir) {
     try { fs.rmSync(path.join(dataDir, 'revoked.json')); } catch (e) {}
   }
+}
+
+function reinstate(dataDir, instanceId) {
+  const rev = isRevoked(dataDir);
+  const codeToRestore = rev && rev.previousLicence ? rev.previousLicence : null;
+  clearRevocation(dataDir);
+  if (codeToRestore) {
+    writeStored(codeToRestore, instanceId || (rev && rev.instanceId));
+  }
+  return status(instanceId, { dataDir });
 }
 
 function readStored() {
@@ -229,6 +241,7 @@ module.exports = {
   isRevoked,
   recordRevocation,
   clearRevocation,
+  reinstate,
   clockPaths,
   readStored,
   clearStored,

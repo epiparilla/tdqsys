@@ -245,6 +245,11 @@
                 refreshLicence();
             });
         }
+        if (window.afDesktop && typeof window.afDesktop.onLicenceReinstated === 'function') {
+            window.afDesktop.onLicenceReinstated(() => {
+                refreshLicence();
+            });
+        }
     </script>
 </body>
 

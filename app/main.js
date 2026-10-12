@@ -263,6 +263,19 @@ function pushState(instanceId, writerToken, localData) {
         res.on('end', async () => {
             if (res.statusCode === 200) {
                 lastPushedHash = crypto.createHash('sha256').update(payload).digest('hex');
+                try {
+                    const lic = require(path.join(RES_SERVER, 'shared', 'licence.js'));
+                    if (lic.isRevoked(BASE_DIR)) {
+                        log(`[desktop] Push accepted by Supabase (200) - remote revocation was cancelled! Reinstating licence...`);
+                        lic.reinstate(BASE_DIR, instanceId);
+                        await pollLicence();
+                        [dashboardWindow, displayWindow].forEach(w => {
+                            if (w && !w.isDestroyed()) w.webContents.send('af:licence-reinstated');
+                        });
+                    }
+                } catch (e) {
+                    log(`reinstate check error: ${e.message}`);
+                }
             } else if (res.statusCode === 403) {
                 try {
                     const errObj = JSON.parse(resBody);
@@ -308,10 +321,16 @@ async function cloudSyncTick() {
         const payload = JSON.stringify(localData);
         const hash = crypto.createHash('sha256').update(payload).digest('hex');
 
-        // No heartbeat writes: an idle site must consume no database writes or
-        // realtime messages. Failed writes leave lastPushedHash stale, so they
-        // retry on the next tick without silently losing state.
-        if (hash === lastPushedHash) return;
+        let isCurrentlyRevoked = false;
+        try {
+            const lic = require(path.join(RES_SERVER, 'shared', 'licence.js'));
+            isCurrentlyRevoked = !!lic.isRevoked(BASE_DIR);
+        } catch (e) {}
+
+        // No heartbeat writes when idle, UNLESS revoked: when revoked, continue
+        // pinging Supabase so deleting the row in revoked_licenses immediately
+        // unlocks the machine without requiring manual code entry.
+        if (hash === lastPushedHash && !isCurrentlyRevoked) return;
 
         pushState(instanceId, writerToken, localData);
     } catch (e) { /* engine/config not ready */ }

@@ -1692,6 +1692,13 @@ if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return;
         document.getElementById('save-btn').addEventListener('click', onSave);
         document.getElementById('discard-btn').addEventListener('click', relock);
 
+        if (window.afDesktop && typeof window.afDesktop.onLicenceRevoked === 'function') {
+            window.afDesktop.onLicenceRevoked(() => { refreshLicence(); });
+        }
+        if (window.afDesktop && typeof window.afDesktop.onLicenceReinstated === 'function') {
+            window.afDesktop.onLicenceReinstated(() => { refreshLicence(); });
+        }
+
         boot();
     </script>
 </body>

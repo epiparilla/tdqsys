@@ -30,5 +30,7 @@ contextBridge.exposeInMainWorld('afDesktop', {
     // Subscribe to background update-available events pushed by the main process.
     onUpdateAvailable: (cb) => ipcRenderer.on('af:update-available', (_e, info) => cb(info)),
     // Subscribe to remote licence revocation events.
-    onLicenceRevoked: (cb) => ipcRenderer.on('af:licence-revoked', (_e, info) => cb(info))
+    onLicenceRevoked: (cb) => ipcRenderer.on('af:licence-revoked', (_e, info) => cb(info)),
+    // Subscribe to remote licence reinstatement events.
+    onLicenceReinstated: (cb) => ipcRenderer.on('af:licence-reinstated', (_e) => cb())
 });

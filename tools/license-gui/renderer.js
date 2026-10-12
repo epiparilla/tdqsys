@@ -298,5 +298,51 @@ if (btnCopyRevokeSql) {
   });
 }
 
+// Reinstate handlers
+const btnGenerateReinstate = document.getElementById('btn-generate-reinstate');
+const btnClearReinstate = document.getElementById('btn-clear-reinstate');
+const btnCopyReinstateSql = document.getElementById('btn-copy-reinstate-sql');
+
+if (btnGenerateReinstate) {
+  btnGenerateReinstate.addEventListener('click', async () => {
+    const instanceId = document.getElementById('reinstate-instance').value.trim();
+    const statusEl = document.getElementById('reinstate-status');
+
+    if (!instanceId) {
+      statusEl.textContent = 'Please enter an Instance ID';
+      statusEl.style.color = '#f87171';
+      return;
+    }
+
+    const res = await licenseAPI.reinstateLicence({ instanceId });
+    if (res.ok) {
+      statusEl.textContent = 'Reinstatement generated! Run the SQL below in Supabase to restore the licence.';
+      statusEl.style.color = '#4ade80';
+      document.getElementById('reinstate-sql-text').value = res.sql;
+      show(document.getElementById('reinstate-result'));
+    } else {
+      statusEl.textContent = 'Error: ' + res.error;
+      statusEl.style.color = '#f87171';
+    }
+  });
+}
+
+if (btnClearReinstate) {
+  btnClearReinstate.addEventListener('click', () => {
+    document.getElementById('reinstate-instance').value = '';
+    document.getElementById('reinstate-status').textContent = '';
+    hide(document.getElementById('reinstate-result'));
+  });
+}
+
+if (btnCopyReinstateSql) {
+  btnCopyReinstateSql.addEventListener('click', async () => {
+    const text = document.getElementById('reinstate-sql-text').value;
+    await navigator.clipboard.writeText(text);
+    btnCopyReinstateSql.textContent = 'Copied!';
+    setTimeout(() => { btnCopyReinstateSql.textContent = 'Copy SQL'; }, 2000);
+  });
+}
+
 // Initial load
 loadKeyStatus();
