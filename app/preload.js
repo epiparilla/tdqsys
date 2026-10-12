@@ -28,5 +28,7 @@ contextBridge.exposeInMainWorld('afDesktop', {
     // Notify desktop that a licence code was activated so it updates window titles/status immediately.
     notifyLicenceChanged: () => ipcRenderer.invoke('af:licenceChanged'),
     // Subscribe to background update-available events pushed by the main process.
-    onUpdateAvailable: (cb) => ipcRenderer.on('af:update-available', (_e, info) => cb(info))
+    onUpdateAvailable: (cb) => ipcRenderer.on('af:update-available', (_e, info) => cb(info)),
+    // Subscribe to remote licence revocation events.
+    onLicenceRevoked: (cb) => ipcRenderer.on('af:licence-revoked', (_e, info) => cb(info))
 });

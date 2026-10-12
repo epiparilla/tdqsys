@@ -99,6 +99,32 @@
         <h3>Request Details</h3>
         <pre id="request-details"></pre>
       </div>
+    <!-- Revoke Licence Section -->
+    <section class="card" id="revoke-section">
+      <h2>⛔ Revoke Licence (Remote Lockdown)</h2>
+      <p class="hint">Remotely revoke a customer's licence. The machine locks down automatically when it connects to the internet.</p>
+      <form id="revoke-form" onsubmit="event.preventDefault(); return false;">
+        <div class="field-row">
+          <label>Instance ID <span class="required">*</span></label>
+          <input type="text" id="revoke-instance" placeholder="8c8b6714-f300-413f-bf75-e1156662acfb" required>
+        </div>
+        <div class="field-row">
+          <label>Reason for Revocation</label>
+          <input type="text" id="revoke-reason" placeholder="Subscription cancelled / Contract terminated">
+        </div>
+        <div id="revoke-status" class="hint" style="margin:0.5rem 0; min-height:1.2rem;"></div>
+        <div class="button-group">
+          <button type="button" id="btn-generate-revoke" class="btn-primary" style="background:#ef4444; border-color:#dc2626;">Generate Revocation SQL</button>
+          <button type="button" id="btn-clear-revoke" class="btn-ghost">Clear</button>
+        </div>
+      </form>
+      <div id="revoke-result" class="hidden">
+        <label>Supabase SQL (run in SQL Editor to enforce remote lock):</label>
+        <textarea id="revoke-sql-text" readonly rows="4"></textarea>
+        <div class="button-group">
+          <button id="btn-copy-revoke-sql" class="btn-primary">Copy SQL</button>
+        </div>
+      </div>
     </section>
 
     <!-- Footer -->

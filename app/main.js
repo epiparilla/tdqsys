@@ -147,7 +147,7 @@ function applyLicenceToTitle(st) {
 
     const label = st.canWrite
         ? null
-        : (st.state === 'expired' ? 'Licence expired' : 'Not licensed');
+        : (st.state === 'expired' ? 'Licence expired' : (st.state === 'revoked' ? 'Licence revoked' : 'Not licensed'));
     if (label) win.setTitle(`TDQSYS - ${label}`);
     else if (win.__licenceTitle) win.setTitle('TDQSYS');
     win.__licenceTitle = label;
@@ -249,6 +249,7 @@ function pushState(instanceId, writerToken, localData) {
     delete publicState.config.cloudWriterToken;
     const payload = JSON.stringify(publicState);
     const u = new URL(url);
+    let resBody = '';
     const req = https.request({
         hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
         headers: {
@@ -258,12 +259,34 @@ function pushState(instanceId, writerToken, localData) {
             'X-TDQSYS-Writer': writerToken
         }
     }, (res) => {
-        res.resume();
-        if (res.statusCode === 200) {
-            lastPushedHash = crypto.createHash('sha256').update(payload).digest('hex');
-        } else {
-            log(`cloud push status ${res.statusCode}`);
-        }
+        res.on('data', d => { resBody += d.toString(); });
+        res.on('end', async () => {
+            if (res.statusCode === 200) {
+                lastPushedHash = crypto.createHash('sha256').update(payload).digest('hex');
+            } else if (res.statusCode === 403) {
+                try {
+                    const errObj = JSON.parse(resBody);
+                    if (errObj && errObj.error === 'license_revoked') {
+                        const reason = errObj.reason || 'This licence was remotely revoked by the administrator.';
+                        log(`[desktop] Remote revocation received for ${instanceId}: ${reason}`);
+                        try {
+                            const lic = require(path.join(RES_SERVER, 'shared', 'licence.js'));
+                            lic.recordRevocation(reason, instanceId, BASE_DIR);
+                        } catch (e) {
+                            log(`failed to record revocation: ${e.message}`);
+                        }
+                        await pollLicence();
+                        [dashboardWindow, displayWindow].forEach(w => {
+                            if (w && !w.isDestroyed()) w.webContents.send('af:licence-revoked', { reason });
+                        });
+                    }
+                } catch (e) {
+                    log(`could not parse 403 response: ${e.message}`);
+                }
+            } else {
+                log(`cloud push status ${res.statusCode}`);
+            }
+        });
     });
     req.on('error', () => {/* offline; retry next tick (hash stays stale) */});
     req.end(payload);

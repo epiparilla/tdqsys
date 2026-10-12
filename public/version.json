@@ -1,9 +1,9 @@
 {
-  "version": "1.1.20",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.20/tdqsys-setup-1.1.20.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.20/tdqsys-setup-1.1.20.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.20/tdqsys-portable-1.1.20.exe",
-  "size": 225638569,
-  "installerBytes": 225638569,
-  "notes": "TDQSYS 1.1.20: Supabase Realtime mirror, direct desktop-to-cloud queue sync, and offline resilience."
+  "version": "1.1.21",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.21/tdqsys-setup-1.1.21.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.21/tdqsys-setup-1.1.21.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.21/tdqsys-portable-1.1.21.exe",
+  "size": 225639401,
+  "installerBytes": 225639401,
+  "notes": "TDQSYS 1.1.21: Remote licence revocation, physical PC lockdown, and all-in-one Licence Authority tool."
 }

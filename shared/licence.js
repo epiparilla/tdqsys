@@ -18,6 +18,49 @@ const license = require('../license');
 // never set, so the keys come from license.js as shipped.
 const LICENCE_DIR = process.env.AF_LICENSE_DIR || path.join(os.homedir(), '.tdqsys');
 const LICENCE_FILE = path.join(LICENCE_DIR, 'license.json');
+const REVOKED_FILE = path.join(LICENCE_DIR, 'revoked.json');
+
+function isRevoked(dataDir) {
+  const paths = [
+    REVOKED_FILE,
+    ...(dataDir ? [path.join(dataDir, 'revoked.json')] : [])
+  ];
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) {
+        const doc = JSON.parse(fs.readFileSync(p, 'utf8'));
+        if (doc && doc.revoked) return doc;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+function recordRevocation(reason, instanceId, dataDir) {
+  fs.mkdirSync(LICENCE_DIR, { recursive: true });
+  const doc = {
+    revoked: true,
+    revokedAt: Date.now(),
+    instanceId: instanceId || null,
+    reason: reason || 'This licence was remotely revoked by the administrator.'
+  };
+  try { fs.writeFileSync(REVOKED_FILE, JSON.stringify(doc, null, 2)); } catch (e) {}
+  if (dataDir) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(path.join(dataDir, 'revoked.json'), JSON.stringify(doc, null, 2));
+    } catch (e) {}
+  }
+  clearStored();
+  return doc;
+}
+
+function clearRevocation(dataDir) {
+  try { fs.rmSync(REVOKED_FILE); } catch (e) {}
+  if (dataDir) {
+    try { fs.rmSync(path.join(dataDir, 'revoked.json')); } catch (e) {}
+  }
+}
 
 function readStored() {
   try {
@@ -76,6 +119,28 @@ function trustedKeys() {
  * licence quietly lapsed.
  */
 function status(instanceId, opts = {}) {
+  const rev = isRevoked(opts.dataDir);
+  if (rev && (!rev.instanceId || rev.instanceId === instanceId)) {
+    return {
+      state: license.STATE.REVOKED,
+      detail: rev.reason || 'This licence was remotely revoked by the administrator.',
+      from: null,
+      until: null,
+      customer: null,
+      keyId: null,
+      instanceId: rev.instanceId || instanceId,
+      activated: null,
+      hasLicence: false,
+      canWrite: false,
+      canServe: false,
+      clockRollback: null,
+      licenceFile: LICENCE_FILE,
+      revoked: true,
+      isRevoked: true,
+      revocationReason: rev.reason || null
+    };
+  }
+
   const stored = opts.stored === undefined ? readStored() : opts.stored;
   const now = opts.now === undefined ? Date.now() : opts.now;
   const keys = opts.keys || trustedKeys();
@@ -117,7 +182,8 @@ function status(instanceId, opts = {}) {
     canWrite: license.canWrite(st.state) && !clockRollback,
     canServe: license.canServeReadOnly(st.state) && !clockRollback,
     clockRollback,
-    licenceFile: LICENCE_FILE
+    licenceFile: LICENCE_FILE,
+    revoked: false
   };
 }
 
@@ -151,6 +217,7 @@ function check(code, instanceId, opts = {}) {
 function activate(code, instanceId, opts = {}) {
   const result = check(code, instanceId, opts);
   if (result.state !== license.STATE.VALID) return { stored: false, status: result };
+  clearRevocation(opts.dataDir);
   writeStored(code, instanceId);
   return { stored: true, status: status(instanceId, opts) };
 }
@@ -158,6 +225,10 @@ function activate(code, instanceId, opts = {}) {
 module.exports = {
   LICENCE_DIR,
   LICENCE_FILE,
+  REVOKED_FILE,
+  isRevoked,
+  recordRevocation,
+  clearRevocation,
   clockPaths,
   readStored,
   clearStored,

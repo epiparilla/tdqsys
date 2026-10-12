@@ -255,3 +255,31 @@ describe('clock rollback', () => {
     assert.equal(st.canWrite, true);
   });
 });
+
+describe('remote revocation lockdown', () => {
+  let engine;
+  const { recordRevocation, clearRevocation } = require('../shared/licence');
+
+  before(async () => { engine = await startEngine(); });
+  after(async () => {
+    clearRevocation(engine.dataDir);
+    await engine.stop();
+  });
+
+  test('a revoked licence locks the engine immediately and blocks writes', async () => {
+    // Record a remote revocation for this engine's instance
+    recordRevocation('Revoked by administrator: policy violation', engine.instanceId, engine.dataDir);
+
+    const st = await engine.status();
+    assert.equal(st.state, license.STATE.REVOKED);
+    assert.equal(st.canWrite, false);
+    assert.equal(st.isRevoked, true);
+    assert.equal(st.revocationReason, 'Revoked by administrator: policy violation');
+
+    const r = await save(engine.base);
+    assert.equal(r.status, 403);
+    const body = await r.json();
+    assert.equal(body.licenceState, 'revoked');
+    assert.equal(body.licenceDetail, 'Revoked by administrator: policy violation');
+  });
+});

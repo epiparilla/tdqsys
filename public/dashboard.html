@@ -83,7 +83,9 @@
             } else {
                 why.textContent = st.state === 'expired'
                     ? 'This licence expired on ' + (st.until || 'an unknown date') + '.'
-                    : 'This location is not licensed.';
+                    : (st.state === 'revoked'
+                        ? (st.detail || 'This licence was remotely revoked by the administrator.')
+                        : 'This location is not licensed.');
                 banner.style.display = 'block';
             }
         }
@@ -238,6 +240,11 @@
         refreshLicence().then(() => fetchInitialData());
         // A licence can lapse mid-shift, so re-check rather than trusting boot.
         setInterval(refreshLicence, 60000);
+        if (window.afDesktop && typeof window.afDesktop.onLicenceRevoked === 'function') {
+            window.afDesktop.onLicenceRevoked(() => {
+                refreshLicence();
+            });
+        }
     </script>
 </body>
 

@@ -32,13 +32,30 @@ exception
     when duplicate_object then null;
 end $$;
 
--- Private writer credentials are deliberately separate from queue_state so a
--- public Realtime payload can never leak them.
-create schema if not exists private;
-create table if not exists private.tdqsys_queue_writers (
+-- Writer credentials are kept in public.tdqsys_queue_writers with RLS enabled
+-- and all privileges revoked from anon/authenticated, so only service_role
+-- (the queue-sync Edge Function) can access it. It is deliberately separate from
+-- queue_state and not added to realtime publication so it never leaks.
+create table if not exists public.tdqsys_queue_writers (
     instance_id text primary key check (instance_id ~ '^[0-9a-f-]{1,64}$'),
     token_hash text not null,
     created_at timestamptz not null default now()
 );
 
-revoke all on table private.tdqsys_queue_writers from anon, authenticated;
+alter table public.tdqsys_queue_writers enable row level security;
+revoke all on table public.tdqsys_queue_writers from anon, authenticated;
+grant all on table public.tdqsys_queue_writers to service_role;
+grant all on table public.queue_state to service_role;
+
+-- Revoked licenses table: instances listed here will be refused by queue-sync
+-- with HTTP 403 "license_revoked", triggering an immediate remote lockdown on the physical PC.
+create table if not exists public.revoked_licenses (
+    instance_id text primary key check (instance_id ~ '^[0-9a-f-]{1,64}$'),
+    reason text,
+    revoked_at timestamptz not null default now()
+);
+
+alter table public.revoked_licenses enable row level security;
+revoke all on table public.revoked_licenses from anon, authenticated;
+grant all on table public.revoked_licenses to service_role;
+

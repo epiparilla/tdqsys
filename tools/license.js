@@ -322,9 +322,38 @@ function cmdClear() {
   }
 }
 
+function cmdRevoke(args) {
+  const instanceId = args.instance || args._[0];
+  if (!instanceId || !/^[0-9a-f-]{1,64}$/i.test(instanceId)) {
+    console.error('\n  Error: valid --instance <uuid> required.\n');
+    process.exitCode = 1;
+    return;
+  }
+  const reason = args.reason || 'Remotely revoked by administrator';
+  const sql = `INSERT INTO public.revoked_licenses (instance_id, reason) VALUES ('${instanceId.toLowerCase()}', '${reason.replace(/'/g, "''")}') ON CONFLICT (instance_id) DO UPDATE SET reason = EXCLUDED.reason, revoked_at = now();`;
+
+  // Also record locally in ~/.tdqsys/revocations.json
+  const revocationsFile = path.join(KEY_DIR, 'revocations.json');
+  let list = [];
+  try {
+    if (fs.existsSync(revocationsFile)) list = JSON.parse(fs.readFileSync(revocationsFile, 'utf8'));
+  } catch (e) {}
+  if (!Array.isArray(list)) list = [];
+  list = list.filter(item => item.instanceId !== instanceId.toLowerCase());
+  list.push({ instanceId: instanceId.toLowerCase(), reason, revokedAt: new Date().toISOString() });
+  fs.writeFileSync(revocationsFile, JSON.stringify(list, null, 2));
+
+  console.log(`\n  REVOCATION RECORDED FOR: ${instanceId}`);
+  console.log(`  Reason: ${reason}\n`);
+  console.log('  To apply remotely, run this in your Supabase SQL Editor:');
+  console.log('  -------------------------------------------------------------');
+  console.log(`  ${sql}`);
+  console.log('  -------------------------------------------------------------\n');
+}
+
 // ---------------------------------------------------------------------------
 
-const COMMANDS = { keygen: cmdKeygen, issue: cmdIssue, verify: cmdVerify, request: cmdRequest, clear: cmdClear };
+const COMMANDS = { keygen: cmdKeygen, issue: cmdIssue, verify: cmdVerify, request: cmdRequest, clear: cmdClear, revoke: cmdRevoke };
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._.shift();
@@ -340,12 +369,16 @@ if (!cmd || !COMMANDS[cmd]) {
               --yes to emit the code.
     verify    Decode a licence and check its signature.
     clear     Remove the currently active licence from ~/.tdqsys/license.json.
+    revoke    Record a licence revocation and generate Supabase SQL lockdown statement.
 
   issue examples
     node tools/license.js issue --request client-request.json \\
          --from 11-01 --until 11-06 --customer "Acme Auto Wash" --yes
     node tools/license.js issue --instance 8c8b6714-f300-413f-bf75-e1156662acfb \\
          --from 2026-11-01 --until 2027-11-01 --customer "Acme" --yes
+
+  revoke example
+    node tools/license.js revoke --instance 8c8b6714-f300-413f-bf75-e1156662acfb --reason "Subscription ended"
 
   The private key lives at ${PRIVATE_PATH}
 `);

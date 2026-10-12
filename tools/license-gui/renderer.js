@@ -252,5 +252,51 @@ document.getElementById('btn-load-request').addEventListener('click', async () =
   }
 });
 
+// --- Revocation ---
+const btnGenRevoke = document.getElementById('btn-generate-revoke');
+const btnClearRevoke = document.getElementById('btn-clear-revoke');
+const btnCopyRevokeSql = document.getElementById('btn-copy-revoke-sql');
+
+if (btnGenRevoke) {
+  btnGenRevoke.addEventListener('click', async () => {
+    const instanceId = (document.getElementById('revoke-instance').value || '').trim();
+    const reason = (document.getElementById('revoke-reason').value || '').trim();
+    const statusEl = document.getElementById('revoke-status');
+    if (!instanceId) {
+      statusEl.textContent = 'Instance ID is required';
+      statusEl.style.color = '#f87171';
+      return;
+    }
+    const res = await licenseAPI.revokeLicence({ instanceId, reason });
+    if (res.ok) {
+      statusEl.textContent = 'Revocation recorded! Run the SQL below in Supabase to enforce.';
+      statusEl.style.color = '#4ade80';
+      document.getElementById('revoke-sql-text').value = res.sql;
+      show(document.getElementById('revoke-result'));
+    } else {
+      statusEl.textContent = 'Error: ' + res.error;
+      statusEl.style.color = '#f87171';
+    }
+  });
+}
+
+if (btnClearRevoke) {
+  btnClearRevoke.addEventListener('click', () => {
+    document.getElementById('revoke-instance').value = '';
+    document.getElementById('revoke-reason').value = '';
+    document.getElementById('revoke-status').textContent = '';
+    hide(document.getElementById('revoke-result'));
+  });
+}
+
+if (btnCopyRevokeSql) {
+  btnCopyRevokeSql.addEventListener('click', async () => {
+    const text = document.getElementById('revoke-sql-text').value;
+    await navigator.clipboard.writeText(text);
+    btnCopyRevokeSql.textContent = 'Copied!';
+    setTimeout(() => { btnCopyRevokeSql.textContent = 'Copy SQL'; }, 2000);
+  });
+}
+
 // Initial load
 loadKeyStatus();

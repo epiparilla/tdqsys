@@ -99,6 +99,29 @@ ipcMain.handle('issue-licence', async (_, args) => {
   return { ok: true, code, payload };
 });
 
+ipcMain.handle('revoke-licence', async (_, args) => {
+  const { instanceId, reason } = args || {};
+  if (!instanceId) return { ok: false, error: 'Instance ID required' };
+  if (!/^[0-9a-fA-F-]{1,64}$/.test(instanceId)) return { ok: false, error: 'Invalid instance ID' };
+
+  const normId = instanceId.trim().toLowerCase();
+  const revReason = (reason && reason.trim()) || 'Remotely revoked by administrator';
+  const sql = `INSERT INTO public.revoked_licenses (instance_id, reason) VALUES ('${normId}', '${revReason.replace(/'/g, "''")}') ON CONFLICT (instance_id) DO UPDATE SET reason = EXCLUDED.reason, revoked_at = now();`;
+
+  // Also record locally in ~/.tdqsys/revocations.json
+  const revocationsFile = path.join(KEY_DIR, 'revocations.json');
+  let list = [];
+  try {
+    if (fs.existsSync(revocationsFile)) list = JSON.parse(fs.readFileSync(revocationsFile, 'utf8'));
+  } catch (e) {}
+  if (!Array.isArray(list)) list = [];
+  list = list.filter(item => item.instanceId !== normId);
+  list.push({ instanceId: normId, reason: revReason, revokedAt: new Date().toISOString() });
+  try { fs.writeFileSync(revocationsFile, JSON.stringify(list, null, 2)); } catch (e) {}
+
+  return { ok: true, sql, instanceId: normId, reason: revReason };
+});
+
 ipcMain.handle('verify-licence', async (_, code) => {
   if (!code || !code.trim()) return { ok: false, error: 'No code provided' };
   const trusted = license.TRUSTED_PUBLIC_KEYS || [];

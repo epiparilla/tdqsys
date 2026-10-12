@@ -72,6 +72,7 @@ const STATE = Object.freeze({
   WRONG_LOCATION: 'wrong_location',
   NOT_YET_ACTIVE: 'not_yet_active',
   EXPIRED: 'expired',
+  REVOKED: 'revoked',
   VALID: 'valid'
 });
 

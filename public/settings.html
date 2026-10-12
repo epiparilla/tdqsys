@@ -521,6 +521,7 @@
         const LICENCE_TEXT = {
             valid:           'Licensed',
             expired:         'Expired',
+            revoked:         'Revoked',
             not_yet_active:  'Not active yet',
             wrong_location:  'Issued to another location',
             invalid:         'Not valid',
@@ -589,8 +590,10 @@ function renderLicence(st) {
                 banner.innerHTML = st.state === 'expired'
                     ? '&#x1F512; This licence expired on <strong>' + escHtml(st.until) + '</strong>. '
                       + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a renewal.'
-                    : '&#x1F512; This location is not licensed. '
-                      + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a licence.';
+                    : (st.state === 'revoked'
+                        ? '&#x26D4; <strong>Licence Revoked</strong>: ' + escHtml(st.detail || 'This licence was remotely revoked by the administrator.')
+                        : '&#x1F512; This location is not licensed. '
+                          + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a licence.');
             }
 
             const detail = document.getElementById('licence-detail');
@@ -1232,7 +1235,9 @@ function renderLicence(st) {
             if (licenceState && !licenceState.canWrite) {
                 const what = licenceState.state === 'expired'
                     ? 'This licence expired on ' + (licenceState.until || 'an unknown date') + '.'
-                    : 'This location is not licensed.';
+                    : (licenceState.state === 'revoked'
+                        ? (licenceState.detail || 'This licence was remotely revoked by the administrator.')
+                        : 'This location is not licensed.');
                 alert(what +
                     '\n\nThe booth still serves cars, but settings cannot be changed until you activate a licence. Use the Licence section above.');
                 return;
