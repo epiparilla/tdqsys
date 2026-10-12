@@ -1,9 +1,9 @@
 {
-  "version": "1.1.21",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.21/tdqsys-setup-1.1.21.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.21/tdqsys-setup-1.1.21.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.21/tdqsys-portable-1.1.21.exe",
-  "size": 225639401,
-  "installerBytes": 225639401,
-  "notes": "TDQSYS 1.1.21: Remote licence revocation, physical PC lockdown, and all-in-one Licence Authority tool."
+  "version": "1.1.22",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.22/tdqsys-setup-1.1.22.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.22/tdqsys-setup-1.1.22.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.22/tdqsys-portable-1.1.22.exe",
+  "size": 225639729,
+  "installerBytes": 225639729,
+  "notes": "TDQSYS 1.1.22: Zero-touch remote reinstatement, auto-unlock on cloud cancel, and all-in-one Licence Authority."
 }
