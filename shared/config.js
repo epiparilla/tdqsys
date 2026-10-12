@@ -241,6 +241,14 @@ function ensureInstanceId(config) {
     return !!config;
 }
 
+// Credential used only by the installed desktop to authorise direct writes to
+// the Supabase Edge Function. It is never copied into the public mirror.
+function ensureCloudWriterToken(config) {
+    if (config && typeof config.cloudWriterToken === 'string' && /^[0-9a-f-]{36}$/i.test(config.cloudWriterToken)) return false;
+    if (config) config.cloudWriterToken = newInstanceId();
+    return !!config;
+}
+
 module.exports = {
     SCHEMA_VERSION,
     MAX_TOTAL_CARS,
@@ -248,6 +256,7 @@ module.exports = {
     newInstanceId,
     randomSite,
     ensureInstanceId,
+    ensureCloudWriterToken,
     defaultConfig,
     defaultModels,
     defaultState,

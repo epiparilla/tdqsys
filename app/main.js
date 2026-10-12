@@ -239,21 +239,28 @@ function startTTS() {
 let cloudTimer = null;
 let updatePollTimer = null;         // re-checks the manifest while running
 let lastPushedHash = null;
-let lastPushAt = 0;
-const FORCE_PUSH_MS = 15 * 60 * 1000;   // re-push at most ~96x/day, even if unchanged
+const SUPABASE_URL = process.env.AF_SUPABASE_URL || 'https://pnyptdyfkftrcgjlaqnr.supabase.co';
 
-function pushState(base, instanceId, localData) {
-    const url = `${base}/api/save?id=${encodeURIComponent(instanceId)}`;
-    const payload = JSON.stringify(localData);
+function pushState(instanceId, writerToken, localData) {
+    const url = `${SUPABASE_URL}/functions/v1/queue-sync`;
+    // Never send the desktop writer credential inside the mirrored state: the
+    // state is intentionally readable by QR viewers.
+    const publicState = { ...localData, config: { ...(localData.config || {}) } };
+    delete publicState.config.cloudWriterToken;
+    const payload = JSON.stringify(publicState);
     const u = new URL(url);
     const req = https.request({
         hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+            'X-TDQSYS-Instance': instanceId,
+            'X-TDQSYS-Writer': writerToken
+        }
     }, (res) => {
         res.resume();
         if (res.statusCode === 200) {
             lastPushedHash = crypto.createHash('sha256').update(payload).digest('hex');
-            lastPushAt = Date.now();
         } else {
             log(`cloud push status ${res.statusCode}`);
         }
@@ -268,9 +275,9 @@ async function cloudSyncTick() {
         // Read current local config to know cloud base + instance identity.
         const cfgRes = await fetch(`http://localhost:${PORT}/api/config`);
         const cfg = await cfgRes.json();
-        const base = cfg && cfg.cloudBase;
         const instanceId = cfg && cfg.instanceId;
-        if (!base || !instanceId) return; // offline-only or identity not ready
+        const writerToken = cfg && cfg.cloudWriterToken;
+        if (!instanceId || !writerToken) return; // identity not ready
 
         const localRes = await fetch(`http://localhost:${PORT}/api/data`);
         const localData = await localRes.json();
@@ -278,11 +285,12 @@ async function cloudSyncTick() {
         const payload = JSON.stringify(localData);
         const hash = crypto.createHash('sha256').update(payload).digest('hex');
 
-        // Skip write when nothing changed since the last successful push
-        // (unless the keep-alive window elapsed).
-        if (hash === lastPushedHash && Date.now() - lastPushAt < FORCE_PUSH_MS) return;
+        // No heartbeat writes: an idle site must consume no database writes or
+        // realtime messages. Failed writes leave lastPushedHash stale, so they
+        // retry on the next tick without silently losing state.
+        if (hash === lastPushedHash) return;
 
-        pushState(base, instanceId, localData);
+        pushState(instanceId, writerToken, localData);
     } catch (e) { /* engine/config not ready */ }
 }
 

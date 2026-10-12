@@ -34,6 +34,25 @@ export async function onRequest(context) {
 
             const key = rawId ? `instances/${rawId}/state` : `sites/${site}/state`;
 
+            // Supabase is the preferred mirror.  KV remains the rollback path
+            // until every installed desktop app has received the migration.
+            // Only instance-scoped records are eligible: legacy site links
+            // continue to use their old KV state exactly as before.
+            const supabaseKey = context.env.SUPABASE_SECRET_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
+            if (rawId && context.env.SUPABASE_URL && supabaseKey) {
+                const endpoint = `${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/queue_state?instance_id=eq.${encodeURIComponent(rawId)}&select=state`;
+                const upstream = await fetch(endpoint, {
+                    headers: {
+                        apikey: supabaseKey
+                    }
+                });
+                if (!upstream.ok) throw new Error(`Supabase read failed (${upstream.status})`);
+                const rows = await upstream.json();
+                if (Array.isArray(rows) && rows[0] && rows[0].state) {
+                    return new Response(JSON.stringify(rows[0].state), { headers: CORS_HEADERS });
+                }
+            }
+
             const data = await context.env.TDQSYS_QUEUE_DATA.get(key, "text");
 
             if (data) {

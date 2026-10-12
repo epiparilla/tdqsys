@@ -1,9 +1,9 @@
 {
-  "version": "1.1.19",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.19/tdqsys-setup-1.1.19.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.19/tdqsys-setup-1.1.19.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.19/tdqsys-portable-1.1.19.exe",
-  "size": 225636574,
-  "installerBytes": 225636574,
-  "notes": "TDQSYS 1.1.19: auto-heal model configs, instant license activation, and stability updates."
+  "version": "1.1.20",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.20/tdqsys-setup-1.1.20.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.20/tdqsys-setup-1.1.20.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.20/tdqsys-portable-1.1.20.exe",
+  "size": 225638569,
+  "installerBytes": 225638569,
+  "notes": "TDQSYS 1.1.20: Supabase Realtime mirror, direct desktop-to-cloud queue sync, and offline resilience."
 }

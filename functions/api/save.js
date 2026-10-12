@@ -69,6 +69,25 @@ export async function onRequest(context) {
             }
             if (!state.config.site) state.config.site = site;
 
+            // Supabase is the primary mirror once both Pages secrets are set.
+            // The service-role key is intentionally used only inside this
+            // function; it never appears in the site, desktop app, or QR link.
+            const supabaseKey = context.env.SUPABASE_SECRET_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
+            if (instanceId && context.env.SUPABASE_URL && supabaseKey) {
+                const endpoint = `${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/queue_state?on_conflict=instance_id`;
+                const upstream = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        apikey: supabaseKey,
+                        'Content-Type': 'application/json',
+                        Prefer: 'resolution=merge-duplicates,return=minimal'
+                    },
+                    body: JSON.stringify({ instance_id: instanceId, state, updated_at: new Date().toISOString() })
+                });
+                if (!upstream.ok) throw new Error(`Supabase write failed (${upstream.status})`);
+                return new Response(JSON.stringify({ success: true, key: `supabase:${instanceId}` }), { headers: CORS_HEADERS });
+            }
+
             await context.env.TDQSYS_QUEUE_DATA.put(key, JSON.stringify(state));
 
             return new Response(JSON.stringify({ success: true, key }), { headers: CORS_HEADERS });

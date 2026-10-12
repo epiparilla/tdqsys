@@ -41,7 +41,7 @@ function makeKv(seed = {}) {
  * The files import from shared/config.js, which the Pages bundler inlines;
  * here we resolve that import by hand.
  */
-async function runFunction(file, { url, method = 'GET', body = null, kv = makeKv() }) {
+async function runFunction(file, { url, method = 'GET', body = null, kv = makeKv(), env = {}, fetchImpl = null }) {
   const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
 
   const configSrc = fs.readFileSync(path.join(ROOT, 'shared', 'config.js'), 'utf8');
@@ -63,7 +63,8 @@ async function runFunction(file, { url, method = 'GET', body = null, kv = makeKv
     Request,
     Headers,
     TextEncoder,
-    TextDecoder
+    TextDecoder,
+    fetch: fetchImpl || (() => { throw new Error('unexpected upstream fetch'); })
   };
   vm.createContext(sandbox);
   // Rewrite the bare relative import to use the already-evaluated exports, and
@@ -82,7 +83,7 @@ async function runFunction(file, { url, method = 'GET', body = null, kv = makeKv
       headers: new Map(Object.entries(headers)),
       json: async () => { if (body === null) throw new Error('no body'); return body; }
     },
-    env: { TDQSYS_QUEUE_DATA: kv.binding },
+    env: { TDQSYS_QUEUE_DATA: kv.binding, ...env },
     waitUntil() {}, passThroughOnException() {}
   };
 
@@ -142,6 +143,23 @@ test('GET /api/data reads the instance key for a valid id', async () => {
   assert.equal(r.json.queues.brand1[1], 7);
   assert.ok(kv._keys().includes(`instances/${VALID_ID}/state`),
     'a valid id must read instances/<id>/state');
+});
+
+test('GET /api/data reads Supabase first when its Pages secrets are configured', async () => {
+  const mirrored = { config: { instanceId: VALID_ID, site: 'supabase' }, queues: { brand1: { 1: 9 } } };
+  const calls = [];
+  const r = await runFunction('functions/api/data.js', {
+    url: `https://example.com/api/data?id=${VALID_ID}`,
+    env: { SUPABASE_URL: 'https://project.supabase.co', SUPABASE_SECRET_KEY: 'private' },
+    fetchImpl: async (url, opts) => {
+      calls.push({ url, opts });
+      return new Response(JSON.stringify([{ state: mirrored }]), { status: 200 });
+    }
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.queues.brand1[1], 9);
+  assert.match(calls[0].url, /queue_state\?instance_id=eq/);
+  assert.equal(calls[0].opts.headers.apikey, 'private');
 });
 
 test('one instance id cannot read another instance record', async () => {
@@ -208,6 +226,27 @@ test('POST /api/save writes instances/<id>/state and pins the identity', async (
   const doc = JSON.parse(raw);
   assert.equal(doc.config.instanceId, VALID_ID,
     'the stored doc must be self-consistent with the key it lives under');
+});
+
+test('POST /api/save upserts Supabase when its Pages secrets are configured', async () => {
+  const calls = [];
+  const r = await runFunction('functions/api/save.js', {
+    url: `https://example.com/api/save?id=${VALID_ID}`,
+    method: 'POST',
+    body: { config: { site: 'loc-a' }, queues: { brand1: { 1: 5 } } },
+    env: { SUPABASE_URL: 'https://project.supabase.co', SUPABASE_SECRET_KEY: 'private' },
+    fetchImpl: async (url, opts) => {
+      calls.push({ url, opts });
+      return new Response('', { status: 201 });
+    }
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.key, `supabase:${VALID_ID}`);
+  assert.match(calls[0].url, /queue_state\?on_conflict=instance_id/);
+  assert.equal(calls[0].opts.headers.apikey, 'private');
+  const payload = JSON.parse(calls[0].opts.body);
+  assert.equal(payload.instance_id, VALID_ID);
+  assert.equal(payload.state.config.instanceId, VALID_ID);
 });
 
 test('POST /api/save preserves the stored config on a queue-only payload', async () => {

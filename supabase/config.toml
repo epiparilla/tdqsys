@@ -1,0 +1,2 @@
+[functions.queue-sync]
+verify_jwt = false

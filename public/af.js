@@ -155,11 +155,17 @@ function padValue(n) {
 // instead of displaying a location that was never asked for.
 async function afFetchState() {
     if (!afIsLocal()) {
-        const query = afCloudQuery();
-        if (query === null) return null;
+        const id = afInstanceId();
+        if (!id) return null;
         try {
-            const r = await fetch(`/api/data${query}`);
-            if (r.ok) return await r.json();
+            const supabase = window.afSupabaseReady && await window.afSupabaseReady;
+            if (!supabase) return null;
+            const { data, error } = await supabase
+                .from('queue_state')
+                .select('state')
+                .eq('instance_id', id)
+                .maybeSingle();
+            if (!error && data && data.state) return data.state;
         } catch (e) { /* cloud unavailable */ }
         return null;
     }
@@ -168,6 +174,36 @@ async function afFetchState() {
         if (r.ok) return await r.json();
     } catch (e) { /* engine unavailable */ }
     return null;
+}
+
+// Subscribe a public cloud viewer to just its current location.  This removes
+// the old 2-second GET loop (43,200 KV reads/day for one open phone) while
+// retaining afFetchState() as the initial-load and outage fallback.
+// Returns a channel object when a subscription could be started, otherwise
+// null. `onStatus` receives Supabase channel status strings.
+async function afSubscribeCloudState(onState, onStatus) {
+    if (afIsLocal()) return null;
+    const id = afInstanceId();
+    if (!id || !window.afSupabaseReady) return null;
+
+    const supabase = await window.afSupabaseReady;
+    if (!supabase) return null;
+
+    const channel = supabase
+        .channel(`tdqsys:${id}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'queue_state',
+            filter: `instance_id=eq.${id}`
+        }, (payload) => {
+            const state = payload && payload.new && payload.new.state;
+            if (state && state.config && state.queues) onState(state);
+        })
+        .subscribe((status) => {
+            if (onStatus) onStatus(status);
+        });
+    return channel;
 }
 
 async function afFetchConfig() {

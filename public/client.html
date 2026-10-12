@@ -66,6 +66,8 @@
         <!-- Brand sections rendered from config via af.js -->
     </div>
 
+    <script src="supabase-config.js"></script>
+    <script src="supabase-realtime.js"></script>
     <script src="af.js"></script>
     <script>
         // --------- CONFIG DRIVEN STATE ---------
@@ -190,8 +192,8 @@
             ).join('|');
         }
 
-        async function pollData() {
-            let data = await afFetchState();
+        async function pollData(stateFromRealtime) {
+            let data = stateFromRealtime || await afFetchState();
             if (!data) {
                 // No state because the cloud viewer has no location in its URL.
                 // Say so plainly instead of rendering an empty or wrong board.
@@ -263,8 +265,33 @@
             }
         }
 
+        let cloudFallbackTimer = null;
+        let realtimeConnected = false;
+
+        // Initial REST read gives a first paint.  Cloud pages then switch to a
+        // single websocket subscription; local pages retain their existing
+        // polling because they are served directly by the local engine.
         pollData();
-        setInterval(() => pollData(), 2000);
+        if (afIsLocal()) {
+            setInterval(() => pollData(), 2000);
+        } else {
+            afSubscribeCloudState((state) => pollData(state), (status) => {
+                realtimeConnected = status === 'SUBSCRIBED';
+                if (realtimeConnected && cloudFallbackTimer) {
+                    clearInterval(cloudFallbackTimer);
+                    cloudFallbackTimer = null;
+                }
+                // A failed websocket must not strand a customer on stale data.
+                // This deliberately slow fallback is 1/15th of the old polling.
+                if (!realtimeConnected && !cloudFallbackTimer) {
+                    cloudFallbackTimer = setInterval(() => pollData(), 30000);
+                }
+            }).then((channel) => {
+                if (!channel && !cloudFallbackTimer) {
+                    cloudFallbackTimer = setInterval(() => pollData(), 30000);
+                }
+            });
+        }
 
         // Listen for immediate localStorage updates from dashboard
         window.addEventListener('storage', (event) => {

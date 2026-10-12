@@ -2,7 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { defaultState, migrateLegacy, ensureInstanceId, normalizeConfig } = require('./shared/config');
+const { defaultState, migrateLegacy, ensureInstanceId, ensureCloudWriterToken, normalizeConfig } = require('./shared/config');
 const licence = require('./shared/licence');
 
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
@@ -59,6 +59,9 @@ if (fs.existsSync(DATA_FILE)) {
 // so the cloud mirror key stays stable from here on.
 if (ensureInstanceId(localData.config)) {
     log(`Backfilled instance id "${localData.config.instanceId}" for this installation.`);
+    try { fs.writeFileSync(DATA_FILE, JSON.stringify(localData)); } catch (e) { /* best-effort */ }
+}
+if (ensureCloudWriterToken(localData.config)) {
     try { fs.writeFileSync(DATA_FILE, JSON.stringify(localData)); } catch (e) { /* best-effort */ }
 }
 
@@ -293,6 +296,11 @@ const server = http.createServer((req, res) => {
                     const mine = (previous && previous.config && previous.config.instanceId)
                         || localData.config.instanceId;
                     if (mine) localData.config.instanceId = mine;
+                    // The direct-Supabase writer token belongs to this desktop,
+                    // not to a settings form or public state document.
+                    const writerToken = previous && previous.config && previous.config.cloudWriterToken;
+                    if (writerToken) localData.config.cloudWriterToken = writerToken;
+                    else ensureCloudWriterToken(localData.config);
                     // Same reasoning for the cars: a partial payload must not be
                     // able to delete a brand or a car the operator configured.
                     localData.queues = mergeQueues(
