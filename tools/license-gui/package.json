@@ -1,7 +1,7 @@
 {
   "name": "tdqsys-license-authority",
   "productName": "TDQSYS Licence Authority",
-  "version": "1.1.18",
+  "version": "1.1.21",
   "description": "TDQSYS - offline licence authority GUI",
   "main": "main.js",
   "scripts": {
