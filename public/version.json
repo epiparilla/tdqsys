@@ -1,9 +1,9 @@
 {
-  "version": "1.1.22",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.22/tdqsys-setup-1.1.22.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.22/tdqsys-setup-1.1.22.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.22/tdqsys-portable-1.1.22.exe",
-  "size": 225639729,
-  "installerBytes": 225639729,
-  "notes": "TDQSYS 1.1.22: Zero-touch remote reinstatement, auto-unlock on cloud cancel, and all-in-one Licence Authority."
+    "version":  "1.1.23",
+    "portable":  "https://github.com/epiparilla/tdqsys/releases/download/v1.1.23/tdqsys-portable-1.1.23.exe",
+    "installer":  "https://github.com/epiparilla/tdqsys/releases/download/v1.1.23/tdqsys-setup-1.1.23.exe",
+    "installerBytes":  225637896,
+    "notes":  "TDQSYS 1.1.23: TTS fingerprinted suffix/prefix clips + legacy purge; hardened licence reinstatement behaviour.",
+    "url":  "https://github.com/epiparilla/tdqsys/releases/download/v1.1.23/tdqsys-setup-1.1.23.exe",
+    "size":  225637896
 }

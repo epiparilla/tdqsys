@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import shutil
+import hashlib
 import soundfile as sf
 import numpy as np
 import re
@@ -136,12 +137,47 @@ def speech_keys():
     """The set of cache keys needed for all configured model prefixes."""
     return {v["key"] for v in pronounce_map.values()}
 
+def _fingerprint(text):
+    """Short, filename-safe hash of a fixed phrase's spoken text.
+
+    prefix/suffix clips are named with this so a clip recorded for a different
+    wording can never be reused. Previously the phrase cache only filled on a
+    miss, so a stale speakers/suffix.wav (from an older build or a dev run)
+    shadowed the real phrase forever and every restart kept saying the wrong
+    words. Fingerprinting makes that impossible: change the text and the old
+    file simply stops being looked at.
+    """
+    return hashlib.sha1(text.strip().encode("utf-8")).hexdigest()[:8]
+
 def cache_path(key):
-    """Return the file path for a cached audio key."""
-    if key in ('prefix', 'suffix'):
-        return os.path.join(SPEAKER_CACHE_DIR, f"{key}.wav")
-    else:
-        return os.path.join(SPEAKER_CACHE_DIR, f"{key}.wav")
+    """Return the file path for a cached audio key.
+
+    The two fixed phrases carry a fingerprint of their text (see
+    _fingerprint); acronyms keep their pronunciation-derived key."""
+    if key == 'prefix':
+        return os.path.join(SPEAKER_CACHE_DIR, f"prefix-{_fingerprint(PREFIX_TEXT)}.wav")
+    if key == 'suffix':
+        return os.path.join(SPEAKER_CACHE_DIR, f"suffix-{_fingerprint(SUFFIX_TEXT)}.wav")
+    return os.path.join(SPEAKER_CACHE_DIR, f"{key}.wav")
+
+def purge_legacy_phrase_clips():
+    """Delete any pre-fingerprint prefix.wav / suffix.wav.
+
+    They are no longer read (cache_path points at the fingerprinted names), but
+    a stale one is exactly the artifact that made the TTS announce the wrong
+    words, so remove it instead of leaving it to confuse the next debugging
+    session. The correct clip is re-rendered by the normal startup sweep."""
+    removed = 0
+    for legacy in ('prefix.wav', 'suffix.wav'):
+        path = os.path.join(SPEAKER_CACHE_DIR, legacy)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+                removed += 1
+        except OSError as e:
+            print(f"Could not remove legacy clip {legacy} ({e}).")
+    if removed:
+        print(f"Removed {removed} legacy phrase clip(s); re-rendering the fingerprinted clip.")
 
 def number_cache_path(num_str):
     """Return the file path for a cached number like '01', '02', etc."""
@@ -385,7 +421,11 @@ try:
     # First run: pull the pre-rendered clips that ship inside the package
     # (numbers 01-50 + speaker clips) into the data cache dir.
     seed_from_bundle()
-    
+
+    # Drop any stale pre-fingerprint prefix/suffix before deciding whether the
+    # cache is complete — otherwise a wrong-phrase clip survives as "complete".
+    purge_legacy_phrase_clips()
+
     if cache_is_complete(max_num=150):
         load_all_from_cache()
     else:
