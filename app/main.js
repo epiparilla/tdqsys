@@ -345,6 +345,19 @@ async function cloudSyncTick() {
 // an error dialog.
 const UPDATE_MANIFEST = 'version.json';
 
+function expectedInstallerName(version) {
+    return `tdqsys-setup-${version}.exe`;
+}
+
+function assertUpdateArtifactMatchesManifest(info) {
+    let name;
+    try { name = path.basename(new URL(info.url).pathname); } catch { throw new Error('update URL is invalid'); }
+    const expected = expectedInstallerName(info.latest);
+    if (name !== expected) {
+        throw new Error(`update manifest is inconsistent: version ${info.latest} must use ${expected}, not ${name}`);
+    }
+}
+
 function compareVersions(a, b) {
     const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
     const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
@@ -459,6 +472,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function applyUpdate(info, win) {
     log(`applying update to v${info.latest} (${info.url})`);
+    // Never label an old installer as a newer release. Apart from causing an
+    // endless update prompt, it makes a failed handoff almost impossible to
+    // diagnose because the binary reports a different version after restart.
+    assertUpdateArtifactMatchesManifest(info);
     sendUpdateProgress(win, { state: 'download', percent: 0 });
 
     const dest = path.join(app.getPath('temp'), `TDQSYS-setup-${info.latest}.exe`);
@@ -481,7 +498,6 @@ async function applyUpdate(info, win) {
     // Stop every child so the installer can replace files without a struggle.
     app.isQuitting = true;
     cleanup();
-    await sleep(1500);
     killPortHolders([PORT, TTS_PORT]);
 
     sendUpdateProgress(win, { state: 'installing', percent: 100 });
@@ -500,6 +516,9 @@ async function applyUpdate(info, win) {
     const cmdFile = path.join(app.getPath('temp'), `${tag}.cmd`);
     const updateLog = path.join(app.getPath('temp'), `${tag}.log`);
     try { fs.unlinkSync(updateLog); } catch {}
+    // NSIS requires /D to be the final argument. Quote the directory because
+    // Program Files is the normal all-users install location.
+    const installerArgs = `/S /D="${installDir}"`;
     const psContent =
         `$log = '${updateLog}'; ` +
         `"start $(Get-Date -Format o)" | Set-Content $log; ` +
@@ -510,9 +529,15 @@ async function applyUpdate(info, win) {
         `  Start-Sleep -Milliseconds 400; ` +
         `}; ` +
         `"app exited: $ready" | Add-Content $log; ` +
-        `$ins = Start-Process -FilePath '${dest}' -ArgumentList '/S' -Wait -PassThru; ` +
+        // The app may have been launched from a terminal or a tool that set
+        // this Electron-only switch. If inherited, TDQSYS.exe runs as Node
+        // and exits without ever creating a window.
+        `Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue; ` +
+        `$ins = Start-Process -FilePath '${dest}' -ArgumentList '${installerArgs}' -Wait -PassThru; ` +
         `"installer exit: $($ins.ExitCode)" | Add-Content $log; ` +
-        `$launched = Start-Process -FilePath '${newExe}' -PassThru; ` +
+        `if ($ins.ExitCode -ne 0) { throw "installer failed with exit code $($ins.ExitCode)" }; ` +
+        `if (-not (Test-Path -LiteralPath '${newExe}')) { throw 'updated TDQSYS.exe was not found' }; ` +
+        `$launched = Start-Process -FilePath '${newExe}' -PassThru -ErrorAction Stop; ` +
         `"relaunched pid: $($launched.Id)" | Add-Content $log; ` +
         `Start-Sleep -Seconds 5; ` +
         `Remove-Item -LiteralPath '${dest}' -Force -ErrorAction SilentlyContinue; ` +
@@ -531,7 +556,7 @@ async function applyUpdate(info, win) {
     const helper = spawn('cmd.exe', ['/c', cmdFile], { detached: false, stdio: 'ignore', windowsHide: true });
     helper.on('error', (err) => {
         log(`update helper failed to start: ${err.message}`);
-        sendUpdateProgress(window, { state: 'error', error: `Could not start the updater: ${err.message}` });
+        sendUpdateProgress(win, { state: 'error', error: `Could not start the updater: ${err.message}` });
     });
     helper.once('spawn', () => { helperStarted = true; });
     helper.unref();

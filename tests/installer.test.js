@@ -16,6 +16,7 @@ const { APP, appVersion } = require('./helpers');
 
 const DIST = path.join(APP, 'dist-installer');
 const VERSION = appVersion();
+const MANIFEST_PATH = path.join(APP, '..', 'public', 'version.json');
 
 function ghAvailable() {
   try {
@@ -57,6 +58,19 @@ test('no stale installers from older versions linger in dist', (t) => {
     .filter((f) => f.endsWith('.exe') && f.includes('TDQSYS'));
   const stale = exes.filter((f) => !f.includes(VERSION));
   t.diagnostic(`stale installers present: ${stale.join(', ') || 'none'}`);
+});
+
+test('the update manifest version, URL and asset name describe one installer', () => {
+  const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+  const expected = `tdqsys-setup-${manifest.version}.exe`;
+  const url = new URL(manifest.url);
+
+  assert.equal(url.pathname.split('/').pop(), expected,
+    'manifest version must match the installer asset it downloads');
+  assert.match(url.pathname, new RegExp(`/releases/download/v${String(manifest.version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`),
+    'manifest version must match the GitHub release tag it downloads');
+  assert.equal(manifest.installer, manifest.url,
+    'installer and url must remain the same updater target');
 });
 
 test('the published GitHub release assets match the manifest', (t) => {

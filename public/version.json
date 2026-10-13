@@ -1,9 +1,9 @@
 {
-    "version":  "1.1.23",
-    "portable":  "https://github.com/epiparilla/tdqsys/releases/download/v1.1.23/tdqsys-portable-1.1.23.exe",
-    "installer":  "https://github.com/epiparilla/tdqsys/releases/download/v1.1.23/tdqsys-setup-1.1.23.exe",
-    "installerBytes":  225637896,
-    "notes":  "TDQSYS 1.1.23: TTS fingerprinted suffix/prefix clips + legacy purge; hardened licence reinstatement behaviour.",
-    "url":  "https://github.com/epiparilla/tdqsys/releases/download/v1.1.23/tdqsys-setup-1.1.23.exe",
-    "size":  225637896
+  "version": "1.1.26",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.26/tdqsys-setup-1.1.26.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.26/tdqsys-setup-1.1.26.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.26/tdqsys-portable-1.1.26.exe",
+  "size": 225638519,
+  "installerBytes": 225638519,
+  "notes": "TDQSYS 1.1.26: updater now clears Electron's Node-mode environment before relaunching, targets the current install folder, and rejects mismatched release metadata."
 }

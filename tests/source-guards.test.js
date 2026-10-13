@@ -65,6 +65,19 @@ test('the updater downloads the installer from the manifest', () => {
     'the updater must keep reading version.json from the site');
 });
 
+test('the updater relaunch cannot inherit Electron Node mode or change install folder', () => {
+  // ELECTRON_RUN_AS_NODE turns TDQSYS.exe into a Node process. It can be
+  // inherited from a development shell or launcher and otherwise looks like
+  // a successful relaunch that immediately disappears. NSIS also needs /D as
+  // its final argument to update a Program Files installation in place.
+  assert.ok(main.includes('Remove-Item Env:ELECTRON_RUN_AS_NODE'),
+    'the update helper must clear Electron Node mode before relaunching TDQSYS');
+  assert.match(main, /installerArgs\s*=\s*`\/S \/D="\$\{installDir\}"`/,
+    'the silent installer must target the existing install directory');
+  assert.ok(main.includes('assertUpdateArtifactMatchesManifest(info)'),
+    'the updater must reject a manifest whose version and installer filename disagree');
+});
+
 test('update checks repeat, not just once at launch', () => {
   // A build published while the app was already open went unnoticed until a
   // manual restart, which is why the pill appeared not to work.
