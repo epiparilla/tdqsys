@@ -53,7 +53,12 @@ function recordRevocation(reason, instanceId, dataDir) {
       fs.writeFileSync(path.join(dataDir, 'revoked.json'), JSON.stringify(doc, null, 2));
     } catch (e) {}
   }
-  clearStored();
+  // Revocation is a reversible lock, not a destructive deactivation. The
+  // marker above is checked before the stored code, so the licence cannot be
+  // used while revoked. Keeping the code means a confirmed reinstatement can
+  // unlock the exact paid activation without asking the operator to re-enter
+  // it. Older markers may have removed the file; reinstate() still recovers
+  // those from previousLicence below.
   return doc;
 }
 
@@ -66,7 +71,12 @@ function clearRevocation(dataDir) {
 
 function reinstate(dataDir, instanceId) {
   const rev = isRevoked(dataDir);
+  const stored = readStored();
   const codeToRestore = rev && rev.previousLicence ? rev.previousLicence : null;
+  if (stored) {
+    clearRevocation(dataDir);
+    return status(instanceId, { dataDir });
+  }
   if (codeToRestore) {
     clearRevocation(dataDir);
     writeStored(codeToRestore, instanceId || (rev && rev.instanceId));

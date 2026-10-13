@@ -31,6 +31,26 @@ function writeLicence(engine, code) {
   );
 }
 
+// shared/licence.js reads AF_LICENSE_DIR when it is loaded. The engine itself
+// runs in a child process with a disposable directory, so any direct test use
+// of that module must do the same. Otherwise a revocation test can delete the
+// developer's real ~/.tdqsys/license.json.
+function loadIsolatedLicenceStore(licenseDir) {
+  const modulePath = require.resolve('../shared/licence');
+  const prior = process.env.AF_LICENSE_DIR;
+  process.env.AF_LICENSE_DIR = licenseDir;
+  delete require.cache[modulePath];
+  const store = require('../shared/licence');
+  return {
+    store,
+    dispose() {
+      delete require.cache[modulePath];
+      if (prior === undefined) delete process.env.AF_LICENSE_DIR;
+      else process.env.AF_LICENSE_DIR = prior;
+    }
+  };
+}
+
 describe('packaging', () => {
   const assemble = fs.readFileSync(path.join(__dirname, '..', 'app', 'assemble-server.ps1'), 'utf8');
 
@@ -258,17 +278,28 @@ describe('clock rollback', () => {
 
 describe('remote revocation lockdown', () => {
   let engine;
-  const { recordRevocation, clearRevocation } = require('../shared/licence');
+  let store;
 
-  before(async () => { engine = await startEngine(); });
+  before(async () => {
+    engine = await startEngine();
+    writeLicence(engine, engine.issue(engine.instanceId, '2000-01-01', '2099-12-31'));
+    store = loadIsolatedLicenceStore(engine.licenseDir);
+  });
   after(async () => {
-    clearRevocation(engine.dataDir);
+    store.store.clearRevocation(engine.dataDir);
+    store.dispose();
     await engine.stop();
   });
 
   test('a revoked licence locks the engine immediately and blocks writes', async () => {
     // Record a remote revocation for this engine's instance
-    recordRevocation('Revoked by administrator: policy violation', engine.instanceId, engine.dataDir);
+    const before = store.store.readStored();
+    assert.ok(before && before.code, 'test needs an activated licence to preserve');
+    store.store.recordRevocation('Revoked by administrator: policy violation', engine.instanceId, engine.dataDir);
+
+    const retained = store.store.readStored();
+    assert.equal(retained.code, before.code,
+      'revocation must retain the paid activation so cancellation can restore access');
 
     const st = await engine.status();
     assert.equal(st.state, license.STATE.REVOKED);
@@ -281,5 +312,15 @@ describe('remote revocation lockdown', () => {
     const body = await r.json();
     assert.equal(body.licenceState, 'revoked');
     assert.equal(body.licenceDetail, 'Revoked by administrator: policy violation');
+  });
+
+  test('cancelling a revocation restores the retained activation without a new code', async () => {
+    store.store.reinstate(engine.dataDir, engine.instanceId);
+    assert.equal(store.store.isRevoked(engine.dataDir), null);
+    const st = await engine.status();
+    assert.equal(st.state, license.STATE.VALID, st.detail);
+    assert.equal(st.canWrite, true);
+    assert.equal(store.store.readStored().instanceId, engine.instanceId);
+    assert.equal((await save(engine.base)).status, 200);
   });
 });
