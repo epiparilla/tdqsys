@@ -1,3 +1,5 @@
+import sys
+
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -6,7 +8,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.enum.section import WD_SECTION
 
-OUT = 'docs/TDQSYS_CLIENT_HANDOVER_GUIDE.docx'
+OUT = sys.argv[1] if len(sys.argv) > 1 else 'docs/TDQSYS_CLIENT_HANDOVER_GUIDE.docx'
 
 doc = Document()
 sec = doc.sections[0]
@@ -201,6 +203,7 @@ p('Revocation is a reversible operational lock managed by the provider. It does 
 
 heading('Software Updates')
 p('Updates are offered from the dashboard and Settings. Select Check for Updates, then Download and Install Update. TDQSYS downloads the verified installer, installs it, and restarts. An internet connection and a Windows administrator approval prompt may be required.')
+p('For a new installation, share this permanent client download link: https://tdqsys.pages.dev/download. It always finds the current Windows installer, even when a later release uses a different file name.', bold_lead='Latest installer: ')
 bullets([
     'Do not power off the PC while the update is downloading or installing.',
     'After restart, confirm the version shown in Settings.',
