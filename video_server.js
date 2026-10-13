@@ -263,7 +263,7 @@ const server = http.createServer((req, res) => {
                     }));
                 }
 
-                const result = licence.activate(incoming.code, INSTANCE());
+                const result = licence.activate(incoming.code, INSTANCE(), { dataDir: DATA_DIR });
                 res.writeHead(result.stored ? 200 : 400, { 'Content-Type': 'application/json' });
                 return res.end(JSON.stringify({
                     stored: result.stored,

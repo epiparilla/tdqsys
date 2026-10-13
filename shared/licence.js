@@ -67,10 +67,15 @@ function clearRevocation(dataDir) {
 function reinstate(dataDir, instanceId) {
   const rev = isRevoked(dataDir);
   const codeToRestore = rev && rev.previousLicence ? rev.previousLicence : null;
-  clearRevocation(dataDir);
   if (codeToRestore) {
+    clearRevocation(dataDir);
     writeStored(codeToRestore, instanceId || (rev && rev.instanceId));
+    return status(instanceId, { dataDir });
   }
+  // No previous licence to restore - do not delete the licence file or silently
+  // drop the operator back to "no_licence". Leave the revocation record intact
+  // (or remove it only after a valid code is entered). Better: keep status as
+  // REVOKED until re-activation.
   return status(instanceId, { dataDir });
 }
 
