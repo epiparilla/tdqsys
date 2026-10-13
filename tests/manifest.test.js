@@ -105,3 +105,15 @@ test('version.json is valid JSON with the fields the updater needs', () => {
   assert.ok(typeof manifest.notes === 'string' && manifest.notes.length > 0,
     'version.json should carry release notes for the update prompt');
 });
+
+test('the public /download route resolves its installer from the current manifest', () => {
+  const file = path.join(PUBLIC, 'download', 'index.html');
+  assert.ok(fs.existsSync(file), 'public/download/index.html is missing; the permanent client download link would 404');
+  const html = fs.readFileSync(file, 'utf8');
+  assert.match(html, /fetch\('\/version\.json'/,
+    '/download must read version.json instead of hard-coding a release filename');
+  assert.match(html, /manifest\.installer\s*\|\|\s*manifest\.url/,
+    '/download must use the installer URL from the current manifest');
+  assert.match(html, /window\.location\.replace\(installer\.href\)/,
+    '/download must redirect the visitor to the resolved installer');
+});

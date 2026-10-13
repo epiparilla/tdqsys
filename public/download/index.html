@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>TDQSYS - Downloading latest installer</title>
+    <style>
+        :root { color-scheme: light; font-family: Arial, sans-serif; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f6f8; color: #17212b; }
+        main { box-sizing: border-box; width: min(32rem, calc(100% - 2rem)); padding: 2.2rem; text-align: center; background: #fff; border-radius: 12px; box-shadow: 0 8px 30px #17212b18; }
+        h1 { margin: 0 0 .8rem; font-size: 1.55rem; }
+        p { margin: .55rem 0; line-height: 1.5; color: #4b5563; }
+        a { display: none; margin-top: 1rem; padding: .75rem 1rem; border-radius: 6px; background: #17365d; color: #fff; text-decoration: none; font-weight: 700; }
+        a:focus, a:hover { background: #0e2746; }
+        .error { color: #a11c27; }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>Preparing your TDQSYS download</h1>
+        <p id="status">Finding the latest Windows installer…</p>
+        <a id="fallback" href="#">Download the latest installer</a>
+    </main>
+    <script>
+        (async () => {
+            const status = document.getElementById('status');
+            const fallback = document.getElementById('fallback');
+            try {
+                const response = await fetch('/version.json', { cache: 'no-store' });
+                if (!response.ok) throw new Error('The update information is unavailable.');
+                const manifest = await response.json();
+                const installer = new URL(manifest.installer || manifest.url);
+                if (installer.protocol !== 'https:' || !/\.exe$/i.test(installer.pathname)) {
+                    throw new Error('The published installer link is invalid.');
+                }
+                fallback.href = installer.href;
+                fallback.style.display = 'inline-block';
+                status.textContent = 'Your download should begin shortly.';
+                window.location.replace(installer.href);
+            } catch (error) {
+                status.className = 'error';
+                status.textContent = 'We could not prepare the download. Please try again later.';
+            }
+        })();
+    </script>
+</body>
+
+</html>
