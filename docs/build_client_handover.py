@@ -145,6 +145,14 @@ table(['Part', 'Purpose'], [
     ('Phone mirror link', 'A read-only web view for the specific location. It does not allow queue changes.'),
 ], [2.0, 4.5])
 
+heading('Minimum Hardware and Installation Requirements')
+p('Prepare the following equipment before installing TDQSYS. Place the computer where the operator can use it comfortably and where the display cable can be routed safely.')
+bullets([
+    'Windows PC or laptop to run TDQSYS.',
+    'External TV or monitor of at least 43 inches for the customer-facing queue display.',
+    'HDMI cable long enough for the measured distance between the computer and the external display, with enough allowance for safe routing and connection.',
+])
+
 heading('Before the Event')
 bullets([
     'Start TDQSYS from its Windows shortcut and allow the dashboard to load.',
