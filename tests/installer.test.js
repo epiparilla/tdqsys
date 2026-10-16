@@ -32,7 +32,7 @@ test('a locally built installer exists for the current version', (t) => {
     t.skip('dist-installer not present - run a build first');
     return;
   }
-  const setup = path.join(DIST, `TDQSYS Setup ${VERSION}.exe`);
+  const setup = path.join(DIST, `tdqsys-setup-${VERSION}.exe`);
   assert.ok(fs.existsSync(setup),
     `missing "${path.basename(setup)}". Dist holds: ` +
     fs.readdirSync(DIST).filter((f) => f.endsWith('.exe')).join(', '));
@@ -40,7 +40,7 @@ test('a locally built installer exists for the current version', (t) => {
 
 test('the portable build exists for the current version', (t) => {
   if (!fs.existsSync(DIST)) { t.skip('dist-installer not present'); return; }
-  const portable = path.join(DIST, `TDQSYS ${VERSION} Portable.exe`);
+  const portable = path.join(DIST, `tdqsys-portable-${VERSION}.exe`);
   assert.ok(fs.existsSync(portable), `missing "${path.basename(portable)}"`);
 });
 
@@ -55,7 +55,7 @@ test('no stale installers from older versions linger in dist', (t) => {
   // the wrong binary gets uploaded to a release.
   if (!fs.existsSync(DIST)) { t.skip('dist-installer not present'); return; }
   const exes = fs.readdirSync(DIST)
-    .filter((f) => f.endsWith('.exe') && f.includes('TDQSYS'));
+    .filter((f) => f.endsWith('.exe') && f.toLowerCase().startsWith('tdqsys'));
   const stale = exes.filter((f) => !f.includes(VERSION));
   t.diagnostic(`stale installers present: ${stale.join(', ') || 'none'}`);
 });

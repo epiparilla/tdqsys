@@ -112,6 +112,24 @@ test('an identical save is correctly reported as no change', () => {
   assert.equal(changeOutcome(clone(BASE), clone(BASE)), 'NO-CHANGE');
 });
 
+test('no-change saves use the in-page information modal, not a native alert', () => {
+  // Electron's native alert can dismiss without returning focus to an HTML
+  // input, leaving Edit Mode looking frozen until Windows reactivates it.
+  assert.match(html, /showInfo\('No configuration changes detected'/,
+    'an unchanged save should open the in-page information modal');
+  assert.doesNotMatch(html, /alert\('No configuration changes detected\.'/,
+    'an unchanged save must not use a native alert that can strand keyboard focus');
+});
+
+test('relock confirmation stays inside Settings, not in a native confirm dialog', () => {
+  assert.match(html, /id="relock-modal"/,
+    'the relock confirmation modal is missing');
+  assert.match(html, /function requestRelock\(\)[\s\S]*?openModal\('relock-modal'\)/,
+    'Cancel & Relock should open the in-page confirmation modal');
+  assert.doesNotMatch(html, /confirm\('Relock settings\?/,
+    'native confirm can return without restoring focus to the next unlock input');
+});
+
 // --- Unlock flow -------------------------------------------------------------
 
 /** Build a sandbox for the unlock flow and run requestUnlock(). */
@@ -240,6 +258,11 @@ test('stale oninput/onkeydown handlers are cleared', () => {
   assert.equal(e.input.onkeydown, null);
 });
 
+test('opening the unlock modal explicitly enables its confirmation field', () => {
+  assert.match(html, /input\.value = '';\s*input\.disabled = false;/,
+    'a stale disabled state must not make the CONFIRM box appear frozen on re-entry');
+});
+
 // --- Identity card ------------------------------------------------------------
 
 test('the mirror link and instance id stay outside the locked form', () => {
@@ -285,6 +308,20 @@ for (const fn of ['fetchLicence', 'renderLicence', 'activateLicence']) {
     assert.ok(html.includes('function ' + fn + '('), fn + ' is missing');
   }
   assert.match(html, /api\/license/, 'Settings never talks to the licence API');
+});
+
+test('desktop revocation and reinstatement refresh the Settings licence state immediately', () => {
+  // The main process tells Settings about a remote change. Calling its own
+  // refresh path is essential: refreshLicence() exists only in main.js and
+  // otherwise the page waits up to the one-minute polling interval.
+  assert.match(html, /async function refreshLicenceState\(\)[\s\S]*?fetchLicence\(\)[\s\S]*?renderLicence\(st\)/,
+    'Settings needs one local function that fetches and renders the licence state');
+  assert.match(html, /onLicenceRevoked\(\(\) => \{ refreshLicenceState\(\); \}\)/,
+    'revocation event does not refresh Settings immediately');
+  assert.match(html, /onLicenceReinstated\(\(\) => \{ refreshLicenceState\(\); \}\)/,
+    'reinstatement event does not refresh Settings immediately');
+  assert.doesNotMatch(html, /onLicence(?:Revoked|Reinstated)\(\(\) => \{ refreshLicence\(\); \}\)/,
+    'Settings event handlers must not call main.js-only refreshLicence()');
 });
 
 test('an expired licence keeps Edit Mode from opening', () => {

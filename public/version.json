@@ -1,9 +1,9 @@
 {
-  "version": "1.1.27",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.27/tdqsys-setup-1.1.27.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.27/tdqsys-setup-1.1.27.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.27/tdqsys-portable-1.1.27.exe",
-  "size": 225638715,
-  "installerBytes": 225638715,
-  "notes": "TDQSYS 1.1.27: remote revocation is now a reversible lock; cancelling it restores the retained activation without requiring a new code."
+  "version": "1.1.28",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.28/tdqsys-setup-1.1.28.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.28/tdqsys-setup-1.1.28.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.28/tdqsys-portable-1.1.28.exe",
+  "size": 225640281,
+  "installerBytes": 225640281,
+  "notes": "TDQSYS 1.1.28: Settings no longer uses Windows dialogs for unchanged saves or relocking, preventing the delayed input focus issue. Licence revocation and reinstatement now refresh Settings immediately."
 }

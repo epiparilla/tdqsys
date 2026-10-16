@@ -454,6 +454,20 @@
         </div>
     </div>
 
+    <!-- ============ RELOCK CONFIRMATION ============ -->
+    <!-- Keep this in-page: Electron native confirm() can return with keyboard
+         focus lost, which makes the next unlock confirmation look disabled. -->
+    <div class="modal" id="relock-modal">
+        <div class="modal-box">
+            <h2>Relock settings?</h2>
+            <p>Your unsaved edits will be discarded and Settings will return to read-only mode.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost settings-btn" onclick="closeRelockModal()">Keep Editing</button>
+                <button type="button" class="btn-danger settings-btn" onclick="doRelock()">Relock Settings</button>
+            </div>
+        </div>
+    </div>
+
     <script src="af.js"></script>
     <!-- Local, not a CDN: Settings must still work when the internet is down. -->
     <script src="vendor/qrcode-generator.js"></script>
@@ -497,10 +511,10 @@
 
             // Licence before the wizard: on a fresh install there is no licence
             // yet, and the operator needs to see activation before configuration.
-            renderLicence(await fetchLicence());
+            await refreshLicenceState();
 
             // A licence can lapse mid-shift, so do not trust the first answer.
-            setInterval(async () => { renderLicence(await fetchLicence()); }, 60000);
+            setInterval(refreshLicenceState, 60000);
             const appInfo = await applyAppInfo();
 
             // First-run wizard: shows on a genuinely fresh install (no previous
@@ -536,6 +550,16 @@
             } catch (e) {
                 return null;
             }
+        }
+
+        // One shared refresh path for the initial page load, periodic expiry
+        // check, and desktop revocation/reinstatement notifications. Keeping
+        // these together prevents a desktop event from silently calling a
+        // function that only exists in the Electron main process.
+        async function refreshLicenceState() {
+            const st = await fetchLicence();
+            renderLicence(st);
+            return st;
         }
 
         function setText(id, v) { document.getElementById(id).textContent = v; }
@@ -1258,6 +1282,7 @@ function renderLicence(st) {
             } catch (e) { /* cosmetic only */ }
 
             input.value = '';
+            input.disabled = false;
             btn.disabled = true;
             btn.textContent = 'Unlock Edit Mode';
 
@@ -1306,8 +1331,16 @@ function renderLicence(st) {
             closeUnlockModal();
         }
 
-        function relock() {
-            if (!confirm('Relock settings? Your edits will be discarded.')) return;
+        function requestRelock() {
+            openModal('relock-modal');
+        }
+
+        function closeRelockModal() {
+            closeModal('relock-modal');
+        }
+
+        function doRelock() {
+            closeRelockModal();
             unlocked = false;
             document.getElementById('lock-banner').style.display = 'block';
             document.getElementById('settings-form').style.opacity = '0.55';
@@ -1364,7 +1397,8 @@ function renderLicence(st) {
 
             if (!labelChanged && !structureChanged) {
                 // Nothing changed at all -- only queue data is different.
-                alert('No configuration changes detected.');
+                showInfo('No configuration changes detected',
+                    'There is nothing to save. You can continue editing or relock Settings when you are finished.');
                 return;
             }
 
@@ -1686,17 +1720,22 @@ if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return;
         function closeWizard() { closeModal('wizard-modal'); }
         function closeUnlockModal() { closeModal('unlock-modal'); }
         function closeChangeModal() { closeModal('config-change-modal'); pendingClearPreserve = null; }
+        function showInfo(title, message) {
+            document.getElementById('done-title').textContent = title;
+            document.getElementById('done-msg').textContent = message;
+            openModal('done-modal');
+        }
         function closeDoneModal() { closeModal('done-modal'); }
 
         // Bind save
         document.getElementById('save-btn').addEventListener('click', onSave);
-        document.getElementById('discard-btn').addEventListener('click', relock);
+        document.getElementById('discard-btn').addEventListener('click', requestRelock);
 
         if (window.afDesktop && typeof window.afDesktop.onLicenceRevoked === 'function') {
-            window.afDesktop.onLicenceRevoked(() => { refreshLicence(); });
+            window.afDesktop.onLicenceRevoked(() => { refreshLicenceState(); });
         }
         if (window.afDesktop && typeof window.afDesktop.onLicenceReinstated === 'function') {
-            window.afDesktop.onLicenceReinstated(() => { refreshLicence(); });
+            window.afDesktop.onLicenceReinstated(() => { refreshLicenceState(); });
         }
 
         boot();
