@@ -35,6 +35,29 @@ GitHub assets or `public/version.json` before acceptance.
 
 ## Cloud prerequisites
 
+### Verified deployment on 1 November 2026
+
+The additive schema, private operations function, Google service-account
+secret, and matching Pages/Edge encryption secrets are now deployed. The
+working registration preview is:
+
+`https://test-drive-preview.tdqsys.pages.dev`
+
+A live probe passed SE registration/code validation, client registration,
+idempotent retries, duplicate ticket handling, encrypted SE slip retrieval,
+Ongoing, same-day reset/history, and the deployed Google Sheets worker. Its
+disposable location records and temporary Google tab were removed afterward;
+the real giveaway tab was left untouched. No physical printing was attempted.
+
+For the manual test installation, set **System Settings > Cloud Base URL** to
+the preview address above, paste the selected Google Sheets tab URL, and save.
+Open **Facilitator Dashboard > Test Drive Operations > Event setup**, select
+**Sync saved Settings**, then choose the installed label printer in Print Queue.
+The existing production site, release assets, and update manifest remain at
+their checkpoint state.
+
+The steps below remain a deployment reference for future environments.
+
 1. Authenticate the Supabase CLI for the existing project
    `pnyptdyfkftrcgjlaqnr` using `npx supabase login`.
 2. Apply `supabase/migrations/202611010001_test_drive_platform.sql` once, after

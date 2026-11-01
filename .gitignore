@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .dev-db/
+supabase/.temp/
 
 # Cloudflare local state
 .wrangler/
