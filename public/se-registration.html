@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TDQSYS Sales Executive Registration</title>
+  <style>
+    body{margin:0;background:#0b1220;color:#edf2f7;font:16px system-ui,sans-serif}.card{max-width:480px;margin:3rem auto;padding:1.5rem;background:#172033;border-radius:16px}label{display:block;margin-top:1rem;font-weight:700}input,button{box-sizing:border-box;width:100%;margin-top:.35rem;padding:.8rem;border-radius:8px;border:1px solid #536078;font:inherit}button{background:#d71920;color:#fff;border:0;font-weight:800;cursor:pointer}.error{color:#ffb4b4}.success{color:#b8f5cf;white-space:pre-line}
+  </style>
+</head>
+<body><main class="card"><h1>Sales Executive Registration</h1><p>Register for today&apos;s test-drive event.</p>
+  <form id="form"><label>Name<input name="name" autocomplete="name" required></label><label>Dealership<input name="dealership" required></label><button>Get my code</button></form><p id="message" role="status"></p>
+</main><script>
+const form=document.getElementById('form'), message=document.getElementById('message');
+const instanceId=new URL(location.href).searchParams.get('id')||'';
+form.addEventListener('submit',async(e)=>{e.preventDefault();message.textContent=''; const button=form.querySelector('button');button.disabled=true;try{const r=await fetch('/api/test-drive/se-checkins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instanceId,name:form.name.value,dealership:form.dealership.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'Registration failed.');message.className='success';message.textContent=`Your code is ${data.code}\n${data.message}`;form.hidden=true}catch(err){message.className='error';message.textContent=err.message}finally{button.disabled=false}});
+</script></body></html>

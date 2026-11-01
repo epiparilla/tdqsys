@@ -1,0 +1,61 @@
+'use strict';
+
+// Shared validation for the public test-drive forms. Server endpoints still
+// validate against the database; these helpers keep browser and server rules
+// consistent without treating client validation as a security boundary.
+
+const INSTANCE_RE = /^[0-9a-f-]{1,64}$/i;
+const CODE_RE = /^\d{4}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NAME_RE = /^[\p{L} .,'-]+$/u;
+const ADDRESS_RE = /^[\p{L}\p{N} .,'#/-]+$/u;
+const PHONE_RE = /^[0-9+() .-]+$/;
+
+function text(value, max = 240) {
+  return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+function normaliseName(value) {
+  return text(value, 160).replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function validInstanceId(value) { return INSTANCE_RE.test(text(value, 64)); }
+function validSeCode(value) { return CODE_RE.test(text(value, 4)); }
+
+function validateSeCheckin(body = {}) {
+  const name = text(body.name, 120);
+  const dealership = text(body.dealership, 160);
+  const errors = {};
+  if (!validInstanceId(body.instanceId)) errors.instanceId = 'Invalid registration location.';
+  if (!name || !NAME_RE.test(name)) errors.name = 'Enter the Sales Executive name using letters.';
+  if (!dealership) errors.dealership = 'Enter the dealership.';
+  return { ok: Object.keys(errors).length === 0, errors, value: { name, dealership } };
+}
+
+function validateRegistration(body = {}) {
+  const fullName = text(body.fullName, 160);
+  const email = text(body.email, 320).toLowerCase();
+  const cityAddress = text(body.cityAddress, 240);
+  const contactNumber = text(body.contactNumber, 40);
+  const seCode = text(body.seCode, 4);
+  const modelIds = Array.isArray(body.modelIds)
+    ? [...new Set(body.modelIds.filter((v) => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v)))]
+    : [];
+  const errors = {};
+  if (!validInstanceId(body.instanceId)) errors.instanceId = 'Invalid registration location.';
+  if (!fullName || !NAME_RE.test(fullName)) errors.fullName = 'Enter your full name using letters.';
+  if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
+  if (!cityAddress || !ADDRESS_RE.test(cityAddress)) errors.cityAddress = 'Enter a valid city address.';
+  if (!contactNumber || !PHONE_RE.test(contactNumber)) errors.contactNumber = 'Enter a valid contact number.';
+  if (!modelIds.length) errors.modelIds = 'Select at least one vehicle model.';
+  if (!validSeCode(seCode)) errors.seCode = 'Enter the four-digit Sales Executive code.';
+  if (body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
+  if (body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
+  return {
+    ok: Object.keys(errors).length === 0,
+    errors,
+    value: { fullName, nameSearch: normaliseName(fullName), email, cityAddress, contactNumber, seCode, modelIds }
+  };
+}
+
+module.exports = { normaliseName, validInstanceId, validSeCode, validateSeCheckin, validateRegistration };
