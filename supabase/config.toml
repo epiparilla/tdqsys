@@ -1,2 +1,5 @@
 [functions.queue-sync]
 verify_jwt = false
+
+[functions.test-drive-operations]
+verify_jwt = false
