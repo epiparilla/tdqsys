@@ -3,6 +3,7 @@
 // token, matching the existing queue-sync trust boundary.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { syncOneRegistration, googleToken, verifySheetConnection } from '../_shared/google-sheets.js';
+import { decryptSeCode } from '../_shared/se-codes.js';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'content-type,x-tdqsys-instance,x-tdqsys-writer' };
 const validId = (v: string) => /^[0-9a-f-]{1,64}$/i.test(v);
@@ -43,12 +44,7 @@ Deno.serve(async (req) => {
       const { data: label, error } = await admin.rpc('tdqsys_claim_print_job', { p_instance_id: instanceId, p_job_id: body.jobId });
       if (error) throw error;
       if (label.kind === 'se_code_slip') {
-        const secret = Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY');
-        if (!secret) throw new Error('SE code printing requires the server encryption key.');
-        const bytes = Uint8Array.from(atob(label.ciphertext), ch => ch.charCodeAt(0));
-        const raw = Uint8Array.from(atob(secret), ch => ch.charCodeAt(0));
-        const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
-        label.value = new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0,12) }, key, bytes.slice(12)));
+        label.value = await decryptSeCode(label.ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY'));
         delete label.ciphertext;
       }
       return Response.json({ label }, { headers: cors });
@@ -83,7 +79,7 @@ Deno.serve(async (req) => {
         .select('*,registrations(full_name,email,city_address,contact_number)')
         .eq('instance_id', instanceId).eq('queue_run_id', run.id).order('queue_number');
       if (entryError) throw entryError;
-      const { data: printJobs, error: printError } = await admin.from('print_jobs').select('*,se_daily_checkins(expires_at,sales_executives(name))')
+      const { data: printJobs, error: printError } = await admin.from('print_jobs').select('*,se_daily_checkins(expires_at,code_ciphertext,sales_executives(name))')
         .eq('instance_id', instanceId).in('status', ['pending', 'claimed', 'failed']).order('created_at');
       if (printError) throw printError;
       const activeIds = new Set((entries || []).map(e => e.id));
@@ -100,8 +96,26 @@ Deno.serve(async (req) => {
       }
       const { data: display, error: displayError } = await admin.from('display_state').select('*').eq('instance_id', instanceId).maybeSingle();
       if (displayError) throw displayError;
-      return Response.json({ run, models, entries, earlierEntries, display, printJobs: (printJobs || []).filter(j =>
-        j.kind === 'se_code_slip' ? new Date(j.se_daily_checkins?.expires_at || 0).getTime() > Date.now() : activeIds.has(j.test_drive_entry_id)) }, { headers: cors });
+      const pendingPrintJobs = (printJobs || []).filter(j => j.kind === 'se_code_slip'
+        ? new Date(j.se_daily_checkins?.expires_at || 0).getTime() > Date.now() : activeIds.has(j.test_drive_entry_id));
+      for (const job of pendingPrintJobs) {
+        const checkin = job.se_daily_checkins;
+        if (job.kind === 'se_code_slip' && body.includePrintCodes === true) job.seCode = await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY'));
+        if (checkin) delete checkin.code_ciphertext;
+      }
+      const seCheckins = [];
+      if (body.includeSalesExecutives === true) {
+        let query = admin.from('se_daily_checkins').select('id,operating_day,expires_at,code_ciphertext,sales_executives(name,dealership)').eq('instance_id',instanceId);
+        if (body.salesHistory !== true) query = query.eq('operating_day',run.operating_day);
+        const { data: checkins, error: checkinError } = await query.order('issued_at',{ascending:false});
+        if (checkinError) throw checkinError;
+        for (const checkin of checkins || []) {
+          const active = new Date(checkin.expires_at).getTime() > Date.now();
+          seCheckins.push({id:checkin.id,name:checkin.sales_executives?.name,dealership:checkin.sales_executives?.dealership,
+            operatingDay:checkin.operating_day,expiresAt:checkin.expires_at,code:active ? await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY')) : null});
+        }
+      }
+      return Response.json({ run, models, entries, earlierEntries, display, seCheckins, printJobs:pendingPrintJobs }, { headers: cors });
     }
     // An authenticated location must never act on another location's UUID.
     if (body.entryId) {

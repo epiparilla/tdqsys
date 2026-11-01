@@ -33,7 +33,18 @@ GitHub assets or `public/version.json` before acceptance.
   separate desktop pages linked from the dashboard. The former Test Drive
   Operations address redirects to the dashboard; the old plus/minus board is
   replaced. Each model column shows its full name, unique registrant total,
-  then ticket prefix/number, client name and status on one line above four actions.
+  then ticket prefix/number, client name, status and four actions on one line.
+- Branded dashboard: the original centered heading/button layout and black
+  background are restored. Each brand has its own Controls heading and accent
+  line. Brand 2 gets `dashboard-brand2.html` only when enabled in Settings.
+  Up to three wide vehicle columns fit across; extra models scroll horizontally.
+  Each client's number, name, status and four buttons share one line.
+- Event Setup / QR Codes (`event-setup.html`) and Registered Sales Exec Master
+  List (`sales-executives.html`) are dedicated desktop pages. The SE list shows
+  name, dealership, operating date, expiry and active code, with search/history.
+  SE codes appear in Print Queue's queue/code column, including leading zeros.
+  The SE label keeps its four-digit code at 36pt (twice the previous 18pt) and
+  fits the name within the 50 x 30mm label without shrinking the code.
 - Printer list comes from the installed Windows printers. A successful spool
   submission removes a ticket from pending. Physical output must be checked
   during hardware acceptance; spool success alone cannot detect empty labels.
@@ -65,7 +76,7 @@ Open System Settings from the installed TDQSYS app on the laptop. There is no
 online setup page: Cloudflare blocks Settings, the facilitator dashboard, and
 Test Drive Operations URLs. Only the registration forms and public queue
 displays are intended for online users.
-Open **Facilitator Dashboard > Event setup** for the registration QR codes.
+Open **Event Setup / QR Codes** from the facilitator header for registration QR codes.
 Saved models, waiver, Terms and Sheets destination sync automatically in the
 desktop background process. **Sync saved Settings now** also remains available.
 Choose the installed label printer on the separate **Print Queue** page.
@@ -144,7 +155,7 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 255 passing tests, three optional skips, and
+Latest automated verification: 260 passing tests, three optional skips, and
 14 PostgreSQL integration checks. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
@@ -165,6 +176,9 @@ missing-voice fallback. Desktop/public route boundaries passed on both sites.
    previous client should become Done, and the other model must remain ongoing.
 6. Reset during the same day. Confirm new numbers begin at 01, old entries are
    read-only in Earlier runs today, and prior client details remain intact.
+   Event Setup's reset opens a new run and resets every model and the TV display
+   to zero, while retaining SE check-ins. The older Settings reset is explicitly
+   labelled Display Counters Only and does not restart registration allocation.
 7. Disconnect/reconnect the internet and printer, check silent Sheets recovery,
    confirm one Sheets row per original submission, and confirm another
    location cannot see this location's clients.

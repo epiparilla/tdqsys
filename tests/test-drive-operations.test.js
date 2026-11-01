@@ -25,7 +25,7 @@ async function runEdge(body, records = {}, environment = {}) {
         select() { return query; },
         eq(key, value) { filters.push([key, value]); return query; },
         in() { return query; },
-        order() { return Promise.resolve(result()); },
+        order() { calls.push({table,filters}); return Promise.resolve(result()); },
         maybeSingle() { calls.push({ table, filters }); return Promise.resolve(result()); }
       };
       return query;
@@ -35,7 +35,8 @@ async function runEdge(body, records = {}, environment = {}) {
   const source = fs.readFileSync(path.join(ROOT, 'supabase/functions/test-drive-operations/index.ts'), 'utf8')
     .replace(/^import .*;$/gm, '')
     .replace(/: string/g, '').replace(/\)!/g, ')').replace(/\(e as Error\)/g, 'e');
-  vm.runInNewContext(source, { createClient: () => admin, Response, TextEncoder, crypto: webcrypto,
+  const codes = fs.readFileSync(path.join(ROOT,'supabase/functions/_shared/se-codes.js'),'utf8').replace(/export /g,'');
+  vm.runInNewContext(codes+'\n'+source, { createClient: () => admin, Response, TextEncoder, TextDecoder, atob, Uint8Array, crypto: webcrypto,
     Deno: { env: { get: key => environment[key] || (key.startsWith('SUPABASE') ? 'test' : undefined) }, serve: fn => { handler = fn; } } });
   const response = await handler(new Request('https://example.test/functions/v1/test-drive-operations', {
     method: 'POST', headers: { 'x-tdqsys-instance': INSTANCE, 'x-tdqsys-writer': WRITER, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -90,4 +91,25 @@ test('Settings renderer cannot call facilitator actions through its connection-c
     fs: { readFileSync: () => { read = true; throw Error('must not read'); } } });
   const result = await handler({ senderFrame: { url: 'http://localhost:80/settings.html' } }, { action: 'reset' });
   assert.equal(result.ok, false); assert.equal(read, false);
+});
+
+test('private snapshots expose active SE codes only on requested staff views and never return ciphertext',async()=>{
+  const raw=webcrypto.getRandomValues(new Uint8Array(32)),iv=webcrypto.getRandomValues(new Uint8Array(12));
+  const key=await webcrypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt']);
+  const encrypted=new Uint8Array(await webcrypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode('0042')));
+  const ciphertext=Buffer.concat([Buffer.from(iv),Buffer.from(encrypted)]).toString('base64');
+  const environment={TEST_DRIVE_CODE_ENCRYPTION_KEY:Buffer.from(raw).toString('base64')};
+  function records(){return {queue_runs:{id:'run',operating_day:'2026-11-01'},vehicle_models:[],test_drive_entries:[],display_state:null,
+    print_jobs:[{id:'slip',kind:'se_code_slip',se_daily_checkins:{expires_at:'2099-11-02T00:00:00Z',code_ciphertext:ciphertext,sales_executives:{name:'Test SE'}}}],
+    se_daily_checkins:[{id:'se',operating_day:'2026-11-01',expires_at:'2099-11-02T00:00:00Z',code_ciphertext:ciphertext,sales_executives:{name:'Test SE',dealership:'Test Dealer'}},
+      {id:'expired',operating_day:'2020-01-01',expires_at:'2020-01-02T00:00:00Z',code_ciphertext:'expired-code-is-never-decrypted',sales_executives:{name:'Old SE',dealership:'Old Dealer'}}]};}
+  const normal=await(await runEdge({action:'snapshot'},records(),environment)).response.json();
+  assert.equal(normal.printJobs[0].seCode,undefined);assert.equal(JSON.stringify(normal).includes('code_ciphertext'),false);
+  const {response,calls}=await runEdge({action:'snapshot',includePrintCodes:true,includeSalesExecutives:true},records(),environment);
+  assert.equal(response.status,200);const result=await response.json();
+  assert.equal(result.printJobs[0].seCode,'0042');assert.equal(result.seCheckins[0].code,'0042');assert.equal(result.seCheckins[0].dealership,'Test Dealer');assert.equal(result.seCheckins[1].code,null);
+  assert.equal(JSON.stringify(result).includes(ciphertext),false);
+  const read=calls.find(call=>call.table==='se_daily_checkins');
+  assert.ok(read.filters.some(([key,value])=>key==='instance_id'&&value===INSTANCE));
+  assert.ok(read.filters.some(([key,value])=>key==='operating_day'&&value==='2026-11-01'));
 });

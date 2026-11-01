@@ -9,7 +9,7 @@ export async function onRequest(context) {
         return new Response('Invalid address.', { status: 400 });
     }
 
-    if (/^\/(?:settings|dashboard|master-table|print-queue|facilitator-shell|test-drive-operations)(?:[./"']|$)/i.test(pathname)) {
+    if (/^\/(?:settings|dashboard(?:-brand2)?|master-table|print-queue|sales-executives|event-setup|facilitator-shell|test-drive-operations)(?:[./"']|$)/i.test(pathname)) {
         return new Response('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Desktop app only</title></head><body><h1>Desktop app only</h1><p>Open Settings and facilitator controls from the TDQSYS desktop app on the registration laptop.</p><a href="/">Queue viewer</a></body></html>', {
             status: 404,
             headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }

@@ -11,25 +11,25 @@ const main = fs.readFileSync(path.join(ROOT,'app/main.js'),'utf8');
 
 function element(tag='div') {
   return {tagName:tag,children:[],dataset:{},style:{setProperty(){}},value:'',checked:false,
-    appendChild(node){this.children.push(node);return node;},add(node){this.children.push(node);},replaceChildren(...nodes){this.children=nodes;},
+    setAttribute(){},removeAttribute(){},appendChild(node){this.children.push(node);return node;},add(node){this.children.push(node);},replaceChildren(...nodes){this.children=nodes;},
     querySelectorAll(tag){return this.children.flatMap(node=>[...(node.tagName===tag?[node]:[]),...node.querySelectorAll(tag)]);}};
 }
-function board(snapshot) {
-  const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','licence-locked','licence-locked-why'].map(id=>[id,element()]));
-  const context = {snapshot,byId:id=>elements[id],document:{createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
+function board(snapshot,brand) {
+  const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','licence-locked','licence-locked-why','brand-controls-title','brand1-link','brand2-link','sales-rows','sales-search','sales-count'].map(id=>[id,element()]));
+  const context = {snapshot,byId:id=>elements[id],document:{body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
   vm.createContext(context);
-  vm.runInContext(['cell','formatTicket','applyLicenceLock','renderMaster','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
+  vm.runInContext(['cell','formatTicket','applyLicenceLock','renderBrand','renderSales','renderMaster','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
   context.render();return elements;
 }
 
 test('dashboard is the registration board with separate Master Table and Print Queue routes',()=>{
-  for(const [file,view] of [['dashboard.html','board'],['master-table.html','master'],['print-queue.html','prints']]) {
+  for(const [file,view] of [['dashboard.html','board'],['dashboard-brand2.html','board'],['master-table.html','master'],['print-queue.html','prints'],['sales-executives.html','sales'],['event-setup.html','setup']]) {
     const html=fs.readFileSync(path.join(PUBLIC,file),'utf8');
     assert.match(html,new RegExp(`data-view="${view}"`));assert.match(html,/facilitator-shell.js/);assert.match(html,/test-drive-operations.js/);
     assert.doesNotMatch(html,/updateQueue|setQueue|brand-sections/);
   }
   const shell=fs.readFileSync(path.join(PUBLIC,'facilitator-shell.js'),'utf8');
-  for(const page of ['dashboard.html','master-table.html','print-queue.html'])assert.ok(shell.includes(`href="${page}"`));
+  for(const page of ['dashboard.html','master-table.html','print-queue.html','sales-executives.html','event-setup.html'])assert.ok(shell.includes(`href="${page}"`));
   assert.match(fs.readFileSync(path.join(PUBLIC,'test-drive-operations.html'),'utf8'),/url=dashboard.html/);
 });
 
@@ -66,8 +66,50 @@ test('dashboard Ongoing saves the selected model to the TV state and triggers th
   assert.deepEqual(saved.queues,{toyota:{1:7,2:9}});assert.equal(context.pushed,true);
 });
 
+test('Event Setup reset clears every brand on the TV and opens a new run without deleting client history',async()=>{
+  let saved;const requests=[];
+  const {call,context}=bridge('http://localhost:8081/event-setup.html',config,async(url,options)=>{
+    requests.push({url,body:options?.body&&JSON.parse(options.body)});
+    if(url.includes('/functions/'))return Response.json({run:{id:'new-run'}});
+    if(options?.method==='POST'){saved=JSON.parse(options.body);return Response.json({success:true});}
+    return Response.json({config,queues:{brand1:{1:4,2:9},brand2:{1:3}},reannounce:{brand:'brand1',unit:1}});
+  });
+  const result=await call({action:'reset',reason:'Testing again'});
+  assert.equal(result.ok,true);assert.equal(result.run.id,'new-run');
+  assert.deepEqual(saved.queues,{brand1:{1:0,2:0},brand2:{1:0}});assert.equal(saved.reannounce,null);assert.equal(context.pushed,true);
+  assert.equal(requests[0].body.action,'reset');assert.equal(requests.some(item=>item.body?.action==='delete'),false);
+});
+
+test('brand dashboards show only their configured models and expose a second page only when enabled',()=>{
+  const snapshot={brands:[{key:'brand1',name:'Toyota',color:'#e00000'},{key:'brand2',name:'Lexus',color:'#ccaa11'}],
+    models:[{id:'lexus',brand_key:'brand2',unit_index:1,full_name:'Lexus NX'},{id:'rav4',brand_key:'brand1',unit_index:1,full_name:'Toyota RAV4'}],entries:[],printJobs:[]};
+  const first=board(snapshot);assert.equal(first.board.children.length,1);assert.equal(first.board.children[0].children[0].textContent,'Toyota RAV4');
+  assert.equal(first['brand-controls-title'].textContent,'Toyota CONTROLS');assert.equal(first['brand2-link'].hidden,false);
+  const second=board(snapshot,'brand2');assert.equal(second.board.children.length,1);assert.equal(second.board.children[0].children[0].textContent,'Lexus NX');
+  assert.equal(second['brand-controls-title'].textContent,'Lexus CONTROLS');
+  const disabled=board({...snapshot,brands:[snapshot.brands[0]]},'brand2');assert.equal(disabled.board.children.length,0);assert.equal(disabled['brand2-link'].hidden,true);
+});
+
+test('Print Queue displays the unchanged four-digit SE code in the queue-number column and the SE master list retains dealership',()=>{
+  const rendered=board({models:[],entries:[],printJobs:[{kind:'se_code_slip',seCode:'0042',status:'pending',se_daily_checkins:{sales_executives:{name:'Test Executive'}}}],
+    seCheckins:[{code:'0042',name:'Test Executive',dealership:'Toyota Dealer',operatingDay:'2026-11-01',expiresAt:'2099-11-02T00:00:00Z'}]});
+  assert.equal(rendered['print-rows'].children[0].children[0].textContent,'0042');
+  assert.equal(rendered['sales-rows'].children[0].children[0].textContent,'0042');assert.equal(rendered['sales-rows'].children[0].children[2].textContent,'Toyota Dealer');
+});
+
+test('SE label is 50 by 30mm with a 36pt code and auto-fits the name without shrinking the code',()=>{
+  const context={};vm.createContext(context);vm.runInContext(extractFunction(main,'buildPrintLabelHtml'),context);
+  const html=context.buildPrintLabelHtml({kind:'se_code_slip',header:'Long <Executive> Name',value:'0042'});
+  assert.match(html,/size:50mm 30mm/);assert.match(html,/\.se-code p\{font-size:36pt/);assert.match(html,/Long &lt;Executive&gt; Name/);assert.match(html,/<p>0042<\/p>/);
+  const header={style:{fontSize:'32px'},clientHeight:38,clientWidth:174};const number={style:{fontSize:'36pt'}};
+  const name={getBoundingClientRect:()=>({height:parseFloat(header.style.fontSize)*4}),get scrollWidth(){return 174;}};
+  header.querySelector=()=>name;context.document={querySelector:tag=>tag==='h1'?header:number,body:{classList:{contains:()=>true}}};
+  vm.runInContext(extractFunction(main,'fitPrintLabel'),context);context.fitPrintLabel();
+  assert.ok(name.getBoundingClientRect().height<=38);assert.equal(number.style.fontSize,'36pt');
+});
+
 test('each facilitator page can read the same location snapshot with configured ticket prefixes',async()=>{
-  for(const page of ['dashboard.html','master-table.html','print-queue.html']) {
+  for(const page of ['dashboard.html','dashboard-brand2.html','master-table.html','print-queue.html','sales-executives.html','event-setup.html']) {
     const {call}=bridge(`http://localhost:8081/${page}`,config,async()=>Response.json({models:[{id:'model',brand_key:'toyota',unit_index:2}],entries:[]}));
     const result=await call({action:'snapshot'});assert.equal(result.ok,true);assert.equal(result.models[0].display_prefix,'BB');
   }

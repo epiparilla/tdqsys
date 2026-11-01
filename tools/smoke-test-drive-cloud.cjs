@@ -74,8 +74,13 @@ async function main() {
     assert.deepEqual(await publicPost('registrations',submission,requestKey),registration);
     const duplicate=await publicPost('registrations',submission,crypto.randomUUID()); assert.equal(duplicate.entries[0].existing,true);
     console.log('PASS live ticket allocation, idempotent retry, and duplicate-name/model handling.');
-    const jobs=(await operation({action:'snapshot'})).printJobs;
+    const staffSnapshot=await operation({action:'snapshot',includePrintCodes:true,includeSalesExecutives:true});
+    const jobs=staffSnapshot.printJobs;
     const seJob=jobs.find(j=>j.kind==='se_code_slip');
+    assert.equal(seJob.seCode,se.code);assert.equal(staffSnapshot.seCheckins[0].code,se.code);
+    assert.equal(staffSnapshot.seCheckins[0].dealership,'Verification Dealership');
+    assert.equal(JSON.stringify(staffSnapshot).includes('code_ciphertext'),false);
+    console.log('PASS private Print Queue code preview and registered SE master list.');
     const slip=await operation({action:'claim-print',jobId:seJob.id}); assert.equal(slip.label.value,se.code);
     await operation({action:'print-result',jobId:seJob.id,status:'failed',error:'Automated cloud check; no physical printing attempted.'});
     await operation({action:'ongoing',entryId:registration.entries[0].entryId});
@@ -88,7 +93,8 @@ async function main() {
     assert.equal(rows[0][0],'Registration ID'); assert.equal(rows.some(row=>row[0]===registration.registrationId),false);
     console.log('PASS daily headers prepared without synthetic leads in the user daily tab.');
     await operation({action:'reset',reason:'Automated verification'});
-    const after=await operation({action:'snapshot',history:true}); assert.equal(after.entries.length,0); assert.ok(after.earlierEntries.length>0);
+    const after=await operation({action:'snapshot',history:true,includeSalesExecutives:true}); assert.equal(after.entries.length,0); assert.ok(after.earlierEntries.length>0);
+    assert.equal(after.seCheckins[0].code,se.code);
     console.log('PASS same-day reset and earlier-run history.');
   } finally {
     if(seeded) {

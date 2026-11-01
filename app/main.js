@@ -893,12 +893,33 @@ function killPortHolders(ports) {
     }
 }
 
+function buildPrintLabelHtml(label) {
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const seCode = label.kind === 'se_code_slip';
+    return `<html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}body{margin:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Arial;text-align:center;overflow:hidden}h1{font-size:24pt;line-height:1.05;margin:1mm 2mm;font-weight:900;max-width:46mm;overflow-wrap:anywhere}p{font-size:18pt;font-weight:700;margin:1mm}.se-code h1{width:46mm;height:10mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.se-code h1 span{width:100%;overflow-wrap:anywhere}.se-code p{font-size:36pt;line-height:1.05;flex-shrink:0;margin:1mm 0;white-space:nowrap}</style></head><body class="${seCode?'se-code':'client-ticket'}"><h1><span>${escape(label.header)}</span></h1><p>${escape(label.value)}</p></body></html>`;
+}
+
+function fitPrintLabel() {
+    const header = document.querySelector('h1'), number = document.querySelector('p');
+    let size = 32;
+    if (document.body.classList.contains('se-code')) {
+        const name = header.querySelector('span');
+        while (size > 6 && (name.getBoundingClientRect().height > header.clientHeight || name.scrollWidth > header.clientWidth)) {
+            size -= 0.5; header.style.fontSize = size + 'px';
+        }
+        return; // Keep the four-digit code at exactly 36pt.
+    }
+    while (size > 16 && document.body.scrollHeight > document.body.clientHeight) {
+        size--; header.style.fontSize = size + 'px'; number.style.fontSize = Math.max(12,size-4) + 'px';
+    }
+}
+
 // IPC for settings page (native dialogs / file ops live here, not in browser JS).
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
         const settingsActions = ['integration-info', 'test-sheets'];
-        const allowedPage = ['/dashboard.html','/master-table.html','/print-queue.html','/test-drive-operations.html'].includes(sender.pathname)
+        const allowedPage = ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/event-setup.html','/test-drive-operations.html'].includes(sender.pathname)
             || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
@@ -936,20 +957,13 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             return { ok: true, audioUrl: `http://localhost:${cfg.ttsPort || 8001}/api/announcement?voice=${encodeURIComponent(cfg.announcements?.voice || 'af_heart')}&text=${encodeURIComponent(text)}` };
         }
         if (printerName) {
-            const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
             const label = result.label;
             const printWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
             let printError;
             try {
-                const html = `<html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}body{margin:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Arial;text-align:center;overflow:hidden}h1{font-size:24pt;line-height:1.05;margin:1mm 2mm;font-weight:900;max-width:46mm;overflow-wrap:anywhere}p{font-size:18pt;font-weight:700;margin:1mm}</style></head><body><h1>${escape(label.header)}</h1><p>${escape(label.value)}</p></body></html>`;
+                const html = buildPrintLabelHtml(label);
                 await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-                await printWindow.webContents.executeJavaScript(`(() => {
-                    const header = document.querySelector('h1'), number = document.querySelector('p');
-                    let size = 32;
-                    while (size > 16 && document.body.scrollHeight > document.body.clientHeight) {
-                        size--; header.style.fontSize = size + 'px'; number.style.fontSize = Math.max(12,size-4) + 'px';
-                    }
-                })()`);
+                await printWindow.webContents.executeJavaScript(`(${fitPrintLabel.toString()})()`);
                 await new Promise((resolve, reject) => printWindow.webContents.print({ silent: true, deviceName: printerName,
                     pageSize: { width: 50000, height: 30000 }, margins: { marginType: 'none' }, printBackground: true },
                     (success, reason) => success ? resolve() : reject(new Error(reason || 'Printer did not accept the label.'))));
@@ -983,6 +997,9 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             cloudSyncTick();
         }
         if (request.action === 'snapshot') {
+            const firstBrandCount = (cfg.brands || []).find(brand => brand.key === 'brand1')?.models?.length || 0;
+            result.brands = (cfg.brands || []).filter(brand => brand.models?.length && (brand.key !== 'brand2' || firstBrandCount < 12))
+                .map(brand => ({key:brand.key,name:brand.name,color:brand.color}));
             for (const model of result.models || []) {
                 model.display_prefix = (cfg.brands || []).find(brand => brand.key === model.brand_key)?.models?.[model.unit_index-1]?.prefix || '';
             }

@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 (async () => {
   const base = process.argv[2] || 'https://test-drive-preview.tdqsys.pages.dev';
-  for (const route of ['/settings','/settings.html','/settings%22','/dashboard.html','/master-table.html','/print-queue.html','/facilitator-shell.js','/test-drive-operations.html','/test-drive-operations.js']) {
+  for (const route of ['/settings','/settings.html','/settings%22','/dashboard.html','/dashboard-brand2.html','/sales-executives.html','/event-setup.html','/master-table.html','/print-queue.html','/facilitator-shell.js','/test-drive-operations.html','/test-drive-operations.js']) {
     const response = await fetch(base + route, { signal: AbortSignal.timeout(20000) });
     assert.equal(response.status,404,route);
     console.log(`PASS online desktop route blocked: ${route}`);

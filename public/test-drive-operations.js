@@ -32,6 +32,22 @@
     if (!result.ok) throw new Error(result.error);
     return result;
   }
+  function renderBrand() {
+    const brands = snapshot.brands || [{key:'brand1',name:'Brand 1',color:'#EB0A1E'}];
+    const selectedKey = document.body.dataset.brand || brands[0]?.key;
+    const selected = brands.find(brand => brand.key === selectedKey);
+    document.body.style.setProperty('--brand-accent', selected?.color || brands[0]?.color || '#EB0A1E');
+    byId('brand-controls-title').textContent = selected ? `${selected.name} CONTROLS` : 'Brand 2 is not enabled';
+    for (const [index,id] of ['brand1-link','brand2-link'].entries()) {
+      const brand = brands[index]; const link = byId(id); link.hidden = !brand;
+      if (brand) {
+        link.textContent = `${brand.name} Queue Board`;
+        if (document.body.dataset.view === 'board' && brand.key === selectedKey) link.setAttribute('aria-current','page');
+        else link.removeAttribute('aria-current');
+      }
+    }
+    return selected ? snapshot.models.filter(model => !model.brand_key || model.brand_key === selected.key).sort((a,b) => a.unit_index-b.unit_index) : [];
+  }
   function render() {
     byId('registration-links').replaceChildren();
     for (const [kind, link] of Object.entries(snapshot.registrationLinks || {})) {
@@ -52,8 +68,8 @@
       ? 'Google Sheets destination saved. Registrations sync automatically while TDQSYS is running.'
       : 'Google Sheets is not connected for this location. Paste its URL in System Settings and save. Already submitted registrations remain queued for delivery.';
     byId('board').replaceChildren();
-    byId('board').style.setProperty('--model-count',Math.max(1,snapshot.models.length));
-    for (const model of snapshot.models) {
+    const visibleModels = renderBrand();
+    for (const model of visibleModels) {
       const column = document.createElement('article');
       const title = document.createElement('h2'); title.textContent = model.full_name; column.appendChild(title);
       const entries = snapshot.entries.filter(e => e.vehicle_model_id === model.id);
@@ -80,7 +96,7 @@
       const entry = snapshot.entries.find(e => e.id === job.test_drive_entry_id);
       const model = snapshot.models.find(m => m.id === entry?.vehicle_model_id);
       const row = document.createElement('tr');
-      cell(row, formatTicket(entry,model)); cell(row, entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name);
+      cell(row, job.kind === 'se_code_slip' ? job.seCode : formatTicket(entry,model)); cell(row, entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name);
       cell(row, model?.full_name || 'Sales Executive code slip'); cell(row, job.status);
       const action = document.createElement('td'), button = document.createElement('button');
       button.textContent = 'Print'; button.dataset.write = ''; button.hidden = job.status === 'claimed';
@@ -95,7 +111,20 @@
       }
       byId('print-rows').appendChild(row);
     }
+    renderSales();
     applyLicenceLock(licenceStatus);
+  }
+  function renderSales() {
+    byId('sales-rows').replaceChildren();
+    const query = byId('sales-search').value.trim().toLocaleLowerCase();
+    const checkins = snapshot.seCheckins || [];
+    byId('sales-count').textContent = `${checkins.length} Sales Executive check-ins`;
+    for (const checkin of checkins.filter(item => `${item.name} ${item.dealership}`.toLocaleLowerCase().includes(query))) {
+      const row = document.createElement('tr');
+      cell(row,checkin.code || 'Expired'); cell(row,checkin.name); cell(row,checkin.dealership);
+      cell(row,checkin.operatingDay); cell(row,new Date(checkin.expiresAt).toLocaleString()); cell(row,checkin.code ? 'Active' : 'Expired');
+      byId('sales-rows').appendChild(row);
+    }
   }
   function renderMaster() {
     byId('master-rows').replaceChildren();
@@ -126,14 +155,17 @@
     applyLicenceLock(licenceStatus);
   }
   async function refresh() {
-    snapshot = await request({ action: 'snapshot', history: byId('history').checked }); render();
+    snapshot = await request({ action: 'snapshot', history: byId('history').checked,
+      includePrintCodes:document.body.dataset.view === 'prints', includeSalesExecutives:document.body.dataset.view === 'sales',salesHistory:byId('sales-history').checked }); render();
   }
   async function mutate(body) {
     if (busy || !licenceCanWrite) return; busy = true; applyLicenceLock(licenceStatus); byId('message').textContent = 'Saving...';
     try {
       const result = await request(body);
       if (result.audioUrl) { const audio = new Audio(result.audioUrl); await audio.play(); }
-      await refresh(); byId('message').textContent = result.audioUrl ? 'Call-back announcement playing.' : 'Saved.';
+      await refresh(); byId('message').textContent = body.action === 'reset'
+        ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and SE history are retained.'
+        : result.audioUrl ? 'Call-back announcement playing.' : 'Saved.';
     }
     catch (error) { byId('message').textContent = error.message; }
     finally { busy = false; applyLicenceLock(licenceStatus); }
@@ -172,6 +204,8 @@
     mutate({ action: 'reset', reason: byId('reset-reason').value.trim() }); byId('reset-confirm').checked = false;
   };
   byId('search').oninput = renderMaster;
+  byId('sales-search').oninput = renderSales;
+  byId('sales-history').onchange = () => refresh().catch(error => { byId('message').textContent = error.message; });
   byId('history').onchange = () => refresh().catch(error => { byId('message').textContent = error.message; });
   refreshLicence().then(() => refresh()).catch(error => { byId('message').textContent = error.message; });
   setInterval(refreshLicence, 30000);
