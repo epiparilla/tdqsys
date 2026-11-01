@@ -25,10 +25,15 @@ GitHub assets or `public/version.json` before acceptance.
 - SE registration: daily code, encrypted slip storage, printed-slip queue.
 - Client registration: four steps, consent text hashes/snapshots, SE prefill,
   server-side code revalidation, retry identity, and per-model tickets.
-- Desktop Test Drive Operations: active-run board, Ongoing/Done/No Show/Call
+- Facilitator Dashboard (`dashboard.html`): active-run board, Ongoing/Done/No Show/Call
   Back, Master Table search, earlier same-day runs, reprint/new-number,
   add-model/change-model, registrant CSV backup, and reset to a new run.
   Each model has its own ongoing client and display number.
+- Master Table (`master-table.html`) and Print Queue (`print-queue.html`) are
+  separate desktop pages linked from the dashboard. The former Test Drive
+  Operations address redirects to the dashboard; the old plus/minus board is
+  replaced. Each model column shows its full name, unique registrant total,
+  then ticket prefix/number, client name and status on one line above four actions.
 - Printer list comes from the installed Windows printers. A successful spool
   submission removes a ticket from pending. Physical output must be checked
   during hardware acceptance; spool success alone cannot detect empty labels.
@@ -60,8 +65,10 @@ Open System Settings from the installed TDQSYS app on the laptop. There is no
 online setup page: Cloudflare blocks Settings, the facilitator dashboard, and
 Test Drive Operations URLs. Only the registration forms and public queue
 displays are intended for online users.
-Open **Facilitator Dashboard > Test Drive Operations > Event setup**, select
-**Sync saved Settings**, then choose the installed label printer in Print Queue.
+Open **Facilitator Dashboard > Event setup** for the registration QR codes.
+Saved models, waiver, Terms and Sheets destination sync automatically in the
+desktop background process. **Sync saved Settings now** also remains available.
+Choose the installed label printer on the separate **Print Queue** page.
 The main website and preview both block desktop Settings and facilitator
 pages. Release assets and the update manifest remain at their checkpoint
 state; this website restriction does not modify already installed apps.
@@ -118,9 +125,11 @@ The established public queue display flow remains unchanged.
    whose existing columns do not match is preserved and reported for review.
    [Google Sheets tab operations](https://developers.google.com/workspace/sheets/api/samples/sheet).
 
-The current retry worker runs every 15 seconds while Test Drive Operations is
-open. Pending jobs remain durable when it is closed and resume on reopening.
-An independent scheduled cloud worker is not yet installed.
+The retry worker runs every 15 seconds while the desktop app is running,
+independently of its current page. A newly saved Sheets URL is configured
+before queued registrations are retried. Without a URL, registrations remain
+in the durable outbox and the facilitator pages show a setup notice. Jobs
+resume after reopening the app; an independent cloud worker is not installed.
 
 ## Build and verification
 
@@ -135,7 +144,7 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 250 passing tests, three optional skips, and
+Latest automated verification: 255 passing tests, three optional skips, and
 14 PostgreSQL integration checks. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
@@ -146,7 +155,8 @@ missing-voice fallback. Desktop/public route boundaries passed on both sites.
 2. Select the actual label printer and its 50 x 30 mm stock; verify clipping,
    header/number sizes, printing failures, and recovery with physical output.
 3. Save vehicle shortnames, real waiver/Terms, and Sheets URL; open Test Drive
-   Operations and Sync saved Settings. Download its two QR images.
+   Dashboard and download its two QR images. Confirm Sheets setup is shown
+   clearly and a saved destination enables background delivery.
 4. Register an SE on a phone, print its code slip, register a client for
    multiple models, and collect the separate labels.
 5. Exercise Ongoing, Done, No Show, Call Back, duplicate submission, reprint,

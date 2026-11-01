@@ -9,7 +9,7 @@ const sandbox = { URL, Response, decodeURIComponent };
 vm.createContext(sandbox); vm.runInContext(source, sandbox);
 
 test('Pages blocks desktop setup/control routes before serving their files', async () => {
-    for (const route of ['/settings', '/settings.html', '/settings/', '/settings%22', '/s%65ttings.html', '/settings.html/', '/dashboard', '/dashboard.html', '/test-drive-operations.html', '/test-drive-operations.js']) {
+    for (const route of ['/settings', '/settings.html', '/settings/', '/settings%22', '/s%65ttings.html', '/settings.html/', '/dashboard', '/dashboard.html', '/master-table.html', '/print-queue.html', '/facilitator-shell.js', '/test-drive-operations.html', '/test-drive-operations.js']) {
         let called = false;
         const response = await sandbox.onRequest({ request: { url: `https://tdqsys.pages.dev${route}` }, next() { called = true; return new Response('unexpected public page'); } });
         assert.equal(response.status, 404, route);

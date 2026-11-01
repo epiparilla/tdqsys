@@ -3,6 +3,26 @@
   const byId = id => document.getElementById(id);
   let snapshot = { entries: [], models: [], printJobs: [] };
   let busy = false;
+  let licenceCanWrite = false;
+  let licenceStatus = null;
+  function applyLicenceLock(st) {
+    licenceStatus = st; licenceCanWrite = !!st?.canWrite;
+    document.querySelectorAll('[data-write]').forEach(button => { button.disabled = busy || !licenceCanWrite; });
+    byId('licence-locked').hidden = licenceCanWrite;
+    byId('licence-locked-why').textContent = licenceCanWrite ? '' : st?.state === 'expired'
+      ? `This licence expired on ${st.until || 'an unknown date'}.`
+      : st?.state === 'revoked' ? (st.detail || 'This licence was revoked.') : 'This location is not licensed.';
+  }
+  async function refreshLicence() {
+    try {
+      const response = await fetch('/api/license');
+      if (!response.ok) throw Error('Cannot verify the licence.');
+      applyLicenceLock(await response.json());
+    } catch { applyLicenceLock({canWrite:false}); }
+  }
+  function formatTicket(entry, model) {
+    return entry ? `${model?.display_prefix || ''}${String(entry.queue_number).padStart(2,'0')}` : '';
+  }
   function cell(row, value) {
     const td = document.createElement('td'); td.textContent = value ?? ''; row.appendChild(td);
   }
@@ -28,21 +48,26 @@
       byId('registration-links').appendChild(card);
     }
     byId('run').textContent = snapshot.run ? `${snapshot.run.operating_day} · Run ${snapshot.run.run_number} · ${snapshot.entries.length} tickets` : 'No active queue run. Configure models and open a run before accepting registrations.';
+    byId('sheets-status').textContent = snapshot.sheetsStatus?.hasUrl
+      ? 'Google Sheets destination saved. Registrations sync automatically while TDQSYS is running.'
+      : 'Google Sheets is not connected for this location. Paste its URL in System Settings and save. Already submitted registrations remain queued for delivery.';
     byId('board').replaceChildren();
     byId('board').style.setProperty('--model-count',Math.max(1,snapshot.models.length));
     for (const model of snapshot.models) {
       const column = document.createElement('article');
       const title = document.createElement('h2'); title.textContent = model.full_name; column.appendChild(title);
       const entries = snapshot.entries.filter(e => e.vehicle_model_id === model.id);
-      const count = document.createElement('p'); count.textContent = `${entries.length} registered`; column.appendChild(count);
+      const count = document.createElement('p'); count.className = 'registered-count'; count.textContent = `Total registered: ${new Set(entries.map(e => e.registration_id)).size}`; column.appendChild(count);
       for (const entry of entries.filter(e => ['waiting', 'ongoing'].includes(e.status))) {
-        const row = document.createElement('div'); row.className = 'entry';
-        const number = document.createElement('strong'); number.textContent = String(entry.queue_number).padStart(2, '0'); row.appendChild(number);
-        const name = document.createElement('p'); name.textContent = entry.registrations?.full_name || ''; row.appendChild(name);
-        const state = document.createElement('small'); state.textContent = entry.status; row.appendChild(state);
+        const row = document.createElement('div'); row.className = 'entry'; row.dataset.status = entry.status;
+        const summary = document.createElement('div'); summary.className = 'entry-summary';
+        const number = document.createElement('strong'); number.textContent = formatTicket(entry,model); summary.appendChild(number);
+        const name = document.createElement('span'); name.className = 'client-name'; name.textContent = entry.registrations?.full_name || ''; name.title = name.textContent; summary.appendChild(name);
+        const state = document.createElement('small'); state.textContent = entry.status === 'ongoing' ? 'On going' : 'Waiting'; summary.appendChild(state);
+        row.appendChild(summary);
         const actions = document.createElement('div'); actions.className = 'actions';
         for (const [label, action, status] of [['Ongoing', 'ongoing'], ['Done', 'status', 'done'], ['No Show', 'status', 'no_show'], ['Call Back','callback']]) {
-          const button = document.createElement('button'); button.textContent = label;
+          const button = document.createElement('button'); button.textContent = label; button.dataset.write = '';
           button.onclick = () => mutate({ action, entryId: entry.id, status }); actions.appendChild(button);
         }
         row.appendChild(actions); column.appendChild(row);
@@ -55,20 +80,22 @@
       const entry = snapshot.entries.find(e => e.id === job.test_drive_entry_id);
       const model = snapshot.models.find(m => m.id === entry?.vehicle_model_id);
       const row = document.createElement('tr');
-      cell(row, entry?.queue_number); cell(row, entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name);
+      cell(row, formatTicket(entry,model)); cell(row, entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name);
       cell(row, model?.full_name || 'Sales Executive code slip'); cell(row, job.status);
       const action = document.createElement('td'), button = document.createElement('button');
-      button.textContent = 'Print'; button.disabled = job.status === 'claimed';
+      button.textContent = 'Print'; button.dataset.write = ''; button.hidden = job.status === 'claimed';
       button.onclick = () => mutate({ action: 'print', jobId: job.id, printerName: byId('printer').value });
       action.appendChild(button); row.appendChild(action);
       if (job.status === 'claimed') {
         for (const [label, status] of [['Confirm printed','printed'],['Retry — no label printed','failed']]) {
           const recovery = document.createElement('button'); recovery.textContent = label;
+          recovery.dataset.write = '';
           recovery.onclick = () => mutate({ action:'print-result', jobId:job.id, status, error:'Facilitator checked physical output and requested retry.' }); action.appendChild(recovery);
         }
       }
       byId('print-rows').appendChild(row);
     }
+    applyLicenceLock(licenceStatus);
   }
   function renderMaster() {
     byId('master-rows').replaceChildren();
@@ -76,7 +103,7 @@
     const list = byId('history').checked ? (snapshot.earlierEntries || []) : snapshot.entries;
     for (const entry of list.filter(e => (e.registrations?.full_name || '').toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
-      cell(row, entry.queue_number); cell(row, entry.registrations?.full_name);
+      cell(row, formatTicket(entry,snapshot.models.find(m => m.id === entry.vehicle_model_id) || entry.vehicle_models)); cell(row, entry.registrations?.full_name);
       cell(row, snapshot.models.find(m => m.id === entry.vehicle_model_id)?.full_name || entry.vehicle_models?.full_name); cell(row, entry.status);
       const actions = document.createElement('td');
       const reissue = document.createElement('button'); reissue.textContent = byId('history').checked ? 'Issue in current run' : 'Reprint / issue new number';
@@ -93,21 +120,23 @@
         actions.appendChild(change);
       }
       row.appendChild(actions);
+      actions.querySelectorAll('button').forEach(button => { button.dataset.write = ''; });
       byId('master-rows').appendChild(row);
     }
+    applyLicenceLock(licenceStatus);
   }
   async function refresh() {
     snapshot = await request({ action: 'snapshot', history: byId('history').checked }); render();
   }
   async function mutate(body) {
-    if (busy) return; busy = true; byId('message').textContent = 'Saving…';
+    if (busy || !licenceCanWrite) return; busy = true; applyLicenceLock(licenceStatus); byId('message').textContent = 'Saving...';
     try {
       const result = await request(body);
       if (result.audioUrl) { const audio = new Audio(result.audioUrl); await audio.play(); }
       await refresh(); byId('message').textContent = result.audioUrl ? 'Call-back announcement playing.' : 'Saved.';
     }
     catch (error) { byId('message').textContent = error.message; }
-    finally { busy = false; }
+    finally { busy = false; applyLicenceLock(licenceStatus); }
   }
   byId('refresh').onclick = () => refresh().catch(error => { byId('message').textContent = error.message; });
   byId('configure').onclick = () => mutate({ action: 'configure' });
@@ -144,11 +173,9 @@
   };
   byId('search').oninput = renderMaster;
   byId('history').onchange = () => refresh().catch(error => { byId('message').textContent = error.message; });
-  document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => {
-    ['board', 'master', 'prints'].forEach(id => { byId(id).hidden = id !== button.dataset.view; });
-  });
-  refresh().catch(error => { byId('message').textContent = error.message; });
-  loadPrinters();
+  refreshLicence().then(() => refresh()).catch(error => { byId('message').textContent = error.message; });
+  setInterval(refreshLicence, 30000);
+  if (document.body.dataset.view === 'prints') loadPrinters();
   let refreshing = false;
   setInterval(async () => {
     if (busy || refreshing || document.hidden) return;
@@ -156,10 +183,4 @@
     try { await refresh(); } catch (error) { byId('message').textContent = error.message; }
     finally { refreshing = false; }
   }, 5000);
-  let syncingSheets = false;
-  setInterval(async () => {
-    if (syncingSheets) return; syncingSheets = true;
-    try { await request({ action: 'sync-sheets' }); } catch { /* silent background retry */ }
-    finally { syncingSheets = false; }
-  }, 15000);
 })();

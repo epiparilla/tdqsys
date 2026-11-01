@@ -238,6 +238,10 @@ function startTTS() {
 // once in a while as a safety net (e.g. cloud-side reset).
 let cloudTimer = null;
 let updatePollTimer = null;         // re-checks the manifest while running
+let registrationTimer = null;
+let registrationSyncBusy = false;
+let registrationSettingsHash = null;
+let registrationSyncStatus = {hasUrl:false};
 let lastPushedHash = null;
 const SUPABASE_URL = process.env.AF_SUPABASE_URL || 'https://pnyptdyfkftrcgjlaqnr.supabase.co';
 
@@ -419,9 +423,44 @@ async function backgroundUpdateCheck() {
     }
 }
 
+function buildTestDriveSettings(cfg) {
+    return { action:'configure', models:(cfg.brands || []).flatMap(brand => (brand.models || []).map((model,index) => ({
+        fullName:model.label, shortname:model.shortname || model.label.slice(0,36), brandKey:brand.key, unit:index+1
+    }))), waiver:cfg.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+    terms:cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl:cfg.testDrive?.sheetsUrl || '' };
+}
+
+// The app, rather than a particular renderer page, owns durable Sheets retries.
+async function registrationSyncTick() {
+    if (registrationSyncBusy || engineDown() || app.isQuitting) return;
+    registrationSyncBusy = true;
+    try {
+        const cfg = JSON.parse(fs.readFileSync(path.join(BASE_DIR,'data.json'),'utf8')).config;
+        registrationSyncStatus = {hasUrl:!!cfg.testDrive?.sheetsUrl};
+        const licence = require(path.join(RES_SERVER,'shared','licence.js'));
+        if (!licence.status(cfg.instanceId,{dataDir:BASE_DIR}).canWrite) return;
+        const settings = buildTestDriveSettings(cfg);
+        const hash = crypto.createHash('sha256').update(JSON.stringify([cfg.instanceId,settings])).digest('hex');
+        const send = async body => {
+            const response = await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`, {
+                method:'POST',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json','X-TDQSYS-Instance':cfg.instanceId,'X-TDQSYS-Writer':cfg.cloudWriterToken},body:JSON.stringify(body)
+            });
+            const result = await response.json();
+            if (!response.ok) throw Error(result.error || 'Registration sync unavailable.');
+            return result;
+        };
+        if (hash !== registrationSettingsHash) { await send(settings); registrationSettingsHash = hash; }
+        if (registrationSyncStatus.hasUrl) await send({action:'sync-sheets'});
+    } catch { /* Keep registrations in the durable outbox and retry silently. */ }
+    finally { registrationSyncBusy = false; }
+}
+
 function startCloudSync() {
     cloudTimer = setInterval(cloudSyncTick, 10000);
     cloudSyncTick();
+    if (registrationTimer) clearInterval(registrationTimer);
+    registrationTimer = setInterval(registrationSyncTick,15000);
+    registrationSyncTick();
 }
 
 // ---- In-app automatic update ("hot update") ----
@@ -803,6 +842,7 @@ function restartSystem() {
 
 function cleanup() {
     if (cloudTimer) clearInterval(cloudTimer);
+    if (registrationTimer) clearInterval(registrationTimer);
     if (updatePollTimer) clearInterval(updatePollTimer);
 
     // Item 6 — "absolute shutdown": layered kills so nothing survives a quit.
@@ -858,9 +898,9 @@ ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
         const settingsActions = ['integration-info', 'test-sheets'];
-        const allowedPage = sender.pathname === '/test-drive-operations.html'
+        const allowedPage = ['/dashboard.html','/master-table.html','/print-queue.html','/test-drive-operations.html'].includes(sender.pathname)
             || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
-        if (sender.origin !== `http://localhost:${PORT}` || !allowedPage) {
+        if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
         const actions = ['snapshot', 'ongoing', 'status', 'reset', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
@@ -871,12 +911,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             return { ok: true, printers: await event.sender.getPrintersAsync() };
         }
         if (request.action === 'configure') {
-            const models = (cfg.brands || []).flatMap(brand => (brand.models || []).map((model, index) => ({
-                fullName: model.label, shortname: model.shortname || model.label.slice(0, 36), brandKey: brand.key, unit: index + 1
-            })));
-            request = { action: 'configure', models,
-                waiver: cfg.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-                terms: cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl: cfg.testDrive?.sheetsUrl || '' };
+            request = buildTestDriveSettings(cfg);
         }
         if (!['snapshot', 'integration-info'].includes(request.action)) {
             const licence = require(path.join(RES_SERVER, 'shared', 'licence.js'));
@@ -945,6 +980,13 @@ ipcMain.handle('af:testDrive', async (event, request) => {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local)
             });
             if (!saved.ok) throw new Error('Queue action saved in the cloud; local display update failed. Retry Ongoing to reconcile it.');
+            cloudSyncTick();
+        }
+        if (request.action === 'snapshot') {
+            for (const model of result.models || []) {
+                model.display_prefix = (cfg.brands || []).find(brand => brand.key === model.brand_key)?.models?.[model.unit_index-1]?.prefix || '';
+            }
+            result.sheetsStatus = {...registrationSyncStatus,hasUrl:!!cfg.testDrive?.sheetsUrl};
         }
         const publicBase = cfg.cloudBase || 'https://tdqsys.pages.dev';
         return { ok: true, ...result, registrationLinks: {

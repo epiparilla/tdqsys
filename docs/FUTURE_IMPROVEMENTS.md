@@ -168,7 +168,7 @@ The dashboard also shows live registration totals:
 - A total registrant count for each vehicle model.
 - An overall total across all vehicle models.
 
-The facilitator board must retain the required per-model and overall totals without sacrificing the compact 12-column view. A separate authorised detail/master view may show the full raw registration record when needed.
+The Facilitator Dashboard is the test-drive queue board; it replaces the old plus/minus controls. Master Table and Print Queue are separate desktop pages linked from it. Each model column shows the full car name, total distinct registrants, then one line per waiting/ongoing entry containing its prefixed queue number, client name, and status, followed by the four action buttons. The board supports up to 12 columns with horizontal scrolling when needed. The overall ticket total remains above the board. A separate authorised detail/master view may show the full raw registration record when needed.
 
 Each vehicle model may have one `ongoing` test-drive entry at a time. Different models may have ongoing clients simultaneously. The facilitator manually selects **Ongoing** beside the next client in that model's queue. This marks the previous ongoing entry for the same model `done`, makes the selected entry ongoing, and updates that model's displayed queue number. Other models remain unchanged. **Ongoing** is the only dashboard action that updates `display_with_ads.html`; the existing plus/minus counter controls are replaced for the test-drive workflow by this action.
 

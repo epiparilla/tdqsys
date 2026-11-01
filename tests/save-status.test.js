@@ -102,15 +102,13 @@ test('a cloud page never writes and reports false', async () => {
   assert.equal(called, false, 'a cloud page must not POST to the engine');
 });
 
-test('the dashboard registers a rejection handler and shows a banner', () => {
-  const dash = fs.readFileSync(path.join(PUBLIC, 'dashboard.html'), 'utf8');
-  assert.ok(/id="save-rejected"/.test(dash),
-    'the dashboard has no banner element to show a refused save');
-  assert.ok(/afOnSaveRejected\(/.test(dash),
-    'the dashboard does not listen for save rejections');
-  // It must actually consult the return value, not just call and forget.
-  assert.ok(/=\s*await\s+afSaveState\(/.test(dash),
-    'the dashboard ignores the afSaveState() result');
+test('the unified dashboard shows refused operations without optimistic queue edits', () => {
+  const dash = fs.readFileSync(path.join(PUBLIC, 'test-drive-operations.js'), 'utf8');
+  const markup = fs.readFileSync(path.join(PUBLIC, 'facilitator-shell.js'), 'utf8');
+  assert.match(markup,/id="message" role="status"/);
+  assert.match(dash,/if \(!result.ok\) throw new Error\(result.error\)/);
+  assert.match(dash,/catch \(error\) \{ byId\('message'\).textContent = error.message/);
+  assert.doesNotMatch(dash,/afSaveState|updateQueue|commitChange/);
 });
 
 test('a broken rejection handler cannot break the save path', async () => {

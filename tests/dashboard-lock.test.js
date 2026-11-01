@@ -14,7 +14,8 @@ const vm = require('vm');
 const path = require('path');
 const { PUBLIC, extractFunction } = require('./helpers');
 
-const html = fs.readFileSync(path.join(PUBLIC, 'dashboard.html'), 'utf8');
+const html = fs.readFileSync(path.join(PUBLIC, 'test-drive-operations.js'), 'utf8');
+const markup = fs.readFileSync(path.join(PUBLIC, 'facilitator-shell.js'), 'utf8');
 
 /** Minimal DOM: just enough to see what applyLicenceLock touches. */
 function sandbox() {
@@ -57,7 +58,7 @@ function sandbox() {
     document: {
       getElementById: (id) => els[id] || null,
       // Only the queue controls are matched; the header links must not be.
-      querySelectorAll: (sel) => (sel.includes('brand-sections') ? controls : [])
+      querySelectorAll: (sel) => (sel.includes('data-write') ? controls : [])
     },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     setTimeout, clearTimeout,
@@ -75,6 +76,8 @@ function sandbox() {
   vm.runInContext(`
     let licenceCanWrite = true;
     let licenceStatus = null;
+    let busy = false;
+    const byId = id => document.getElementById(id);
     function refuseIfLocked() { if (licenceCanWrite) return false; return true; }
     ${extractFunction(html, 'applyLicenceLock')}
     ctx.__lock = applyLicenceLock;
@@ -110,7 +113,7 @@ describe('dashboard licence lock', () => {
     // Settings is where renewal happens.
     const { ctx } = sandbox();
     ctx.__lock(EXPIRED);
-    assert.ok(/brand-sections/.test(html.match(/querySelectorAll\('([^']+)'/)[1]),
+    assert.ok(/data-write/.test(html.match(/querySelectorAll\('([^']+)'/)[1]),
       'the selector must target the queue controls only');
     assert.ok(!html.match(/querySelectorAll\('[^']*link-button/),
       'the header links must not be swept up by the lock');
@@ -119,9 +122,9 @@ describe('dashboard licence lock', () => {
   test('it says why, and says the board still works', () => {
     const { ctx, els } = sandbox();
     ctx.__lock(EXPIRED);
-    assert.equal(els['licence-locked'].style.display, 'block');
+    assert.equal(els['licence-locked'].hidden, false);
     assert.match(els['licence-locked-why'].textContent, /expired on 2020-01-06/);
-    assert.match(html, /still being served|live values/i,
+    assert.match(markup, /still being served|live values/i,
       'the operator should be told the booth still works');
   });
 
@@ -136,7 +139,7 @@ describe('dashboard licence lock', () => {
     ctx.__lock(EXPIRED);
     ctx.__lock(VALID);
     assert.ok(controls.every((c) => c.disabled === false), 'controls stayed disabled after a renewal');
-    assert.equal(els['licence-locked'].style.display, 'none');
+    assert.equal(els['licence-locked'].hidden, true);
   });
 
   test('the handlers refuse a tap instead of changing the number anyway', () => {
@@ -147,16 +150,13 @@ describe('dashboard licence lock', () => {
     assert.equal(ctx.__refuse(), true);
     ctx.__lock(VALID);
     assert.equal(ctx.__refuse(), false);
-    for (const fn of ['updateQueue', 'setQueue', 'reannounce', 'commitChange']) {
-      assert.ok(new RegExp(`function ${fn}\\([\\s\\S]{0,320}?refuseIfLocked\\(\\)`).test(html),
-        `${fn} does not check the lock first`);
-    }
+    assert.match(html, /async function mutate\(body\)\s*\{\s*if \(busy \|\| !licenceCanWrite\) return/);
   });
 
   test('the lock survives the board being rebuilt', () => {
     // buildDashboard() replaces every control element, so a lock applied only
     // at boot would be lost the first time the board re-rendered.
-    assert.match(html, /buildDashboard\(dataStore\)[\s\S]{0,600}?applyLicenceLock/,
+    assert.match(extractFunction(html,'render'), /applyLicenceLock\(licenceStatus\)/,
       'the lock is not re-applied after a rebuild');
   });
 
@@ -166,7 +166,7 @@ describe('dashboard licence lock', () => {
   });
 
   test('licence state is fetched before the board is first drawn', () => {
-    assert.match(html, /refreshLicence\(\)\.then\(\(\) => fetchInitialData\(\)\)/,
+    assert.match(html, /refreshLicence\(\)\.then\(\(\) => refresh\(\)\)/,
       'the board renders tappable controls before the licence is known');
   });
 });

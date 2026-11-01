@@ -30,7 +30,7 @@
     try {
       const result = await call({ action: 'test-sheets', sheetsUrl: checkedUrl });
       if (url.value.trim() !== checkedUrl) return;
-      status.textContent = `Connected: ${result.spreadsheetTitle} / ${result.tabTitle}. Save Settings, then Sync saved Settings in Test Drive Operations. Keep the account shared as Editor for registration writes.`;
+      status.textContent = `Connected: ${result.spreadsheetTitle} / ${result.tabTitle}. Save Settings to enable automatic background sync. Keep the account shared as Editor for registration writes.`;
     } catch (error) { status.textContent = error.message; }
     finally { test.disabled = false; }
   };
