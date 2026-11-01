@@ -51,10 +51,15 @@ the real giveaway tab was left untouched. No physical printing was attempted.
 
 For the manual test installation, set **System Settings > Cloud Base URL** to
 the preview address above, paste the selected Google Sheets tab URL, and save.
+Open System Settings from the installed TDQSYS app on the laptop. There is no
+online setup page: Cloudflare blocks Settings, the facilitator dashboard, and
+Test Drive Operations URLs. Only the registration forms and public queue
+displays are intended for online users.
 Open **Facilitator Dashboard > Test Drive Operations > Event setup**, select
 **Sync saved Settings**, then choose the installed label printer in Print Queue.
-The existing production site, release assets, and update manifest remain at
-their checkpoint state.
+The main website and preview both block desktop Settings and facilitator
+pages. Release assets and the update manifest remain at their checkpoint
+state; this website restriction does not modify already installed apps.
 
 The steps below remain a deployment reference for future environments.
 

@@ -9,8 +9,9 @@ const REF = 'pnyptdyfkftrcgjlaqnr';
 const ACCOUNT = 'e7e14bed97bb8f5583530bb47ebfb8e7';
 
 async function main() {
-  const [keyFile, supabaseExe] = process.argv.slice(2);
+  const [keyFile, supabaseExe, environment = 'preview'] = process.argv.slice(2);
   if (!keyFile || !supabaseExe) throw new Error('Provide the local Google JSON key path and Supabase executable path.');
+  if (!['preview', 'production'].includes(environment)) throw new Error('Select preview or production.');
   const credentials = JSON.parse(fs.readFileSync(keyFile, 'utf8'));
   if (credentials.type !== 'service_account' || !credentials.private_key) throw new Error('Invalid Google service account file.');
   const compact = JSON.stringify(credentials);
@@ -50,14 +51,14 @@ async function main() {
   if (!token) throw new Error('No working Cloudflare login was found for preview configuration.');
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/pages/projects/tdqsys`, {
     method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20000),
-    body: JSON.stringify({ deployment_configs: { preview: { env_vars: {
+    body: JSON.stringify({ deployment_configs: { [environment]: { env_vars: {
       SUPABASE_URL: { type: 'plain_text', value: `https://${REF}.supabase.co` },
       SUPABASE_SECRET_KEY: { type: 'secret_text', value: serviceKey },
       TEST_DRIVE_CODE_ENCRYPTION_KEY: { type: 'secret_text', value: codeKey }
     } } } })
   });
   if (!response.ok || !(await response.json()).success) throw new Error('Cloudflare preview-secret configuration failed.');
-  console.log('Cloudflare preview secrets configured; production settings untouched.');
+  console.log(`Cloudflare ${environment} secrets configured.`);
 }
 
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

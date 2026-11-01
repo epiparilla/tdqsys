@@ -19,7 +19,7 @@ const html = readPublic('index.html');
 
 // The local-only links that must survive on the local box and be stripped on
 // the website.
-const LOCAL_ONLY = ['dashboard.html', 'display_with_ads.html'];
+const LOCAL_ONLY = ['dashboard.html', 'display_with_ads.html', 'settings.html'];
 // The one link that must exist on both.
 const SHARED = 'client.html';
 

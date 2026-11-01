@@ -133,7 +133,7 @@ test('a malformed save payload is rejected, not written', async () => {
 });
 
 test('static pages are served', async () => {
-  for (const page of ['/', '/client.html', '/settings.html', '/dashboard.html']) {
+  for (const page of ['/', '/client.html', '/settings.html', '/dashboard.html', '/test-drive-operations.html']) {
     const r = await get(page);
     assert.equal(r.status, 200, `${page} returned ${r.status}`);
   }

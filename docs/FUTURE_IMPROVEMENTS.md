@@ -70,6 +70,12 @@ Introduce a web-based registration flow that feeds a test-drive dashboard and th
 
 ### Test-drive Settings configuration
 
+All configuration is performed in the installed TDQSYS desktop app. Public
+Pages hosts only the client registration form, SE registration form, and queue
+displays, together with supporting assets/APIs and existing download/update
+metadata. Settings and facilitator/control pages must be blocked online and
+must not be linked from the public hub.
+
 In the vehicle configuration table, add a **Printable shortname** column beside each vehicle model's full name. The shortname is configured by the test-drive administrator and must fit the 50 mm × 30 mm queue-ticket header. It is the `[Header]` printed above the assigned queue number; the full vehicle name remains available in the registration form, dashboard, master table, and audit history.
 
 Add two facilitator-editable Settings fields: **Waiver statement** and **Terms and Conditions**. Both are shown in the client form's Consent step and their exact saved versions are recorded with each accepted registration. Seed each field with Lorem Ipsum placeholder text so the public web form never presents an empty waiver or Terms and Conditions statement. The facilitator must replace the placeholders with approved dealership wording before event use.
