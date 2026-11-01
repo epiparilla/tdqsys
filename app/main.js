@@ -147,7 +147,7 @@ function applyLicenceToTitle(st) {
 
     const label = st.canWrite
         ? null
-        : (st.state === 'expired' ? 'Licence expired' : (st.state === 'revoked' ? 'Licence revoked' : 'Not licensed'));
+        : (st.state === 'expired' ? 'License expired' : (st.state === 'revoked' ? 'License revoked' : 'Not licensed'));
     if (label) win.setTitle(`TDQSYS - ${label}`);
     else if (win.__licenceTitle) win.setTitle('TDQSYS');
     win.__licenceTitle = label;
@@ -280,7 +280,7 @@ function pushState(instanceId, writerToken, localData) {
                 try {
                     const errObj = JSON.parse(resBody);
                     if (errObj && errObj.error === 'license_revoked') {
-                        const reason = errObj.reason || 'This licence was remotely revoked by the administrator.';
+                    const reason = errObj.reason || 'This license was remotely revoked by the administrator.';
                         log(`[desktop] Remote revocation received for ${instanceId}: ${reason}`);
                         try {
                             const lic = require(path.join(RES_SERVER, 'shared', 'licence.js'));

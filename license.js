@@ -186,12 +186,12 @@ function licenseStatus(code, opts = {}) {
   });
 
   if (typeof code !== 'string' || !code.trim()) {
-    return finish(STATE.NO_LICENCE, null, 'No licence has been entered.');
+    return finish(STATE.NO_LICENCE, null, 'No license has been entered.');
   }
 
   const parts = code.trim().split('.');
   if (parts.length !== 3 || parts[0] !== CODE_PREFIX) {
-    return finish(STATE.INVALID, null, 'That does not look like a TDQSYS licence code.');
+    return finish(STATE.INVALID, null, 'That does not look like a TDQSYS license code.');
   }
 
   let payload;
@@ -200,7 +200,7 @@ function licenseStatus(code, opts = {}) {
     payloadBytes = b64urlDecode(parts[1]);
     payload = JSON.parse(zlib.inflateRawSync(payloadBytes).toString('utf8'));
   } catch (e) {
-    return finish(STATE.INVALID, null, 'The licence code is damaged or was copied incompletely.');
+    return finish(STATE.INVALID, null, 'The license code is damaged or was copied incompletely.');
   }
 
   const shapeProblem = validatePayload(payload);
@@ -209,7 +209,7 @@ function licenseStatus(code, opts = {}) {
   // An empty trusted-key list means nothing can ever validate. Fail closed.
   if (!keysById.has(payload.k)) {
     return finish(STATE.INVALID, payload,
-      `Licence was signed with key "${payload.k}", which this installation does not trust.`);
+      `License was signed with key "${payload.k}", which this installation does not trust.`);
   }
 
   let signatureOk;
@@ -225,24 +225,24 @@ function licenseStatus(code, opts = {}) {
   }
   if (!signatureOk) {
     return finish(STATE.INVALID, payload,
-      'The licence signature is not valid. It may have been altered or issued for someone else.');
+      'The license signature is not valid. It may have been altered or issued for someone else.');
   }
 
   // Signature is good, so this really was issued by us. Only now do we care
   // whether it applies to this machine and this period.
   if (opts.instanceId && String(opts.instanceId).toLowerCase() !== payload.i.toLowerCase()) {
     return finish(STATE.WRONG_LOCATION, payload,
-      'This licence was issued to a different installation.');
+      'This license was issued to a different installation.');
   }
 
   const { start, end } = dayBounds(payload.b);
   const endOfTerm = dayBounds(payload.x).end;
 
   if (now < start) {
-    return finish(STATE.NOT_YET_ACTIVE, payload, `Licence begins on ${payload.b}.`);
+    return finish(STATE.NOT_YET_ACTIVE, payload, `License begins on ${payload.b}.`);
   }
   if (now > endOfTerm) {
-    return finish(STATE.EXPIRED, payload, `Licence ended on ${payload.x}.`);
+    return finish(STATE.EXPIRED, payload, `License ended on ${payload.x}.`);
   }
 
   return finish(STATE.VALID, payload, `Licensed to ${payload.c || 'this location'} until ${payload.x}.`);

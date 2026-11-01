@@ -43,7 +43,7 @@ function recordRevocation(reason, instanceId, dataDir) {
     revoked: true,
     revokedAt: Date.now(),
     instanceId: instanceId || null,
-    reason: reason || 'This licence was remotely revoked by the administrator.',
+    reason: reason || 'This license was remotely revoked by the administrator.',
     previousLicence: prev && prev.code ? prev.code : null
   };
   try { fs.writeFileSync(REVOKED_FILE, JSON.stringify(doc, null, 2)); } catch (e) {}
@@ -150,7 +150,7 @@ function status(instanceId, opts = {}) {
   if (rev && (!rev.instanceId || rev.instanceId === instanceId)) {
     return {
       state: license.STATE.REVOKED,
-      detail: rev.reason || 'This licence was remotely revoked by the administrator.',
+      detail: rev.reason || 'This license was remotely revoked by the administrator.',
       from: null,
       until: null,
       customer: null,
@@ -187,7 +187,7 @@ function status(instanceId, opts = {}) {
       if (st.state === license.STATE.VALID || st.state === license.STATE.EXPIRED) {
         st.state = license.STATE.INVALID;
         st.detail = `This machine's clock was rolled back by ${check.rolledBackByMs} ms. ` +
-          'Licences cannot be checked until the date and time are correct.';
+          'Licenses cannot be checked until the date and time are correct.';
       }
     } else {
       license.clockRecord({ now, paths });

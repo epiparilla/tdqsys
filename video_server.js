@@ -155,7 +155,7 @@ function gateWrite(req, res) {
 
     res.writeHead(403, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-        error: 'Licence does not allow changes.',
+        error: 'License does not allow changes.',
         licenceState: st.state,
         licenceDetail: st.detail,
         canWrite: false
@@ -271,7 +271,7 @@ const server = http.createServer((req, res) => {
                 }));
             } catch (e) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Could not read that licence code.' }));
+                res.end(JSON.stringify({ error: 'Could not read that license code.' }));
             }
         });
         return;

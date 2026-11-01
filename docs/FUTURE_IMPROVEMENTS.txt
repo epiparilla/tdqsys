@@ -1,0 +1,168 @@
+# TDQSYS Future Improvements
+
+This document records approved future-feature ideas. It is not a change to the current production release.
+
+## Configurable announcement voice
+
+TDQSYS currently uses the locally packaged **Kokoro ONNX** text-to-speech engine for queue announcements, with `af_heart` as the default voice. Future voice selection should extend this existing local engine rather than depend on a cloud TTS service or Windows system voices.
+
+Add a Settings option that lets an authorised operator select from the Kokoro voices packaged with TDQSYS.
+
+- List the Kokoro voices available in the installed TDQSYS package.
+- Retain the current voice as the default and safe fallback.
+- Provide a **Test voice** action before saving the selection.
+- Store the selected voice in the location configuration.
+- If a saved voice is no longer packaged with the app, automatically use the default voice and show a clear Settings notice.
+- Keep synthesis local so announcements continue working without internet access.
+
+## Configurable announcement wording
+
+Allow an authorised operator to configure announcement wording around the normal queue message.
+
+Suggested template parts:
+
+- **Prefix** — for example, `Now serving`.
+- **Main announcement** — generated from the current queue ticket and destination.
+- **Suffix** — for example, `Thank you.`
+
+Templates should support validated placeholders:
+
+| Placeholder | Example value |
+| --- | --- |
+| `{ticket}` | `A001` |
+| `{counter}` | `Counter 3` |
+| `{service}` | `Customer Service` |
+
+Design requirements:
+
+- Keep the existing announcement wording as the default template.
+- Restrict changes to Settings Edit Mode.
+- Include a preview and a **Test announcement** action before saving.
+- Validate placeholder names and display a helpful error for invalid templates.
+- Preserve current templates during application updates and location migration.
+- Consider separate templates and voices for each supported language in a later phase.
+
+## Acceptance criteria for a future implementation
+
+1. A selected available voice is used in the next queue announcement.
+2. A missing saved voice falls back safely without preventing announcements.
+3. Prefix, ticket/destination content, and suffix are announced in the configured order.
+4. Invalid placeholders cannot be saved.
+5. Revoked or unlicensed installations remain read-only and cannot modify these settings.
+
+## Test-drive registration and live queue dashboard
+
+Introduce a web-based registration flow that feeds a test-drive dashboard and the existing customer display.
+
+### Registration form
+
+A client completes a web form containing:
+
+- Full name
+- Email address
+- Contact number
+- One or more vehicle models selected for a test drive
+
+On submission, validate the required fields, create the registration record in the database, and assign a queue number for each selected vehicle model.
+
+### Database structure
+
+The requested initial model is one table per available vehicle model. For example, five available models result in five model-specific queue tables. Each table should retain, at minimum:
+
+- Queue number
+- Customer name
+- Email address
+- Contact number
+- Registration timestamp
+- Queue status: `waiting`, `ongoing`, `done`, or `no_show`
+
+Before implementation, confirm whether a normalized single registrations table with a related test-drive selections table is preferable. It provides the same dashboard behaviour while avoiding schema changes whenever models are added or removed.
+
+### Dashboard behaviour
+
+The dashboard displays a separate list of registered names for each vehicle model. Each customer row has these actions:
+
+- **Ongoing** — makes that customer the active test drive for that vehicle model.
+- **Done** — marks the customer's test drive complete.
+- **No Show** — records that the customer did not attend.
+- **Call Back** — repeats a configurable announcement for that customer without changing their queue status.
+
+The dashboard also shows live registration totals:
+
+- A total registrant count for each vehicle model.
+- An overall total across all vehicle models.
+
+The dashboard layout is intentionally undecided. The final design may use summary cards, model-list headings, a top status bar, or another suitable arrangement, but the per-model and overall totals are required information.
+
+Only one registration may be `ongoing` at a time for a given vehicle model. When an operator selects **Ongoing** for another customer in the same model list, the previously ongoing customer must automatically change to `done`, then the newly selected customer becomes `ongoing`.
+
+### Call-back announcements
+
+Selecting **Call Back** beside a customer's name announces the following fields in order:
+
+`{callback_prefix} {queue_number} {callback_suffix} {car_model}`
+
+Example:
+
+> Test driver AA01, please stand by, you are next in line to test the Toyota RAV4.
+
+`callback_prefix` and `callback_suffix` are Settings fields that an authorised operator can configure. Neither field may be blank; validation must prevent saving an empty or whitespace-only value. Provide a **Test call-back announcement** control in Settings.
+
+The queue number is read from the committed registration queue record. The car-model name is read from that model's queue table or model configuration; it must never be typed manually by the dashboard operator.
+
+Vehicle-model queue structures should be created or updated automatically when the available test-drive models are changed in Settings. On application startup, validate that every configured active vehicle model has a matching queue structure. Repair or create missing structures safely before the dashboard becomes available, and display a clear administrator-facing error if the check cannot complete.
+
+### Customer-display integration
+
+Selecting **Ongoing** updates the customer display with that registration's assigned queue number and relevant vehicle-model context. Selecting another customer as ongoing completes the preceding active record first, then replaces the display with the new active customer's queue number.
+
+### Automatic queue-ticket printing
+
+After a successful registration submission, automatically print the client's queue ticket using the queue entries that were saved to the database.
+
+**Target printer:** NIMBOT B1 label printer. The implementation should use the PC's supported connection method and validate the available Windows driver, local print bridge, or documented device protocol before development begins.
+
+- Create and commit all selected-model queue records before starting any print job.
+- Print one queue number for every vehicle model selected by the client. For example, selecting three models produces three queue entries and three printed queue numbers.
+- Each printed item must identify the relevant vehicle model and show the queue number assigned by that model's table or queue record.
+- The print layout should also include the registration date/time and a short instruction for the client, without printing unnecessary personal contact information.
+- Use the configured NIMBOT B1 label printer; provide a clear retry/reprint action when it is unavailable, disconnected, offline, or out of labels.
+- A print failure must not discard the submitted registration or issue a different queue number on retry. Reprints use the original committed queue records.
+- Record print status and time for operational troubleshooting and audit purposes.
+- Design and test the label layout for the printer's selected label size, including a readable queue number and vehicle-model name.
+
+### Lead-data retention, cleanup, and reset safeguards
+
+Registration records are client marketing leads, not disposable queue numbers. The future implementation must preserve and protect this data accordingly.
+
+When an operator changes the available vehicle models in Settings, the system should identify model-specific queue structures that are no longer used. It may automatically clean up retired empty structures. If a retired structure contains registrants, the operator must first be offered an export/backup of those registrants and must explicitly confirm the archival or deletion action.
+
+Announcement prefix, suffix, callback prefix, and callback suffix values may be replaced when saved in Settings. Changes should be auditable and should not alter previously stored registration records, queue history, or printed-ticket data.
+
+**Reset to Zero** must never silently remove lead data. Before a reset takes place:
+
+1. Offer a backup/export of all registrants, including contact details, selected vehicle models, queue numbers, statuses, timestamps, and print information.
+2. Clearly state whether the action resets only the live queue counters or also archives/deletes historical registration records.
+3. Require explicit confirmation after the backup option is presented.
+4. Keep a reset audit record with the operator, timestamp, scope, and backup/export outcome.
+
+The preferred default is to reset live queue counters while retaining historical registrations in an archive that can be exported by authorised client personnel. Permanent deletion of marketing leads should require a separate, deliberate data-retention action rather than being coupled to an operational queue reset.
+
+### Acceptance criteria for a future implementation
+
+1. A client can select one or more models and receives a queue entry for each selected model.
+2. Submitted entries appear in the matching model list without manual refresh.
+3. A model list never has more than one ongoing customer.
+4. Selecting a new ongoing customer atomically marks the prior ongoing customer as done and updates the display.
+5. Done and no-show records remain auditable but are clearly separated from waiting customers.
+6. Two operators cannot accidentally create two ongoing records for the same model through simultaneous clicks.
+7. Client-side validation, server-side validation, and appropriate access controls protect contact details.
+8. A successful form submission prints one ticket per selected vehicle model, using the queue numbers committed to the database.
+9. Retrying or reprinting a failed ticket never creates duplicate registrations or changes an assigned queue number.
+10. Call Back announces the saved queue number and model name without changing the customer's queue status.
+11. Callback prefix and suffix cannot be saved empty, and the generated announcement follows the required field order.
+12. Startup validation ensures every configured active vehicle model has an available queue structure before registrations or dashboard actions are accepted.
+13. The dashboard displays an accurate total for every vehicle model and an accurate overall registrant total.
+14. Retiring a model structure containing registrants requires a backup/export offer and explicit operator confirmation before its data can be removed.
+15. Reset to Zero always offers a registrant backup/export and never silently deletes lead data.
+16. Historical registrant data remains available for authorised marketing use after a normal live-queue reset.

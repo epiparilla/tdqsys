@@ -82,9 +82,9 @@
                 banner.style.display = 'none';
             } else {
                 why.textContent = st.state === 'expired'
-                    ? 'This licence expired on ' + (st.until || 'an unknown date') + '.'
+                    ? 'This license expired on ' + (st.until || 'an unknown date') + '.'
                     : (st.state === 'revoked'
-                        ? (st.detail || 'This licence was remotely revoked by the administrator.')
+                        ? (st.detail || 'This license was remotely revoked by the administrator.')
                         : 'This location is not licensed.');
                 banner.style.display = 'block';
             }

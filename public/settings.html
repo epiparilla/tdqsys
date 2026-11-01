@@ -185,7 +185,7 @@
          settings, but renewal and Updates must stay reachable, or the operator
          has no way out of the state we put them in. -->
     <div class="settings-card" id="licence-card">
-        <h2>Licence</h2>
+        <h2>License</h2>
         <div id="licence-banner" class="lock-banner hidden"></div>
         <div class="status-grid">
             <div class="status-item"><strong>Status</strong><span id="lic-state">-</span></div>
@@ -196,18 +196,18 @@
         <div id="licence-detail" class="hint" style="margin-top:0.7rem;"></div>
 
         <details id="licence-activate-wrap" style="margin-top:1rem;">
-            <summary style="cursor:pointer; font-weight:600;">Activate or renew a licence</summary>
+            <summary style="cursor:pointer; font-weight:600;">Activate or renew a license</summary>
             <p style="opacity:0.6; font-size:0.85rem; margin:0.7rem 0;">
-                Send us this location's Instance ID (shown above). We will send you a licence
+                Send us this location's Instance ID (shown above). We will send you a license
                 code to paste here. It is stored on this machine and never needs entering again.
             </p>
             <button type="button" class="btn-ghost settings-btn" onclick="copyLicenceRequest()">&#x1F4CB; Copy activation request</button>
             <textarea id="licence-code-input" rows="3" spellcheck="false"
                       style="width:100%; margin-top:0.8rem; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:0.82rem;"
-                      placeholder="Paste your licence code here (TDQS1....)"></textarea>
+                      placeholder="Paste your license code here (TDQS1....)"></textarea>
             <div style="display:flex; gap:0.6rem; margin-top:0.7rem; flex-wrap:wrap;">
                 <input type="file" id="licence-import" accept=".license,.txt,text/plain" style="display:none;" onchange="importLicenceFile(event)">
-                <button type="button" class="btn-ghost settings-btn" onclick="document.getElementById('licence-import').click()">&#x1F4C1; Import licence file</button>
+                <button type="button" class="btn-ghost settings-btn" onclick="document.getElementById('licence-import').click()">&#x1F4C1; Import license file</button>
                 <button type="button" class="btn-primary settings-btn" onclick="activateLicence()">Activate</button>
                 <span id="licence-activate-msg" style="align-self:center; font-size:0.85rem; opacity:0.8;"></span>
             </div>
@@ -577,7 +577,7 @@
         resetBtn.style.opacity = st.canWrite ? '' : '0.35';
         resetBtn.style.cursor = st.canWrite ? '' : 'not-allowed';
     resetBtn.title = st.canWrite ? ''
-            : 'This licence does not allow changes. Activate a licence to reset.';
+            : 'This license does not allow changes. Activate a license to reset.';
     }
 
     if (st.canWrite) return;
@@ -586,7 +586,7 @@
         unlocked = false;
         document.getElementById('lock-banner').style.display = 'block';
         document.getElementById('lock-banner').textContent =
-            '🔒 Settings are locked because this licence does not allow changes.';
+            '🔒 Settings are locked because this license does not allow changes.';
         document.getElementById('settings-form').style.opacity = '0.55';
         document.getElementById('settings-form').style.pointerEvents = 'none';
         document.getElementById('unlock-bar').classList.remove('hidden');
@@ -612,12 +612,12 @@ function renderLicence(st) {
             } else {
                 banner.classList.remove('hidden');
                 banner.innerHTML = st.state === 'expired'
-                    ? '&#x1F512; This licence expired on <strong>' + escHtml(st.until) + '</strong>. '
+                    ? '&#x1F512; This license expired on <strong>' + escHtml(st.until) + '</strong>. '
                       + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a renewal.'
                     : (st.state === 'revoked'
-                        ? '&#x26D4; <strong>Licence Revoked</strong>: ' + escHtml(st.detail || 'This licence was remotely revoked by the administrator.')
+                        ? '&#x26D4; <strong>License Revoked</strong>: ' + escHtml(st.detail || 'This license was remotely revoked by the administrator.')
                         : '&#x1F512; This location is not licensed. '
-                          + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a licence.');
+                          + 'The booth still serves cars, but numbers and settings cannot be changed until you activate a license.');
             }
 
             const detail = document.getElementById('licence-detail');
@@ -668,12 +668,12 @@ function renderLicence(st) {
                 const text = await file.text();
                 const code = text.trim();
                 if (!code.startsWith('TDQS1.')) {
-                    licenceActivateMsg('File does not contain a valid TDQSYS licence code.');
+                    licenceActivateMsg('File does not contain a valid TDQSYS license code.');
                     return;
                 }
                 const input = document.getElementById('licence-code-input');
                 input.value = code;
-                licenceActivateMsg('Licence loaded. Click Activate to apply.');
+                licenceActivateMsg('License loaded. Click Activate to apply.');
             } catch (e) {
                 licenceActivateMsg('Failed to read file: ' + e.message);
             } finally {
@@ -685,7 +685,7 @@ function renderLicence(st) {
         async function activateLicence() {
             const input = document.getElementById('licence-code-input');
             const code = (input.value || '').trim();
-            if (!code) { licenceActivateMsg('Paste a licence code first.'); return; }
+            if (!code) { licenceActivateMsg('Paste a license code first.'); return; }
 
             licenceActivateMsg('Checking…');
             try {
@@ -698,7 +698,7 @@ function renderLicence(st) {
                 const st = doc.status || {};
 
                 if (doc.stored) {
-                    licenceActivateMsg('Licence activated.');
+                    licenceActivateMsg('License activated.');
                     input.value = '';
                     renderLicence(await fetchLicence());
                     if (window.afDesktop && window.afDesktop.notifyLicenceChanged) {
@@ -714,7 +714,7 @@ function renderLicence(st) {
                         hydrateForm();
                     } catch {}
                 } else {
-                    licenceActivateMsg(st.detail || 'That licence was not accepted.');
+                    licenceActivateMsg(st.detail || 'That license was not accepted.');
                 }
             } catch (e) {
                 licenceActivateMsg('Could not reach the local machine.');
@@ -1258,12 +1258,12 @@ function renderLicence(st) {
             // they cannot see the cause of.
             if (licenceState && !licenceState.canWrite) {
                 const what = licenceState.state === 'expired'
-                    ? 'This licence expired on ' + (licenceState.until || 'an unknown date') + '.'
+                    ? 'This license expired on ' + (licenceState.until || 'an unknown date') + '.'
                     : (licenceState.state === 'revoked'
-                        ? (licenceState.detail || 'This licence was remotely revoked by the administrator.')
+                        ? (licenceState.detail || 'This license was remotely revoked by the administrator.')
                         : 'This location is not licensed.');
                 alert(what +
-                    '\n\nThe booth still serves cars, but settings cannot be changed until you activate a licence. Use the Licence section above.');
+                    '\n\nThe booth still serves cars, but settings cannot be changed until you activate a license. Use the License section above.');
                 return;
             }
 
@@ -1668,8 +1668,8 @@ if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return;
     // this guard covers a stale click and the case where the licence lapses
     // while the confirm modal is already open.
     if (licenceState && !licenceState.canWrite) {
-    alert('This licence does not allow changes.\n\n'
-            + 'Resetting every counter cannot be done until you activate a licence.');
+    alert('This license does not allow changes.\n\n'
+            + 'Resetting every counter cannot be done until you activate a license.');
     return;
     }
     resetStep = 1;
