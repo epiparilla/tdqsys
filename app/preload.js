@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('afDesktop', {
+    testDrive: (request) => ipcRenderer.invoke('af:testDrive', request),
     // Open the OS file dialog for importing videos (used by settings.html).
     chooseVideos: () => ipcRenderer.invoke('af:chooseVideos'),
     // Path where portable data lives (for diagnostics/UI).

@@ -116,6 +116,7 @@ function normalizeModel(m) {
     if (typeof m === 'object' && !Array.isArray(m)) {
         return {
             label: String(m.label || '').trim(),
+            ...(m.shortname ? { shortname: String(m.shortname).trim().slice(0, 36) } : {}),
             prefix: String(m.prefix || '').trim(),
             pronounce: String(m.pronounce || '').trim()
         };

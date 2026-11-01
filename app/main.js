@@ -854,6 +854,105 @@ function killPortHolders(ports) {
 }
 
 // IPC for settings page (native dialogs / file ops live here, not in browser JS).
+ipcMain.handle('af:testDrive', async (event, request) => {
+    try {
+        const sender = new URL(event.senderFrame.url);
+        if (sender.origin !== `http://localhost:${PORT}` || sender.pathname !== '/test-drive-operations.html') {
+            throw new Error('Open Test Drive Operations inside TDQSYS.');
+        }
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback'];
+        if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
+        const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
+        const cfg = state.config || {};
+        if (request.action === 'printers') {
+            return { ok: true, printers: await event.sender.getPrintersAsync() };
+        }
+        if (request.action === 'configure') {
+            const models = (cfg.brands || []).flatMap(brand => (brand.models || []).map((model, index) => ({
+                fullName: model.label, shortname: model.shortname || model.label.slice(0, 36), brandKey: brand.key, unit: index + 1
+            })));
+            request = { action: 'configure', models,
+                waiver: cfg.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+                terms: cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl: cfg.testDrive?.sheetsUrl || '' };
+        }
+        if (request.action !== 'snapshot') {
+            const licence = require(path.join(RES_SERVER, 'shared', 'licence.js'));
+            if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
+        }
+        let printerName;
+        if (request.action === 'print') {
+            const printers = await event.sender.getPrintersAsync();
+            if (!printers.some(printer => printer.name === request.printerName)) throw new Error('Select an installed printer first.');
+            printerName = request.printerName;
+            request = { action: 'claim-print', jobId: request.jobId };
+        }
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`, {
+            method: 'POST', signal: AbortSignal.timeout(15000),
+            headers: { 'Content-Type': 'application/json', 'X-TDQSYS-Instance': cfg.instanceId, 'X-TDQSYS-Writer': cfg.cloudWriterToken },
+            body: JSON.stringify(request)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || `Queue service returned ${response.status}.`);
+        if (request.action === 'callback') {
+            const text = `${cfg.testDrive?.callbackPrefix || 'Test driver'} ${String(result.ticket).padStart(2,'0')} ${cfg.testDrive?.callbackSuffix || 'please stand by, you are next in line to test'} ${result.modelName}`;
+            return { ok: true, audioUrl: `http://localhost:${cfg.ttsPort || 8001}/api/speak?text=${encodeURIComponent(text)}` };
+        }
+        if (printerName) {
+            const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+            const label = result.label;
+            const printWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+            let printError;
+            try {
+                const html = `<html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}body{margin:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Arial;text-align:center;overflow:hidden}h1{font-size:24pt;line-height:1.05;margin:1mm 2mm;font-weight:900;max-width:46mm;overflow-wrap:anywhere}p{font-size:18pt;font-weight:700;margin:1mm}</style></head><body><h1>${escape(label.header)}</h1><p>${escape(label.value)}</p></body></html>`;
+                await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+                await printWindow.webContents.executeJavaScript(`(() => {
+                    const header = document.querySelector('h1'), number = document.querySelector('p');
+                    let size = 32;
+                    while (size > 16 && document.body.scrollHeight > document.body.clientHeight) {
+                        size--; header.style.fontSize = size + 'px'; number.style.fontSize = Math.max(12,size-4) + 'px';
+                    }
+                })()`);
+                await new Promise((resolve, reject) => printWindow.webContents.print({ silent: true, deviceName: printerName,
+                    pageSize: { width: 50000, height: 30000 }, margins: { marginType: 'none' }, printBackground: true },
+                    (success, reason) => success ? resolve() : reject(new Error(reason || 'Printer did not accept the label.'))));
+            } catch (error) { printError = error.message; }
+            finally { printWindow.destroy(); }
+            const recorded = await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`, {
+                method: 'POST', signal: AbortSignal.timeout(15000),
+                headers: { 'Content-Type':'application/json', 'X-TDQSYS-Instance':cfg.instanceId, 'X-TDQSYS-Writer':cfg.cloudWriterToken },
+                body: JSON.stringify({ action:'print-result', jobId:request.jobId, status:printError ? 'failed' : 'printed', error:printError })
+            });
+            if (!recorded.ok) throw new Error('Printer result could not be saved. Check the physical label before retrying this claimed job.');
+            if (printError) throw new Error(printError);
+            return { ok: true, printed: true };
+        }
+        if (request.action === 'ongoing' || request.action === 'reset') {
+            const localResponse = await fetch(`http://localhost:${PORT}/api/data`);
+            if (!localResponse.ok) throw new Error('Cannot update the local display.');
+            const local = await localResponse.json();
+            if (request.action === 'reset') {
+                for (const slots of Object.values(local.queues)) for (const unit of Object.keys(slots)) slots[unit] = 0;
+                local.reannounce = null;
+            } else {
+                const { brand_key: brand, unit_index: unit } = result.model;
+                if (!local.queues[brand] || !(String(unit) in local.queues[brand])) throw new Error('Vehicle display mapping changed. Sync Settings and retry.');
+                local.queues[brand][unit] = result.entry.queue_number;
+            }
+            const saved = await fetch(`http://localhost:${PORT}/api/save`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local)
+            });
+            if (!saved.ok) throw new Error('Queue action saved in the cloud; local display update failed. Retry Ongoing to reconcile it.');
+        }
+        const publicBase = cfg.cloudBase || 'https://tdqsys.pages.dev';
+        return { ok: true, ...result, registrationLinks: {
+            client: `${publicBase.replace(/\/+$/, '')}/test-drive-registration.html?id=${encodeURIComponent(cfg.instanceId)}`,
+            se: `${publicBase.replace(/\/+$/, '')}/se-registration.html?id=${encodeURIComponent(cfg.instanceId)}`
+        } };
+    } catch (error) {
+        return { ok: false, error: error.message || 'Queue service is unavailable.' };
+    }
+});
+
 ipcMain.handle('af:chooseVideos', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [ { name: 'Video', extensions: ['mp4', 'webm'] } ] });
     if (r.canceled || !r.filePaths.length) return { ok: false };

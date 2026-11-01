@@ -4,7 +4,8 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key",
-  "Content-Type": "application/json"
+  "Content-Type": "application/json",
+  "Cache-Control": "no-store"
 };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: CORS });
@@ -56,7 +57,14 @@ export async function onRequest(context) {
     const serviceKey = context.env.SUPABASE_SECRET_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
     const codeKey = context.env.TEST_DRIVE_CODE_ENCRYPTION_KEY;
     if (!context.env.SUPABASE_URL || !serviceKey || !codeKey) return json({ error: 'Registration is temporarily unavailable.' }, 503);
-    const zone = context.env.TEST_DRIVE_TIME_ZONE || 'Asia/Manila';
+    const instanceId = body.instanceId.trim().toLowerCase();
+    const settingResponse = await fetch(`${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_drive_settings?instance_id=eq.${encodeURIComponent(instanceId)}&select=timezone`, {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
+    });
+    if (!settingResponse.ok) return json({ error: 'Registration is temporarily unavailable.' }, 503);
+    const settings = await settingResponse.json();
+    if (!settings.length) return json({ error: 'Registration has not been configured for this location.' }, 404);
+    const zone = settings[0].timezone;
     const day = operatingDay(zone);
     const rpc = `${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/tdqsys_register_se_checkin`;
     for (let tries = 0; tries < 30; tries += 1) {
@@ -75,6 +83,7 @@ export async function onRequest(context) {
       const error = await response.json().catch(() => ({}));
       // Unique-code collisions are expected at random; all other failures are not.
       if (error.code !== '23505') return json({ error: 'Registration could not be completed.' }, 400);
+      if (String(error.message || '').includes('sales_executive_id_operating_day')) return json({ error: 'You are already registered today. Please collect your code from the facilitator.' }, 409);
     }
     return json({ error: 'No unique code is currently available. Please try again.' }, 503);
   } catch (error) {

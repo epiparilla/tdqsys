@@ -19,10 +19,11 @@ function normaliseName(value) {
   return text(value, 160).replace(/\s+/g, ' ').toLocaleLowerCase();
 }
 
-function validInstanceId(value) { return INSTANCE_RE.test(text(value, 64)); }
-function validSeCode(value) { return CODE_RE.test(text(value, 4)); }
+function validInstanceId(value) { return typeof value === 'string' && INSTANCE_RE.test(value.trim()); }
+function validSeCode(value) { return typeof value === 'string' && CODE_RE.test(value.trim()); }
 
 function validateSeCheckin(body = {}) {
+  if (!body || typeof body !== 'object') body = {};
   const name = text(body.name, 120);
   const dealership = text(body.dealership, 160);
   const errors = {};
@@ -33,6 +34,7 @@ function validateSeCheckin(body = {}) {
 }
 
 function validateRegistration(body = {}) {
+  if (!body || typeof body !== 'object') body = {};
   const fullName = text(body.fullName, 160);
   const email = text(body.email, 320).toLowerCase();
   const cityAddress = text(body.cityAddress, 240);
@@ -46,9 +48,9 @@ function validateRegistration(body = {}) {
   if (!fullName || !NAME_RE.test(fullName)) errors.fullName = 'Enter your full name using letters.';
   if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.';
   if (!cityAddress || !ADDRESS_RE.test(cityAddress)) errors.cityAddress = 'Enter a valid city address.';
-  if (!contactNumber || !PHONE_RE.test(contactNumber)) errors.contactNumber = 'Enter a valid contact number.';
+  if (!contactNumber || !PHONE_RE.test(contactNumber) || !/[0-9]/.test(contactNumber)) errors.contactNumber = 'Enter a valid contact number.';
   if (!modelIds.length) errors.modelIds = 'Select at least one vehicle model.';
-  if (!validSeCode(seCode)) errors.seCode = 'Enter the four-digit Sales Executive code.';
+  if (!validSeCode(body.seCode)) errors.seCode = 'Enter the four-digit Sales Executive code.';
   if (body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
   if (body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
   return {

@@ -357,6 +357,15 @@
             </div>
         </div>
 
+        <div class="settings-card">
+            <h2>Test-drive consent</h2>
+            <div class="field"><label for="cfg-callback-prefix">Call-back prefix</label><input id="cfg-callback-prefix" value="Test driver" required></div>
+            <div class="field"><label for="cfg-callback-suffix">Call-back suffix</label><input id="cfg-callback-suffix" value="please stand by, you are next in line to test" required></div>
+            <div class="field"><label for="cfg-sheets-url">Google Sheets URL</label><input id="cfg-sheets-url" type="url" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0"><p class="hint">Open the giveaway tracking tab and paste its full URL. Sync uses the server's configured Google account.</p></div>
+            <div class="field"><label for="cfg-waiver">Waiver statement</label><textarea id="cfg-waiver" rows="6" style="width:100%" required>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</textarea></div>
+            <div class="field"><label for="cfg-terms">Terms and Conditions</label><textarea id="cfg-terms" rows="6" style="width:100%" required>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</textarea></div>
+            <p class="hint">Replace the sample text with the approved statements before accepting event registrations.</p>
+        </div>
         <!-- Brands -->
         <div class="settings-card">
             <h2>Brands &amp; Cars</h2>
@@ -1042,7 +1051,7 @@ function renderLicence(st) {
             const listEl = section.querySelector('.model-list');
             (spec.models || []).forEach((rawModel, i) => {
                 const m = normalizeModelClient(rawModel);
-                addModelRowEl(listEl, m.label, m.prefix, m.pronounce);
+                addModelRowEl(listEl, m.label, m.prefix, m.pronounce, m.shortname);
             });
         }
 
@@ -1051,6 +1060,7 @@ function renderLicence(st) {
             if (typeof m === 'object' && !Array.isArray(m)) {
                 return {
                     label: String(m.label || '').trim(),
+                    ...(m.shortname ? { shortname: String(m.shortname).trim() } : {}),
                     prefix: String(m.prefix || '').trim(),
                     pronounce: String(m.pronounce || '').trim()
                 };
@@ -1075,11 +1085,12 @@ function renderLicence(st) {
             addModelRowEl(btn.closest('.field').querySelector('.model-list'), '', '', '');
         }
 
-        function addModelRowEl(listEl, label, prefix, pronounce) {
+        function addModelRowEl(listEl, label, prefix, pronounce, shortname) {
             const row = document.createElement('div');
             row.className = 'model-row';
             row.innerHTML = `
                 <input type="text" class="model-label" placeholder="Car name (e.g. RAV4 LTD HEV)" value="${escAttr(label || '')}">
+                <input type="text" class="model-shortname" aria-label="Printable shortname" maxlength="36" placeholder="Printed header" value="${escAttr(shortname || '')}">
                 <input type="text" class="model-prefix" placeholder="Prefix (e.g. RH)" value="${escAttr(prefix || '')}">
                 <input type="text" class="model-pronounce" placeholder="Speak (e.g. R H)" value="${escAttr(pronounce || '')}">
                 <button type="button" class="preview-btn" title="Preview pronunciation" onclick="previewPronunciation(this)">&#x1F50A;</button>
@@ -1168,6 +1179,11 @@ function renderLicence(st) {
             set('cfg-site', c.site || 'auto-01');
             set('cfg-hostname', c.hostname || 'tdqsys.local');
             set('cfg-cloudbase', c.cloudBase || '');
+            set('cfg-waiver', c.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
+            set('cfg-sheets-url', c.testDrive?.sheetsUrl || '');
+            set('cfg-callback-prefix', c.testDrive?.callbackPrefix || 'Test driver');
+            set('cfg-callback-suffix', c.testDrive?.callbackSuffix || 'please stand by, you are next in line to test');
+            set('cfg-terms', c.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
             const ads = c.ads || {};
             set('cfg-ads-min', ads.minSec != null ? ads.minSec : 120);
             set('cfg-ads-max', ads.maxSec != null ? ads.maxSec : 180);
@@ -1215,6 +1231,18 @@ function renderLicence(st) {
                 },
                 brands: []
             };
+            const waiverField = document.getElementById('cfg-waiver');
+            const termsField = document.getElementById('cfg-terms');
+            if (waiverField && termsField) {
+                const waiver = waiverField.value.trim(), terms = termsField.value.trim();
+                if (!waiver || !terms) throw new Error('Waiver and Terms and Conditions cannot be empty.');
+                const sheetsUrl = document.getElementById('cfg-sheets-url')?.value?.trim() || '';
+                if (sheetsUrl && !/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+\//.test(sheetsUrl)) throw new Error('Paste a valid Google Sheets URL.');
+                const callbackPrefix = document.getElementById('cfg-callback-prefix')?.value?.trim() || 'Test driver';
+                const callbackSuffix = document.getElementById('cfg-callback-suffix')?.value?.trim() || 'please stand by, you are next in line to test';
+                if (document.getElementById('cfg-callback-prefix')?.value === '' || document.getElementById('cfg-callback-suffix')?.value === '') throw new Error('Call-back prefix and suffix cannot be empty.');
+                config.testDrive = { ...(stateDoc.config.testDrive || {}), waiver, terms, sheetsUrl, callbackPrefix, callbackSuffix };
+            }
 
             document.querySelectorAll('.brand-block').forEach(block => {
                 const key = block.dataset.brandKey;
@@ -1230,6 +1258,7 @@ function renderLicence(st) {
                     if (label || prefix) {
                         models.push({
                             label: label || prefix,
+                            ...(row.querySelector('.model-shortname')?.value?.trim() ? { shortname: row.querySelector('.model-shortname').value.trim() } : {}),
                             prefix: prefix || '??',
                             pronounce: pronounce || String(prefix || '').split('').join(' ')
                         });

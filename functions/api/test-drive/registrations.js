@@ -1,5 +1,41 @@
-import { validateRegistration } from "../../../shared/test-drive.js";
-const H={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Idempotency-Key','Content-Type':'application/json'};
-const out=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:H});
-const hash=async v=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)))].map(b=>b.toString(16).padStart(2,'0')).join('');
-export async function onRequest(c){if(c.request.method==='OPTIONS')return new Response(null,{status:204,headers:H});if(c.request.method!=='POST')return out({error:'Method Not Allowed'},405);try{const b=await c.request.json(),v=validateRegistration(b);if(!v.ok)return out({error:'Validation failed',fields:v.errors},400);const k=c.env.SUPABASE_SECRET_KEY||c.env.SUPABASE_SERVICE_ROLE_KEY;if(!k||!c.env.SUPABASE_URL)return out({error:'Registration is temporarily unavailable.'},503);const key=c.request.headers.get('Idempotency-Key')||crypto.randomUUID();const r=await fetch(`${c.env.SUPABASE_URL.replace(/\/+$/,'')}/rest/v1/rpc/tdqsys_submit_registration`,{method:'POST',headers:{apikey:k,Authorization:`Bearer ${k}`,'Content-Type':'application/json'},body:JSON.stringify({p_instance_id:b.instanceId.trim().toLowerCase(),p_full_name:v.value.fullName,p_name_search:v.value.nameSearch,p_email:v.value.email,p_city_address:v.value.cityAddress,p_contact_number:v.value.contactNumber,p_for_application:b.forApplication==='Yes',p_for_reservation:b.forReservation==='Yes',p_code_hash:await hash(v.value.seCode),p_waiver_version:b.waiverVersion||'current',p_terms_version:b.termsVersion||'current',p_idempotency_key:key,p_model_ids:v.value.modelIds})});if(!r.ok)throw new Error();return out({...(await r.json()),message:'Registration received—please collect your printed queue number from the facilitator.'},201)}catch{return out({error:'Registration could not be completed.'},400)}}
+import { validateRegistration } from '../../../shared/test-drive.js';
+
+const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+const reply = (body, status = 200) => new Response(JSON.stringify(body), { status, headers });
+const hash = async value => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))].map(b => b.toString(16).padStart(2, '0')).join('');
+const optionalBoolean = value => value === 'Yes' ? true : value === 'No' ? false : null;
+
+export async function onRequest(context) {
+  if (context.request.method !== 'POST') return reply({ error: 'Method Not Allowed' }, 405);
+  try {
+    const body = await context.request.json();
+    const checked = validateRegistration(body);
+    if (!checked.ok) return reply({ error: 'Please check the required fields.', fields: checked.errors }, 400);
+    const idempotencyKey = context.request.headers.get('Idempotency-Key');
+    if (!idempotencyKey || !/^[a-z0-9-]{8,200}$/i.test(idempotencyKey)) return reply({ error: 'Invalid submission identifier. Please refresh the form.' }, 400);
+    if (!/^[a-f0-9]{64}$/.test(body.waiverVersion || '') || !/^[a-f0-9]{64}$/.test(body.termsVersion || '')) return reply({ error: 'Please reload and review the current waiver and Terms.' }, 400);
+    const key = context.env.SUPABASE_SECRET_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!key || !context.env.SUPABASE_URL) return reply({ error: 'Registration is temporarily unavailable.' }, 503);
+    const instance = body.instanceId.trim().toLowerCase();
+    const codeHash = await hash(checked.value.seCode);
+    const rpc = async (name, args) => {
+      const response = await fetch(`${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/${name}`, {
+        method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args)
+      });
+      return { response, result: await response.json() };
+    };
+    const validation = await rpc('tdqsys_validate_se_code', { p_instance_id: instance, p_code_hash: codeHash,
+      p_client_key: await hash(`${instance}:${context.request.headers.get('CF-Connecting-IP') || 'unknown'}`) });
+    if (!validation.response.ok) return reply({ error: 'Registration is temporarily unavailable.' }, 503);
+    if (validation.result.error) return reply({ error: validation.result.error }, validation.result.limited ? 429 : 400);
+    const { response, result } = await rpc('tdqsys_submit_registration', {
+      p_instance_id: instance, p_full_name: checked.value.fullName, p_name_search: checked.value.nameSearch,
+      p_email: checked.value.email, p_city_address: checked.value.cityAddress, p_contact_number: checked.value.contactNumber,
+      p_for_application: optionalBoolean(body.forApplication), p_for_reservation: optionalBoolean(body.forReservation),
+      p_code_hash: codeHash, p_waiver_version: body.waiverVersion, p_terms_version: body.termsVersion,
+      p_idempotency_key: idempotencyKey, p_model_ids: checked.value.modelIds
+    });
+    if (!response.ok) return reply({ error: result.message?.includes('consent text changed') ? 'The waiver or Terms changed. Please reload and review them.' : 'Registration could not be completed. Please see the facilitator.' }, 400);
+    return reply({ ...result, message: 'Registration received—please collect your printed queue number from the facilitator.' }, 201);
+  } catch { return reply({ error: 'Registration could not be completed. Please retry.' }, 400); }
+}

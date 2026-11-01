@@ -1,4 +1,4 @@
-const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Content-Type': 'application/json' };
+const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
 const validId = (value) => /^[0-9a-f-]{1,64}$/i.test((value || '').trim());
 
 export async function onRequest(context) {

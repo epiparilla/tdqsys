@@ -11,6 +11,8 @@ create table if not exists public.vehicle_models (
     instance_id text not null check (instance_id ~ '^[0-9a-f-]{1,64}$'),
     full_name text not null check (length(btrim(full_name)) between 1 and 120),
     printable_shortname text not null check (length(btrim(printable_shortname)) between 1 and 36),
+    brand_key text not null default 'brand1',
+    unit_index integer not null default 1 check(unit_index between 1 and 12),
     active boolean not null default true,
     retired_at timestamptz,
     created_at timestamptz not null default now(),
@@ -83,6 +85,9 @@ create table if not exists public.registrations (
     se_daily_checkin_id uuid not null references public.se_daily_checkins(id),
     waiver_version text not null check (length(btrim(waiver_version)) > 0),
     terms_version text not null check (length(btrim(terms_version)) > 0),
+    waiver_snapshot text not null,
+    terms_snapshot text not null,
+    response_snapshot jsonb,
     consented_at timestamptz not null,
     idempotency_key text not null check (length(btrim(idempotency_key)) between 8 and 200),
     submitted_at timestamptz not null default now(),
@@ -124,6 +129,14 @@ create table if not exists public.display_state (
     updated_at timestamptz not null default now()
 );
 
+create table public.queue_model_display (
+  queue_run_id uuid not null references queue_runs(id), vehicle_model_id uuid not null references vehicle_models(id),
+  queue_number integer not null default 0, primary key(queue_run_id,vehicle_model_id)
+);
+alter table public.queue_model_display enable row level security;
+revoke all on public.queue_model_display from anon,authenticated;
+grant all on public.queue_model_display to service_role;
+
 create table if not exists public.print_jobs (
     id uuid primary key default gen_random_uuid(),
     instance_id text not null check (instance_id ~ '^[0-9a-f-]{1,64}$'),
@@ -160,6 +173,7 @@ create table if not exists public.sheet_sync_jobs (
     status text not null default 'pending' check (status in ('pending', 'processing', 'complete', 'failed')),
     attempt_count integer not null default 0 check (attempt_count >= 0),
     next_attempt_at timestamptz not null default now(),
+    claim_token uuid,
     last_error text,
     completed_at timestamptz,
     created_at timestamptz not null default now(),
@@ -183,6 +197,7 @@ create table if not exists public.test_drive_settings (
     waiver_statement text not null default 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     terms_and_conditions text not null default 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     timezone text not null default 'Asia/Manila',
+    google_sheet_url text not null default '',
     updated_at timestamptz not null default now(),
     check (length(btrim(waiver_statement)) > 0),
     check (length(btrim(terms_and_conditions)) > 0)
@@ -283,12 +298,15 @@ as $$
 declare
     v_entry public.test_drive_entries;
 begin
-    select * into v_entry from public.test_drive_entries where id = p_entry_id for update;
+    select * into v_entry from public.test_drive_entries where id = p_entry_id;
     if not found then raise exception 'entry not found'; end if;
+    -- Use the same location lock as reset so concurrent actions serialize.
+    perform pg_advisory_xact_lock(hashtextextended(v_entry.instance_id, 0));
+    select * into v_entry from public.test_drive_entries where id = p_entry_id for update;
     if not exists (select 1 from public.queue_runs where id = v_entry.queue_run_id and status = 'active') then
         raise exception 'entry is not in the active run';
     end if;
-    if v_entry.status in ('cancelled', 'no_show') then
+    if v_entry.status not in ('waiting', 'ongoing') then
         raise exception 'entry cannot become ongoing';
     end if;
 
@@ -310,6 +328,9 @@ begin
 
     insert into public.audit_log(instance_id, actor_type, actor_id, action, target_type, target_id)
     values (v_entry.instance_id, 'desktop', p_actor_id, 'entry_ongoing', 'test_drive_entry', v_entry.id::text);
+    insert into queue_model_display(queue_run_id,vehicle_model_id,queue_number)
+      values(v_entry.queue_run_id,v_entry.vehicle_model_id,v_entry.queue_number)
+      on conflict(queue_run_id,vehicle_model_id) do update set queue_number=excluded.queue_number;
     return v_entry;
 end;
 $$;
@@ -379,7 +400,9 @@ as $$
     'models', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'name', full_name) order by full_name)
                          from vehicle_models where instance_id = p_instance_id and active), '[]'::jsonb),
     'waiverStatement', coalesce((select waiver_statement from test_drive_settings where instance_id = p_instance_id), ''),
-    'termsAndConditions', coalesce((select terms_and_conditions from test_drive_settings where instance_id = p_instance_id), '')
+    'termsAndConditions', coalesce((select terms_and_conditions from test_drive_settings where instance_id = p_instance_id), ''),
+    'waiverVersion', (select encode(sha256(convert_to(waiver_statement,'UTF8')),'hex') from test_drive_settings where instance_id=p_instance_id),
+    'termsVersion', (select encode(sha256(convert_to(terms_and_conditions,'UTF8')),'hex') from test_drive_settings where instance_id=p_instance_id)
   );
 $$;
 revoke all on function public.tdqsys_public_registration_config(text) from public;
@@ -394,9 +417,22 @@ create or replace function public.tdqsys_submit_registration(
     p_terms_version text, p_idempotency_key text, p_model_ids uuid[]
 ) returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_run uuid; v_checkin uuid; v_registration uuid; v_model uuid; v_number integer; v_entry uuid; v_items jsonb := '[]'::jsonb;
-declare v_existing record;
+v_existing record; v_settings public.test_drive_settings; v_response jsonb; v_today date;
 begin
+  perform pg_advisory_xact_lock(hashtextextended(p_instance_id, 0));
+  select response_snapshot into v_response from registrations where instance_id=p_instance_id and idempotency_key=p_idempotency_key;
+  if found then return v_response; end if;
+  select * into v_settings from test_drive_settings where instance_id=p_instance_id;
+  if not found then raise exception 'registration not configured'; end if;
+  if p_waiver_version is distinct from encode(sha256(convert_to(v_settings.waiver_statement,'UTF8')),'hex')
+     or p_terms_version is distinct from encode(sha256(convert_to(v_settings.terms_and_conditions,'UTF8')),'hex') then
+    raise exception 'consent text changed; refresh registration';
+  end if;
   select id into v_run from queue_runs where instance_id=p_instance_id and status='active' for update;
+  v_today := (now() at time zone v_settings.timezone)::date;
+  if v_run is null or not exists(select 1 from queue_runs where id=v_run and operating_day=v_today) then
+    select id into v_run from tdqsys_open_queue_run(p_instance_id,v_today,'daily_open','server');
+  end if;
   if v_run is null then raise exception 'no active queue run'; end if;
   select id into v_checkin from se_daily_checkins where instance_id=p_instance_id and code_hash=p_code_hash and expires_at>now() limit 1;
   if v_checkin is null then raise exception 'invalid or expired Sales Executive code'; end if;
@@ -405,15 +441,14 @@ begin
     return (select jsonb_build_object('registrationId',v_registration,'entries',coalesce(jsonb_agg(jsonb_build_object('entryId',e.id,'queueNumber',e.queue_number,'modelId',e.vehicle_model_id)),'[]'::jsonb)) from test_drive_entries e where e.registration_id=v_registration);
   end if;
   if coalesce(array_length(p_model_ids,1),0)=0 then raise exception 'at least one model is required'; end if;
-  insert into registrations(instance_id,full_name,name_search,email,city_address,contact_number,for_application,for_reservation,se_daily_checkin_id,waiver_version,terms_version,consented_at,idempotency_key)
-  values(p_instance_id,p_full_name,p_name_search,p_email,p_city_address,p_contact_number,p_for_application,p_for_reservation,v_checkin,p_waiver_version,p_terms_version,now(),p_idempotency_key) returning id into v_registration;
-  foreach v_model in array p_model_ids loop
+  insert into registrations(instance_id,full_name,name_search,email,city_address,contact_number,for_application,for_reservation,se_daily_checkin_id,waiver_version,terms_version,waiver_snapshot,terms_snapshot,consented_at,idempotency_key)
+  values(p_instance_id,p_full_name,p_name_search,p_email,p_city_address,p_contact_number,p_for_application,p_for_reservation,v_checkin,p_waiver_version,p_terms_version,v_settings.waiver_statement,v_settings.terms_and_conditions,now(),p_idempotency_key) returning id into v_registration;
+  for v_model in select distinct unnest(p_model_ids) loop
     if not exists(select 1 from vehicle_models where id=v_model and instance_id=p_instance_id and active) then raise exception 'invalid vehicle model'; end if;
     select e.id,e.queue_number into v_existing from test_drive_entries e join registrations r on r.id=e.registration_id
-      left join display_state d on d.instance_id=e.instance_id and d.queue_run_id=e.queue_run_id
-      left join test_drive_entries current_entry on current_entry.id=d.active_test_drive_entry_id
+      left join queue_model_display current_entry on current_entry.queue_run_id=e.queue_run_id and current_entry.vehicle_model_id=e.vehicle_model_id
       where e.queue_run_id=v_run and e.vehicle_model_id=v_model and r.name_search=p_name_search
-        and e.status in ('waiting','ongoing') and (current_entry.queue_number is null or current_entry.vehicle_model_id <> v_model or e.queue_number>=current_entry.queue_number)
+        and e.status in ('waiting','ongoing','done') and (current_entry.queue_number is null or e.queue_number>=current_entry.queue_number)
       order by e.issued_at desc limit 1;
     if found then
       v_items:=v_items||jsonb_build_array(jsonb_build_object('entryId',v_existing.id,'queueNumber',v_existing.queue_number,'modelId',v_model,'existing',true));
@@ -426,8 +461,191 @@ begin
     insert into print_jobs(instance_id,kind,test_drive_entry_id) values(p_instance_id,'client_ticket',v_entry);
     v_items:=v_items||jsonb_build_array(jsonb_build_object('entryId',v_entry,'queueNumber',v_number,'modelId',v_model));
   end loop;
-  insert into sheet_sync_jobs(registration_id,payload_snapshot) values(v_registration,jsonb_build_object('registrationId',v_registration));
-  return jsonb_build_object('registrationId',v_registration,'entries',v_items);
+  insert into sheet_sync_jobs(registration_id,payload_snapshot) values(v_registration,
+    jsonb_build_object('registrationId',v_registration,'fullName',p_full_name,'email',p_email,
+      'cityAddress',p_city_address,'contactNumber',p_contact_number,'forApplication',p_for_application,
+      'forReservation',p_for_reservation,'modelIds',p_model_ids,'seCheckinId',v_checkin,'submittedAt',now(),
+      'models',(select jsonb_agg(full_name order by full_name) from vehicle_models where id=any(p_model_ids)),
+      'se',(select jsonb_build_object('name',s.name,'dealership',s.dealership) from sales_executives s join se_daily_checkins c on c.sales_executive_id=s.id where c.id=v_checkin)));
+  v_response := jsonb_build_object('registrationId',v_registration,'entries',v_items);
+  update registrations set response_snapshot=v_response where id=v_registration;
+  return v_response;
 end; $$;
 revoke all on function public.tdqsys_submit_registration(text,text,text,text,text,text,boolean,boolean,text,text,text,text,uuid[]) from public;
 grant execute on function public.tdqsys_submit_registration(text,text,text,text,text,text,boolean,boolean,text,text,text,text,uuid[]) to service_role;
+
+create or replace function public.tdqsys_mark_entry(p_instance_id text, p_entry_id uuid, p_status text)
+returns public.test_drive_entries language plpgsql security definer set search_path = public as $$
+declare v_entry public.test_drive_entries;
+begin
+  if p_status not in ('done','no_show','cancelled') then raise exception 'invalid status'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_instance_id, 0));
+  select e.* into v_entry from test_drive_entries e join queue_runs r on r.id=e.queue_run_id
+    where e.id=p_entry_id and e.instance_id=p_instance_id and r.status='active' for update of e;
+  if not found then raise exception 'entry not in active run'; end if;
+  if v_entry.status not in ('waiting','ongoing') then raise exception 'entry is already closed'; end if;
+  update test_drive_entries set status=p_status,status_changed_at=now(),status_changed_by='desktop'
+    where id=p_entry_id returning * into v_entry;
+  -- Done/No Show leave the last displayed number unchanged, as requested.
+  insert into audit_log(instance_id,actor_type,action,target_type,target_id,details)
+    values(p_instance_id,'desktop','entry_status','test_drive_entry',p_entry_id::text,jsonb_build_object('status',p_status));
+  return v_entry;
+end; $$;
+revoke all on function public.tdqsys_mark_entry(text,uuid,text) from public;
+grant execute on function public.tdqsys_mark_entry(text,uuid,text) to service_role;
+
+-- Per-client attempt buckets are private and shared by all edge workers.
+create table public.test_drive_code_attempts (
+  client_key text primary key, window_start timestamptz not null default now(), attempts integer not null default 0
+);
+alter table public.test_drive_code_attempts enable row level security;
+revoke all on public.test_drive_code_attempts from anon,authenticated;
+grant all on public.test_drive_code_attempts to service_role;
+
+create or replace function public.tdqsys_validate_se_code(p_instance_id text,p_code_hash text,p_client_key text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare v_attempts integer; v_result jsonb;
+begin
+  insert into test_drive_code_attempts(client_key,attempts) values(p_client_key,1)
+  on conflict(client_key) do update set
+    attempts=case when test_drive_code_attempts.window_start < now()-interval '1 minute' then 1 else test_drive_code_attempts.attempts+1 end,
+    window_start=case when test_drive_code_attempts.window_start < now()-interval '1 minute' then now() else test_drive_code_attempts.window_start end
+  returning attempts into v_attempts;
+  if v_attempts>15 then return jsonb_build_object('error','Too many attempts. Please wait one minute.','limited',true); end if;
+  select jsonb_build_object('name',s.name,'dealership',s.dealership) into v_result
+    from se_daily_checkins c join sales_executives s on s.id=c.sales_executive_id
+    where c.instance_id=p_instance_id and c.code_hash=p_code_hash and c.expires_at>now() and s.active limit 1;
+  return coalesce(v_result,jsonb_build_object('error','Invalid or expired Sales Executive code.'));
+end; $$;
+revoke all on function public.tdqsys_validate_se_code(text,text,text) from public;
+grant execute on function public.tdqsys_validate_se_code(text,text,text) to service_role;
+
+create or replace function public.tdqsys_configure_test_drive(p_instance_id text,p_models jsonb,p_waiver text,p_terms text,p_sheets_url text default '')
+returns boolean language plpgsql security definer set search_path=public as $$
+declare m jsonb;
+begin
+  if jsonb_typeof(p_models)<>'array' or jsonb_array_length(p_models) not between 1 and 12 then raise exception 'configure 1 to 12 models'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_instance_id,0));
+  insert into test_drive_settings(instance_id,waiver_statement,terms_and_conditions,google_sheet_url)
+    values(p_instance_id,p_waiver,p_terms,p_sheets_url) on conflict(instance_id) do update
+    set waiver_statement=excluded.waiver_statement,terms_and_conditions=excluded.terms_and_conditions,google_sheet_url=excluded.google_sheet_url,updated_at=now();
+  update vehicle_models set active=false,retired_at=now() where instance_id=p_instance_id;
+  for m in select value from jsonb_array_elements(p_models) loop
+    insert into vehicle_models(instance_id,full_name,printable_shortname,brand_key,unit_index)
+    values(p_instance_id,m->>'fullName',m->>'shortname',m->>'brandKey',(m->>'unit')::integer)
+    on conflict(instance_id,full_name) do update set printable_shortname=excluded.printable_shortname,
+      brand_key=excluded.brand_key,unit_index=excluded.unit_index,active=true,retired_at=null,updated_at=now();
+  end loop;
+  return true;
+end; $$;
+revoke all on function public.tdqsys_configure_test_drive(text,jsonb,text,text,text) from public;
+grant execute on function public.tdqsys_configure_test_drive(text,jsonb,text,text,text) to service_role;
+
+create or replace function public.tdqsys_claim_print_job(p_instance_id text,p_job_id uuid)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare j print_jobs; e test_drive_entries; c se_daily_checkins; v_result jsonb;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_instance_id,0));
+  select * into j from print_jobs where id=p_job_id and instance_id=p_instance_id for update;
+  if not found or j.status not in ('pending','failed') then raise exception 'print job not available'; end if;
+  if j.kind='client_ticket' then
+    select t.* into e from test_drive_entries t join queue_runs r on r.id=t.queue_run_id
+      where t.id=j.test_drive_entry_id and r.status='active' and t.instance_id=p_instance_id;
+    if not found or e.status in ('cancelled','no_show') then raise exception 'ticket no longer available'; end if;
+    if exists(select 1 from queue_model_display where queue_run_id=e.queue_run_id and vehicle_model_id=e.vehicle_model_id and queue_number>e.queue_number)
+      then raise exception 'queue number passed; issue a new ticket'; end if;
+    select jsonb_build_object('header',m.printable_shortname,'value',lpad(e.queue_number::text,2,'0'),'name',r.full_name)
+      into v_result from vehicle_models m, registrations r where m.id=e.vehicle_model_id and r.id=e.registration_id;
+  else
+    select * into c from se_daily_checkins where id=j.se_daily_checkin_id and instance_id=p_instance_id and expires_at>now();
+    if not found then raise exception 'SE code expired'; end if;
+    select jsonb_build_object('header',s.name,'ciphertext',c.code_ciphertext) into v_result from sales_executives s where s.id=c.sales_executive_id;
+  end if;
+  update print_jobs set status='claimed',claimed_at=now(),attempt_count=attempt_count+1,updated_at=now() where id=p_job_id;
+  return v_result||jsonb_build_object('jobId',j.id,'kind',j.kind);
+end; $$;
+revoke all on function public.tdqsys_claim_print_job(text,uuid) from public;
+grant execute on function public.tdqsys_claim_print_job(text,uuid) to service_role;
+
+create or replace function public.tdqsys_reissue_ticket(p_instance_id text,p_entry_id uuid,p_model_id uuid default null,p_cancel_source boolean default false)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare old_entry test_drive_entries; v_run uuid; v_model uuid; v_number integer; v_id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_instance_id,0));
+  select * into old_entry from test_drive_entries where id=p_entry_id and instance_id=p_instance_id for update;
+  if not found then raise exception 'entry not found'; end if;
+  select id into v_run from queue_runs where instance_id=p_instance_id and status='active';
+  if v_run is null then raise exception 'open a queue run first'; end if;
+  v_model:=coalesce(p_model_id,old_entry.vehicle_model_id);
+  if p_cancel_source and (old_entry.queue_run_id<>v_run or old_entry.status<>'waiting') then raise exception 'only a current waiting entry can change model'; end if;
+  if not exists(select 1 from vehicle_models where id=v_model and instance_id=p_instance_id and active) then raise exception 'model unavailable'; end if;
+  if p_model_id is not null and exists(select 1 from test_drive_entries e where e.registration_id=old_entry.registration_id
+      and e.queue_run_id=v_run and e.vehicle_model_id=v_model and e.status in ('waiting','ongoing','done')
+      and not exists(select 1 from queue_model_display d where d.queue_run_id=v_run and d.vehicle_model_id=v_model and d.queue_number>e.queue_number))
+    then raise exception 'client already has an unpassed ticket for this model'; end if;
+  if p_model_id is null and old_entry.queue_run_id=v_run and old_entry.status not in ('cancelled','no_show')
+     and not exists(select 1 from queue_model_display where queue_run_id=v_run and vehicle_model_id=v_model and queue_number>old_entry.queue_number) then
+    update print_jobs set status='pending',updated_at=now() where test_drive_entry_id=p_entry_id and status in ('printed','handed_over','failed');
+    if not found then raise exception 'ticket is already pending or being printed'; end if;
+    insert into audit_log(instance_id,actor_type,action,target_type,target_id) values(p_instance_id,'desktop','ticket_reprint','test_drive_entry',p_entry_id::text);
+    return jsonb_build_object('entryId',p_entry_id,'queueNumber',old_entry.queue_number,'reprint',true);
+  end if;
+  insert into queue_counters(queue_run_id,vehicle_model_id,last_issued_number) values(v_run,v_model,1)
+    on conflict(queue_run_id,vehicle_model_id) do update set last_issued_number=queue_counters.last_issued_number+1,updated_at=now()
+    returning last_issued_number into v_number;
+  insert into test_drive_entries(instance_id,registration_id,queue_run_id,vehicle_model_id,queue_number,replaced_entry_id)
+    values(p_instance_id,old_entry.registration_id,v_run,v_model,v_number,p_entry_id) returning id into v_id;
+  insert into print_jobs(instance_id,kind,test_drive_entry_id) values(p_instance_id,'client_ticket',v_id);
+  if p_cancel_source then
+    update test_drive_entries set status='cancelled',status_changed_at=now(),status_changed_by='desktop' where id=p_entry_id;
+    update print_jobs set status='cancelled',updated_at=now() where test_drive_entry_id=p_entry_id and status in ('pending','failed');
+  end if;
+  insert into audit_log(instance_id,actor_type,action,target_type,target_id,details)
+    values(p_instance_id,'desktop','ticket_issued_from_existing','test_drive_entry',v_id::text,jsonb_build_object('sourceEntryId',p_entry_id));
+  return jsonb_build_object('entryId',v_id,'queueNumber',v_number,'reprint',false);
+end; $$;
+revoke all on function public.tdqsys_reissue_ticket(text,uuid,uuid,boolean) from public;
+grant execute on function public.tdqsys_reissue_ticket(text,uuid,uuid,boolean) to service_role;
+
+create or replace function public.tdqsys_claim_sheet_job(p_instance_id text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare j sheet_sync_jobs;
+begin
+  select q.* into j from sheet_sync_jobs q join registrations r on r.id=q.registration_id
+    where r.instance_id=p_instance_id and q.next_attempt_at<=now()
+    and (q.status in ('pending','failed') or (q.status='processing' and q.updated_at<now()-interval '5 minutes'))
+    order by q.created_at limit 1 for update of q skip locked;
+  if not found then return null; end if;
+  update sheet_sync_jobs set status='processing',claim_token=gen_random_uuid(),attempt_count=attempt_count+1,updated_at=now()
+    where id=j.id returning * into j;
+  return to_jsonb(j);
+end; $$;
+create or replace function public.tdqsys_finish_sheet_job(p_instance_id text,p_job_id uuid,p_claim_token uuid,p_error text default null)
+returns boolean language plpgsql security definer set search_path=public as $$
+begin
+  update sheet_sync_jobs q set status=case when p_error is null then 'complete' else 'failed' end,
+    completed_at=case when p_error is null then now() else null end,last_error=left(p_error,500),updated_at=now(),
+    next_attempt_at=now()+make_interval(secs=>least(3600,power(2,least(q.attempt_count,10))::integer*10))
+    where q.id=p_job_id and q.claim_token=p_claim_token and q.status='processing'
+    and exists(select 1 from registrations r where r.id=q.registration_id and r.instance_id=p_instance_id);
+  return found;
+end; $$;
+revoke all on function public.tdqsys_claim_sheet_job(text) from public;
+revoke all on function public.tdqsys_finish_sheet_job(text,uuid,uuid,text) from public;
+grant execute on function public.tdqsys_claim_sheet_job(text) to service_role;
+grant execute on function public.tdqsys_finish_sheet_job(text,uuid,uuid,text) to service_role;
+
+create or replace function public.tdqsys_ensure_daily_run(p_instance_id text)
+returns uuid language plpgsql security definer set search_path=public as $$
+declare v_zone text; v_day date; v_id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_instance_id,0));
+  select timezone into v_zone from test_drive_settings where instance_id=p_instance_id;
+  if not found then return null; end if;
+  v_day:=(now() at time zone v_zone)::date;
+  select id into v_id from queue_runs where instance_id=p_instance_id and operating_day=v_day and status='active';
+  if v_id is null then select id into v_id from tdqsys_open_queue_run(p_instance_id,v_day,'daily_open','server'); end if;
+  return v_id;
+end; $$;
+revoke all on function public.tdqsys_ensure_daily_run(text) from public;
+grant execute on function public.tdqsys_ensure_daily_run(text) to service_role;
