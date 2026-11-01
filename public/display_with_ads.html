@@ -32,6 +32,7 @@
     </div>
 
     <script src="af.js"></script>
+    <script src="announcements.js"></script>
     <script>
         // --------- CONFIG DRIVEN STATE ---------
         let dataStore = null;
@@ -44,10 +45,13 @@
         const audioQueue = [];
         let isPlaying = false;
 
-        function announceNumber(displayValue) {
+        function announceNumber(displayValue, brandKey, unit) {
             if (!voiceEnabled) return;
             const ttsPort = (dataStore && dataStore.config && dataStore.config.ttsPort) || 8001;
-            const url = `http://localhost:${ttsPort}/api/speak_unit?voice=af_heart&unit=${encodeURIComponent(displayValue)}`;
+            const config = dataStore?.config || {};
+            const text = TdqSpeech.textForQueue(config, brandKey, unit, displayValue);
+            const voice = TdqSpeech.normalize(config.announcements).voice;
+            const url = `http://localhost:${ttsPort}/api/announcement?voice=${encodeURIComponent(voice)}&text=${encodeURIComponent(text)}`;
             audioQueue.push(url);
             playNextAudio();
         }
@@ -170,6 +174,7 @@
                 return;
             }
 
+            dataStore.config = data.config;
             // Check for explicit re-announce triggers
             if (data.reannounce && (!dataStore.reannounce || dataStore.reannounce.ts !== data.reannounce.ts)) {
                 const ra = data.reannounce;
@@ -204,7 +209,7 @@
             if (forceReannounce || (el.textContent != displayValue)) {
                 el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
                 if (newValue > 0) {
-                    announceNumber(displayValue);
+                    announceNumber(displayValue, brandKey, unit);
                 }
                 el.classList.remove('animate-pop');
                 card.classList.remove('flash-brand');

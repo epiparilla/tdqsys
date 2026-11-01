@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { defaultState, migrateLegacy, ensureInstanceId, ensureCloudWriterToken, normalizeConfig } = require('./shared/config');
 const licence = require('./shared/licence');
+const speech = require('./public/announcements');
+const { prepareRestoredState } = require('./shared/restore');
 
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
 // Data location: override from Electron (portable -> beside exe; installed -> %APPDATA%).
@@ -287,6 +289,7 @@ const server = http.createServer((req, res) => {
                 const incoming = JSON.parse(body);
                 if (incoming && incoming.queues && incoming.config) {
                     normalizeConfig(incoming.config);
+                    if (incoming.config.announcements) speech.validate(incoming.config.announcements);
                     // Full state doc: keep incoming config too (settings/wizard save)
                     localData = incoming;
                     // The instance id is minted once and then belongs to this
@@ -319,6 +322,35 @@ const server = http.createServer((req, res) => {
                 res.writeHead(400);
                 res.end("Bad Request");
             }
+        });
+        return;
+    }
+
+    // The running engine owns restore persistence so its in-memory state and
+    // immutable identity cannot disagree with a filesystem-only restore.
+    if (req.url === '/api/restore-state' && req.method === 'POST') {
+        if (!gateWrite(req, res)) return;
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            let temporary;
+            try {
+                const incoming = JSON.parse(body);
+                if (incoming.expectedInstanceId !== localData.config.instanceId) throw new Error('Destination identity changed. Please reopen Restore.');
+                const restored = prepareRestoredState(incoming.state, localData);
+                if (restored.config.announcements) speech.validate(restored.config.announcements);
+                const backupFile = `data.before-restore-${Date.now()}.json`;
+                fs.writeFileSync(path.join(DATA_DIR, backupFile), JSON.stringify(localData), { flag:'wx' });
+                temporary = `${DATA_FILE}.restore-${require('crypto').randomUUID()}.tmp`;
+                fs.writeFileSync(temporary, JSON.stringify(restored), { flag:'wx' });
+                fs.renameSync(temporary, DATA_FILE);
+                localData = restored;
+                res.writeHead(200, { 'Content-Type':'application/json' });
+                res.end(JSON.stringify({ success:true, identityPreserved:true, instanceId:restored.config.instanceId, backupFile }));
+            } catch (error) {
+                res.writeHead(400, { 'Content-Type':'application/json' });
+                res.end(JSON.stringify({ error:error.message }));
+            } finally { if (temporary && fs.existsSync(temporary)) fs.unlinkSync(temporary); }
         });
         return;
     }

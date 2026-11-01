@@ -18,12 +18,17 @@ GitHub assets or `public/version.json` before acceptance.
 
 - Settings: printable model shortnames, waiver, Terms, callback wording, and
   Google Sheets URL.
+- Local speech: packaged Kokoro voice list, safe fallback, prefix/main/suffix
+  templates, validated placeholders, and voice/announcement/call-back previews.
+- Backup restore: source/destination identity confirmation, destination licence
+  and writer-token preservation, and a retained queue-state safety copy.
 - SE registration: daily code, encrypted slip storage, printed-slip queue.
 - Client registration: four steps, consent text hashes/snapshots, SE prefill,
   server-side code revalidation, retry identity, and per-model tickets.
 - Desktop Test Drive Operations: active-run board, Ongoing/Done/No Show/Call
   Back, Master Table search, earlier same-day runs, reprint/new-number,
   add-model/change-model, registrant CSV backup, and reset to a new run.
+  Each model has its own ongoing client and display number.
 - Printer list comes from the installed Windows printers. A successful spool
   submission removes a ticket from pending. Physical output must be checked
   during hardware acceptance; spool success alone cannot detect empty labels.
@@ -91,6 +96,8 @@ The established public queue display flow remains unchanged.
 2. Apply `supabase/migrations/202611010001_test_drive_platform.sql` once, after
    the existing queue-state migration. It creates separate private tables and
    does not change the released app's public queue mirror.
+   Then apply `202611010002_per_model_ongoing.sql`, which enforces one ongoing
+   client per vehicle model rather than one across the whole location.
 3. Deploy `test-drive-operations` with the accompanying `supabase/config.toml`
    JWT-verification setting. Its own authorization checks the installation's
    existing writer token and remote revocation record.
@@ -128,6 +135,11 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
+Latest automated verification: 250 passing tests, three optional skips, and
+14 PostgreSQL integration checks. The rebuilt packaged speech engine was
+checked with actual synthesis, its 54-voice catalog, saved selection, and
+missing-voice fallback. Desktop/public route boundaries passed on both sites.
+
 ## Required manual acceptance at each of the three locations
 
 1. Install manually; confirm the licence and existing display/video behavior.
@@ -139,11 +151,21 @@ See [PGlite execution API](https://pglite.dev/docs/api).
    multiple models, and collect the separate labels.
 5. Exercise Ongoing, Done, No Show, Call Back, duplicate submission, reprint,
    passed-number reissue, add/change model, and Master Table search.
+   Keep two different models ongoing, then advance one: only that model's
+   previous client should become Done, and the other model must remain ongoing.
 6. Reset during the same day. Confirm new numbers begin at 01, old entries are
    read-only in Earlier runs today, and prior client details remain intact.
 7. Disconnect/reconnect the internet and printer, check silent Sheets recovery,
    confirm one Sheets row per original submission, and confirm another
    location cannot see this location's clients.
+8. In Settings, select a packaged Kokoro voice, test it, and save. Check the
+   next queue and call-back announcements. Edit the prefix/main/suffix using
+   `{ticket}`, `{counter}`, and `{service}`; invalid placeholders must refuse
+   saving. Test voice, announcement, and call-back previews locally.
+9. Back up a test installation, then restore it on another test installation.
+   Check the source/destination ID warning and confirm the receiving PC keeps
+   its Instance ID, cloud writer credentials, and licence. Its previous queue
+   state is retained as a `data.before-restore-*.json` safety copy.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

@@ -4,6 +4,9 @@ import sys
 import time
 import shutil
 import hashlib
+import json
+import threading
+from collections import OrderedDict
 import soundfile as sf
 import numpy as np
 import re
@@ -51,8 +54,10 @@ os.makedirs(NUMBER_CACHE_DIR, exist_ok=True)
 print("Loading Kokoro TTS Model...")
 kokoro = None
 AUDIO_CACHE = {}
+ANNOUNCEMENT_CACHE = OrderedDict()
+DEFAULT_VOICE = 'af_heart'
 global_sr = 24000
-import threading
+speech_lock = threading.RLock()
 
 highest_rendered = 99
 render_lock = threading.Lock()
@@ -426,7 +431,9 @@ try:
     # cache is complete — otherwise a wrong-phrase clip survives as "complete".
     purge_legacy_phrase_clips()
 
-    if cache_is_complete(max_num=150):
+    if os.environ.get('AF_TTS_DISABLE_WARMUP') == '1':
+        print('Audio warmup disabled for isolated verification.')
+    elif cache_is_complete(max_num=150):
         load_all_from_cache()
     else:
         # Partial cache (first run with seed, or a previously interrupted run):
@@ -442,24 +449,67 @@ except Exception as e:
     print(f"Failed to load model or render audio: {e}")
 
 
+def saved_voice():
+    try:
+        with open(DATA_FILE, 'r', encoding='utf-8-sig') as stream:
+            return (json.load(stream).get('config', {}).get('announcements') or {}).get('voice', DEFAULT_VOICE)
+    except (OSError, ValueError, AttributeError):
+        return DEFAULT_VOICE
+
+
+def resolve_voice(requested=''):
+    available = kokoro.get_voices() if kokoro else []
+    candidate = requested or saved_voice()
+    return candidate if candidate in available else DEFAULT_VOICE
+
+
+@app.get('/api/voices')
+async def voices():
+    if not kokoro:
+        return Response(content='Speech model is not ready.', status_code=503)
+    saved = saved_voice()
+    selected = resolve_voice(saved)
+    return {'voices': kokoro.get_voices(), 'defaultVoice': DEFAULT_VOICE,
+            'savedVoice': saved, 'selectedVoice': selected, 'fallback': selected != saved,
+            'notice': f'The saved voice {saved} is not packaged. Using {DEFAULT_VOICE}.' if selected != saved else ''}
+
+
+@app.get('/api/announcement')
 @app.get("/api/speak")
-async def speak(text: str, voice: str = "af_heart", speed: float = 1.0):
+async def speak(text: str, voice: str = '', speed: float = 1.0):
     if not kokoro:
         return Response(content="Model not loaded", status_code=500)
     
     try:
-        samples, sample_rate = kokoro.create(
-            text, voice=voice, speed=speed, lang="en-us"
-        )
-        buffer = io.BytesIO()
-        sf.write(buffer, samples, sample_rate, format='WAV')
-        return Response(content=buffer.getvalue(), media_type="audio/wav")
+        if not text.strip() or len(text) > 2000 or not 0.5 <= speed <= 2.0:
+            return Response(content='Invalid announcement text or speed.', status_code=400)
+        selected = resolve_voice(voice)
+        cache_key = (text, selected, speed)
+        with speech_lock:
+            if cache_key not in ANNOUNCEMENT_CACHE:
+                samples, sample_rate = kokoro.create(text, voice=selected, speed=speed, lang='en-us')
+                buffer = io.BytesIO()
+                sf.write(buffer, samples, sample_rate, format='WAV')
+                ANNOUNCEMENT_CACHE[cache_key] = buffer.getvalue()
+            ANNOUNCEMENT_CACHE.move_to_end(cache_key)
+            while len(ANNOUNCEMENT_CACHE) > 32:
+                ANNOUNCEMENT_CACHE.popitem(last=False)
+            audio = ANNOUNCEMENT_CACHE[cache_key]
+        return Response(content=audio, media_type='audio/wav', headers={'X-TDQSYS-Voice': selected})
     except Exception as e:
         print(f"Error generating speech: {e}")
         return Response(content=f"Error generating speech: {e}", status_code=500)
 
 @app.get("/api/speak_unit")
 async def speak_unit(unit: str, voice: str = "af_heart", speed: float = 1.0):
+    selected = resolve_voice(voice)
+    if selected != DEFAULT_VOICE:
+        letters = ''.join(re.findall(r'[A-Za-z]', unit)).upper()
+        entry = pronounce_map.get(letters)
+        if not entry:
+            return Response(content='Unknown queue prefix.', status_code=400)
+        number = ' '.join(re.findall(r'\d', unit))
+        return await speak(f'{PREFIX_TEXT} {entry["text"]} {number} {SUFFIX_TEXT}', selected, speed)
     if not kokoro or not AUDIO_CACHE:
         return Response(content="Model or pre-rendered audio not loaded", status_code=500)
     

@@ -898,7 +898,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (!response.ok) throw new Error(result.error || `Queue service returned ${response.status}.`);
         if (request.action === 'callback') {
             const text = `${cfg.testDrive?.callbackPrefix || 'Test driver'} ${String(result.ticket).padStart(2,'0')} ${cfg.testDrive?.callbackSuffix || 'please stand by, you are next in line to test'} ${result.modelName}`;
-            return { ok: true, audioUrl: `http://localhost:${cfg.ttsPort || 8001}/api/speak?text=${encodeURIComponent(text)}` };
+            return { ok: true, audioUrl: `http://localhost:${cfg.ttsPort || 8001}/api/announcement?voice=${encodeURIComponent(cfg.announcements?.voice || 'af_heart')}&text=${encodeURIComponent(text)}` };
         }
         if (printerName) {
             const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
@@ -1084,6 +1084,7 @@ ipcMain.handle('af:backupData', async () => {
 
 // ---- Restore: unpack a backup .zip over the current data dir, then reload engine ----
 ipcMain.handle('af:restoreData', async () => {
+    let restoreStage;
     try {
         const r = await dialog.showOpenDialog({
             title: 'Restore TDQSYS data from a backup',
@@ -1094,6 +1095,7 @@ ipcMain.handle('af:restoreData', async () => {
         const zip = r.filePaths[0];
 
         const stage = fs.mkdtempSync(path.join(app.getPath('temp'), 'TDQSYS-rst-'));
+        restoreStage = stage;
         const out = await runPowershell(
             `Expand-Archive -LiteralPath ${pshQuote(zip)} -DestinationPath ${pshQuote(stage)} -Force`);
         if (out.code !== 0) {
@@ -1127,9 +1129,23 @@ ipcMain.handle('af:restoreData', async () => {
             return { ok: false, reason: 'bad-shape' };
         }
 
-        // Commit into the live data dir.
-        fs.mkdirSync(BASE_DIR, { recursive: true });
-        fs.copyFileSync(dataFile, path.join(BASE_DIR, 'data.json'));
+        const destinationResponse = await fetch(`http://localhost:${PORT}/api/config`);
+        if (!destinationResponse.ok) throw new Error('Cannot verify the destination installation identity.');
+        const destination = await destinationResponse.json();
+        const sourceId = parsed.config.instanceId || '(not recorded)';
+        const different = sourceId !== destination.instanceId;
+        const confirmation = await dialog.showMessageBox({
+            type:different ? 'warning' : 'question', title:'Confirm backup restore',
+            message:different ? 'This backup was created by another installation.' : 'Restore this backup?',
+            detail:`Backup Instance ID: ${sourceId}\nThis PC's Instance ID: ${destination.instanceId}\n\nThis PC keeps its identity, licence binding, and cloud credentials. Queue configuration, numbers, and videos are restored. A safety copy of the current queue state will be retained.`,
+            buttons:['Cancel','Restore and keep this PC identity'], defaultId:0, cancelId:0
+        });
+        if (confirmation.response !== 1) {
+            fs.rmSync(stage, { recursive:true, force:true });
+            return { ok:false, canceled:true };
+        }
+        const licence = require(path.join(RES_SERVER,'shared','licence.js'));
+        if (!licence.status(destination.instanceId,{dataDir:BASE_DIR}).canWrite) throw new Error('This licence does not allow a restore.');
         let videos = 0;
         const srcVideos = path.join(stage, 'videos');
         if (fs.existsSync(srcVideos)) {
@@ -1141,18 +1157,18 @@ ipcMain.handle('af:restoreData', async () => {
                 }
             }
         }
-        fs.rmSync(stage, { recursive: true, force: true });
-
-        // Reload the running engine so all screens pick up the restored state now.
-        let reloaded = false;
-        try {
-            const resp = await fetch(`http://localhost:${PORT}/api/reload`, { method: 'POST' });
-            reloaded = resp.ok;
-        } catch { reloaded = false; }
-
-        return { ok: true, videos, reloaded };
+        const response = await fetch(`http://localhost:${PORT}/api/restore-state`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({state:parsed,expectedInstanceId:destination.instanceId})
+        });
+        const outcome = await response.json();
+        fs.rmSync(stage, { recursive:true, force:true });
+        if (!response.ok) throw new Error(outcome.error || 'Restore could not be committed.');
+        return { ok:true, videos, reloaded:true, identityPreserved:true, instanceId:outcome.instanceId, safetyBackup:outcome.backupFile };
     } catch (e) {
         return { ok: false, reason: 'error', error: e.message };
+    } finally {
+        if (restoreStage) fs.rmSync(restoreStage, { recursive:true, force:true });
     }
 });
 

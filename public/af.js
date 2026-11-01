@@ -318,11 +318,13 @@ function afConfigEqual(a, b) {
         hostname: c.hostname || '',
         cloudBase: c.cloudBase || '',
         ads: c.ads || null,
+        announcements: typeof TdqSpeech !== 'undefined' ? TdqSpeech.normalize(c.announcements) : (c.announcements || null),
+        testDrive: c.testDrive || null,
         brands: (c.brands || []).map(br => ({
             key: br.key,
             name: br.name,
             color: br.color,
-            models: (br.models || []).map(m => ({ label: m.label, prefix: m.prefix, pronounce: m.pronounce }))
+            models: (br.models || []).map(m => ({ label: m.label, shortname:m.shortname || '', prefix: m.prefix, pronounce: m.pronounce }))
         }))
     });
     return norm(a) === norm(b);

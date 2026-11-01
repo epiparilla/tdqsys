@@ -5,9 +5,9 @@ This document records approved future-feature ideas. It is not a change to the c
 
 ## Preserve installation identity during backup restore
 
-TDQSYS currently stores its randomly generated Instance ID in `data.json`, which is included in every backup. Restoring a backup from a different installation can therefore replace the destination PC's Instance ID, cloud mirror identity, and license binding.
+Implemented in the manual test build: backups include `data.json`, but restoring them preserves the receiving PC's Instance ID, cloud writer token, and licence binding. The engine retains a safety copy before committing the restored queue state.
 
-A future restore workflow must restore queue data, configuration, and videos while retaining the destination installation's `instanceId` and `cloudWriterToken` when `data.json` already exists. This prevents a cross-location backup from deactivating the receiving installation or redirecting its cloud mirror.
+The restore workflow restores queue data, configuration, and videos while retaining the destination installation's `instanceId` and `cloudWriterToken`. If destination credentials are missing, fresh credentials are generated rather than imported from the backup.
 
 - Show the source and destination Instance IDs before confirming a restore.
 - Warn explicitly when the backup was created by another installation.
@@ -16,7 +16,7 @@ A future restore workflow must restore queue data, configuration, and videos whi
 
 ## Configurable announcement voice
 
-TDQSYS currently uses the locally packaged **Kokoro ONNX** text-to-speech engine for queue announcements, with `af_heart` as the default voice. Future voice selection should extend this existing local engine rather than depend on a cloud TTS service or Windows system voices.
+Implemented in the manual test build: TDQSYS uses the locally packaged **Kokoro ONNX** engine, lists its available voices in Settings, and retains `af_heart` as the default and safe fallback. Voice selection, preview playback, and synthesis work locally.
 
 Add a Settings option that lets an authorised operator select from the Kokoro voices packaged with TDQSYS.
 
@@ -29,7 +29,7 @@ Add a Settings option that lets an authorised operator select from the Kokoro vo
 
 ## Configurable announcement wording
 
-Allow an authorised operator to configure announcement wording around the normal queue message.
+Implemented in the manual test build: an authorised operator can configure announcement wording around the normal queue message, preview it, and test local playback before saving.
 
 Suggested template parts:
 
@@ -170,7 +170,7 @@ The dashboard also shows live registration totals:
 
 The facilitator board must retain the required per-model and overall totals without sacrificing the compact 12-column view. A separate authorised detail/master view may show the full raw registration record when needed.
 
-Only one test-drive entry may be `ongoing` at a time for the entire location, preserving the existing one-number behaviour of `display_with_ads.html`. The facilitator manually selects **Ongoing** beside the next client in the queue. This marks any previous ongoing entry `done`, makes the selected entry ongoing, and updates the displayed queue number. **Ongoing** is the only dashboard action that updates `display_with_ads.html`; the existing plus/minus counter controls are replaced for the test-drive workflow by this action.
+Each vehicle model may have one `ongoing` test-drive entry at a time. Different models may have ongoing clients simultaneously. The facilitator manually selects **Ongoing** beside the next client in that model's queue. This marks the previous ongoing entry for the same model `done`, makes the selected entry ongoing, and updates that model's displayed queue number. Other models remain unchanged. **Ongoing** is the only dashboard action that updates `display_with_ads.html`; the existing plus/minus counter controls are replaced for the test-drive workflow by this action.
 
 Every new test-drive entry begins as `waiting`. A facilitator may transition it to exactly one of `ongoing`, `done`, or `no_show`; a changed-model entry may additionally be marked `cancelled` before a new entry is created. **No Show** is a facilitator marker only: if that client later returns, issue a new queue number rather than changing the no-show entry. A queue number is considered **passed** when it is lower than the number currently displayed on `display_with_ads.html` for the same vehicle model and queue run. Passed numbers may not be reprinted or edited.
 
@@ -192,7 +192,7 @@ Vehicle-model records should be created, activated, or soft-retired safely when 
 
 ### Customer-display integration
 
-Selecting **Ongoing** updates the existing customer display with that registration's assigned queue number and relevant vehicle-model context. Selecting another customer as ongoing completes the preceding active record first, then replaces the display with the new active customer's queue number. The display never shows more than one ongoing test-drive entry.
+Selecting **Ongoing** updates the existing customer display with that registration's assigned queue number in its vehicle-model column. Selecting another customer for the same model completes that model's preceding active record first. Each vehicle model has at most one ongoing client; the display retains the current numbers for all other models.
 
 #### Phase 3
 
@@ -242,8 +242,8 @@ The preferred default is to close the current operating day while retaining hist
 
 1. A client can select one or more models and receives a queue entry for each selected model only after entering a valid, active daily SE code and accepting the required waiver and terms.
 2. Submitted entries appear in the matching model list without manual refresh.
-3. A location never has more than one ongoing test-drive entry, and selecting Ongoing updates the existing customer display.
-4. Selecting a new ongoing customer atomically marks the prior ongoing customer as done and updates the display.
+3. Each vehicle model has at most one ongoing test-drive entry, and selecting Ongoing updates only that model on the existing customer display.
+4. Selecting a new ongoing customer atomically marks the prior ongoing customer for that same model as done and updates that model's display.
 5. Done and no-show records remain auditable but are clearly separated from waiting customers.
 6. Two operators cannot accidentally create two ongoing records for the same model through simultaneous clicks.
 7. Client-side validation, server-side validation, and appropriate access controls protect contact details.
@@ -311,10 +311,10 @@ queue numbers; no phone-provided value is trusted for those fields.
 
 - Enforce unique SE codes by `instance_id`, `operating_day`, and `code_hash`.
 - Enforce one active queue run per `instance_id` and one unique ticket by `queue_run_id`, `vehicle_model_id`, and `queue_number`.
-- Enforce no more than one `ongoing` test-drive entry for the active location/run.
+- Enforce no more than one `ongoing` test-drive entry per vehicle model within the active location/run.
 - Ticket allocation locks the matching `queue_counters` row, increments it, creates the test-drive entry and pending client print job, then commits all of those changes together.
 - A same-day Reset to Zero transaction closes the active run, clears its display state, creates the next `run_number`, creates its zeroed model counters, and writes an audit record. It never updates previous entries' queue numbers.
-- Selecting Ongoing atomically changes the previous ongoing entry to `done`, marks the chosen entry `ongoing`, updates `display_state`, and writes its audit record.
+- Selecting Ongoing atomically changes the same model's previous ongoing entry to `done`, marks the chosen entry `ongoing`, updates `display_state` and `queue_model_display`, and writes its audit record.
 - Duplicate-name/model checking, passed-number logic, reissue, add-model, and model-change actions execute on the server inside a transaction. Model changes cancel the original entry and create a new entry; they never mutate its assigned number.
 
 ### Endpoint boundary
@@ -330,7 +330,7 @@ queues, or another location's data.
 | `POST /api/test-drive/se-code/validate` | Public client form | Validates the active unexpired code and returns only SE name, dealership, and a short-lived server-signed proof. |
 | `POST /api/test-drive/registrations` | Public client form | Validates all required data, consent, proof, and selected active models; applies duplicate-name/model logic; commits new entries/print jobs and creates a Google Sheets sync job. Returns existing unpassed or new queue numbers and the collection message. |
 | `GET /api/test-drive/operations` | TDQSYS desktop only | Returns the active-run queue board, Print Queue, and authorised Master Table search results. |
-| `POST /api/test-drive/entries/:id/ongoing` | TDQSYS desktop only | Atomically advances the single live display ticket. |
+| `POST /api/test-drive/entries/:id/ongoing` | TDQSYS desktop only | Atomically advances the selected vehicle model's display ticket. |
 | `POST /api/test-drive/entries/:id/status` | TDQSYS desktop only | Marks an entry done, no-show, or cancelled where the transition is allowed. |
 | `POST /api/test-drive/runs/reset` | TDQSYS desktop only | Requires a reset reason; closes the active run and opens a new same-day or next-day run. |
 | `POST /api/test-drive/print-jobs/:id/claim` | TDQSYS desktop only | Atomically claims the next SE-code or client-ticket job. |
@@ -361,7 +361,7 @@ licence state remains the write gate for all desktop mutations.
 1. Simultaneous SE registration cannot assign the same four-digit code.
 2. A retried submission with the same idempotency key creates neither another registration nor another ticket.
 3. A multi-model registration creates exactly one entry and print job for each selected model.
-4. Two Ongoing actions cannot leave two entries ongoing or update the display inconsistently.
+4. Two Ongoing actions for the same model cannot leave two entries ongoing or update its display inconsistently; different models may remain ongoing simultaneously.
 5. A same-day Testing reset creates a new run, starts from zero, and preserves earlier-run records.
 6. An unpassed ticket reprints unchanged; a passed ticket is reissued with a new entry and number.
 7. No-show and changed-model flows retain the original entry and audit history.

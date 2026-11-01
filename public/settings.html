@@ -224,7 +224,7 @@
                 <input type="text" id="cfg-instance" readonly style="flex:1; opacity:0.85;" onclick="this.select()">
                 <button type="button" class="btn-ghost settings-btn" style="flex:0 0 auto; padding:0.4rem 1rem;" onclick="copyInstanceId()">&#x1F4CB; Copy</button>
             </div>
-            <div class="hint">Generated once when this installation was first started. Never changes, never shared between machines. Only a reinstall from scratch (no backup) mints a new one; restoring a backup brings your old id back.</div>
+            <div class="hint">This PC keeps its installation identity during backup restore. Restoring another PC's backup does not transfer its licence binding or cloud credentials.</div>
         </div>
         <div class="field">
             <label>Your mirror link (share to watch this location)</label>
@@ -358,9 +358,20 @@
         </div>
 
         <div class="settings-card">
+            <h2>Local announcement voice and wording</h2>
+            <div class="field"><label for="cfg-voice">Packaged Kokoro voice</label><select id="cfg-voice"><option value="af_heart">af_heart (default)</option></select><p id="speech-voice-notice" class="hint" role="status"></p><button type="button" id="speech-test-voice" class="btn-ghost settings-btn">Test voice</button></div>
+            <div class="field"><label for="cfg-speech-prefix">Announcement prefix</label><input id="cfg-speech-prefix" maxlength="200" value="Test driver"></div>
+            <div class="field"><label for="cfg-speech-template">Main announcement template</label><input id="cfg-speech-template" maxlength="400" value="{ticket}" required></div>
+            <div class="field"><label for="cfg-speech-suffix">Announcement suffix</label><input id="cfg-speech-suffix" maxlength="200" value="you may now approach the registration area for your test drive."></div>
+            <p class="hint">Available placeholders: {ticket}, {counter} (vehicle/counter name), {service} (brand/service name). Include {ticket} in the announcement.</p>
+            <p id="speech-preview" role="status"></p><button type="button" id="speech-test-announcement" class="btn-ghost settings-btn">Test announcement</button>
+            <p id="speech-test-status" class="hint" role="status"></p>
+        </div>
+        <div class="settings-card">
             <h2>Test-drive configuration for this location</h2>
             <div class="field"><label for="cfg-callback-prefix">Call-back prefix</label><input id="cfg-callback-prefix" value="Test driver" required></div>
             <div class="field"><label for="cfg-callback-suffix">Call-back suffix</label><input id="cfg-callback-suffix" value="please stand by, you are next in line to test" required></div>
+            <button type="button" id="speech-test-callback" class="btn-ghost settings-btn">Test call-back announcement</button>
             <div class="field"><label for="cfg-sheets-url">This location's Google Sheets URL</label><input id="cfg-sheets-url" type="url" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0">
                 <p class="hint">Share this location's spreadsheet with the account below as Editor, then paste its URL. TDQSYS automatically creates or reuses a daily tab named TDQSYS Reg mm/dd/yyyy and prepares its column headers.</p>
                 <label for="sheets-share-email">Share with this account</label><input id="sheets-share-email" readonly placeholder="Checking connection account…">
@@ -485,6 +496,7 @@
     </div>
 
     <script src="af.js"></script>
+    <script src="announcements.js"></script>
     <!-- Local, not a CDN: Settings must still work when the internet is down. -->
     <script src="vendor/qrcode-generator.js"></script>
     <script>
@@ -1191,6 +1203,12 @@ function renderLicence(st) {
             set('cfg-callback-prefix', c.testDrive?.callbackPrefix || 'Test driver');
             set('cfg-callback-suffix', c.testDrive?.callbackSuffix || 'please stand by, you are next in line to test');
             set('cfg-terms', c.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
+            const speechConfig = TdqSpeech.normalize(c.announcements);
+            set('cfg-voice', speechConfig.voice);
+            set('cfg-speech-prefix', speechConfig.prefix);
+            set('cfg-speech-template', speechConfig.template);
+            set('cfg-speech-suffix', speechConfig.suffix);
+            document.dispatchEvent(new Event('tdqsys-speech-hydrated'));
             const ads = c.ads || {};
             set('cfg-ads-min', ads.minSec != null ? ads.minSec : 120);
             set('cfg-ads-max', ads.maxSec != null ? ads.maxSec : 180);
@@ -1248,8 +1266,10 @@ function renderLicence(st) {
                 const callbackPrefix = document.getElementById('cfg-callback-prefix')?.value?.trim() || 'Test driver';
                 const callbackSuffix = document.getElementById('cfg-callback-suffix')?.value?.trim() || 'please stand by, you are next in line to test';
                 if (document.getElementById('cfg-callback-prefix')?.value === '' || document.getElementById('cfg-callback-suffix')?.value === '') throw new Error('Call-back prefix and suffix cannot be empty.');
+                if (!document.getElementById('cfg-callback-prefix')?.value?.trim() || !document.getElementById('cfg-callback-suffix')?.value?.trim()) throw new Error('Call-back prefix and suffix cannot be blank.');
                 config.testDrive = { ...(stateDoc.config.testDrive || {}), waiver, terms, sheetsUrl, callbackPrefix, callbackSuffix };
             }
+            config.announcements = TdqSpeech.validate({voice:val('cfg-voice') || 'af_heart',prefix:val('cfg-speech-prefix'),template:val('cfg-speech-template'),suffix:val('cfg-speech-suffix')});
 
             document.querySelectorAll('.brand-block').forEach(block => {
                 const key = block.dataset.brandKey;
@@ -1654,7 +1674,7 @@ function renderLicence(st) {
                     status.textContent = 'Restore cancelled.';
                     status.className = '';
                 } else if (r.ok) {
-                    status.textContent = `Restored ${r.videos} video(s) + queue state from backup. ${r.reloaded ? 'Engine reloaded — screens are updated.' : 'Refresh the page to see the restored state.'}`;
+                    status.textContent = `Restored ${r.videos} video(s) + queue state from backup. This PC's identity and licence are preserved. A safety copy of the previous queue state was retained. ${r.reloaded ? 'Screens are updated.' : 'Refresh the page to see the restored state.'}`;
                     status.className = 'import-status done';
                     stateDoc = await afFetchState();
                     renderStatus();
@@ -1777,5 +1797,6 @@ if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return;
         boot();
     </script>
     <script src="settings-test-drive.js"></script>
+    <script src="settings-speech.js"></script>
 </body>
 </html>

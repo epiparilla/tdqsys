@@ -22,6 +22,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
   try {
     await db.exec('create role anon; create role authenticated; create role service_role bypassrls;');
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010001_test_drive_platform.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010002_per_model_ongoing.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_test_drive', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms']);
@@ -48,11 +49,24 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       const forged = args('request-forged'); forged[9] = 'forged';
       await assert.rejects(rpc('tdqsys_submit_registration', forged), /consent text changed/);
     });
-    await check('Ongoing completes previous entry across models', async () => {
+    await check('each vehicle model retains its own ongoing client', async () => {
       await rpc('tdqsys_set_ongoing', [first.entries[0].entryId, 'facilitator']);
       await rpc('tdqsys_set_ongoing', [first.entries[1].entryId, 'facilitator']);
       const states = (await db.query('select status from test_drive_entries order by status')).rows.map(r => r.status);
-      assert.deepEqual(states, ['done', 'ongoing']);
+      assert.deepEqual(states, ['ongoing', 'ongoing']);
+    });
+    await check('advancing one model completes only its previous client',async()=>{
+      await db.exec('begin');
+      try{
+        const nextArgs=args('request-model-advance');nextArgs[1]='Another Client';nextArgs[2]='another client';
+        const next=await rpc('tdqsys_submit_registration',nextArgs);
+        const target=next.entries.find(e=>e.modelId===first.entries[0].modelId);
+        await rpc('tdqsys_set_ongoing',[target.entryId,'facilitator']);
+        const original=(await db.query('select id,status from test_drive_entries where id=any($1::uuid[])',[first.entries.map(e=>e.entryId)])).rows;
+        assert.equal(original.find(e=>e.id===first.entries[0].entryId).status,'done');
+        assert.equal(original.find(e=>e.id===first.entries[1].entryId).status,'ongoing');
+        await assert.rejects(db.query("update test_drive_entries set status='ongoing' where id=$1",[first.entries[0].entryId]),/unique constraint/);
+      }finally{await db.exec('rollback');}
     });
     await check('another location cannot mark this location ticket', async () => {
       await assert.rejects(rpc('tdqsys_mark_entry', [B, first.entries[1].entryId, 'no_show']), /entry not in active run/);
