@@ -35,6 +35,10 @@ app/out/
 
 # PyInstaller build outputs
 build/
+!app/build/
+app/build/*
+!app/build/installer.nsh
+!app/build/install-niimbot-driver.ps1
 dist/
 
 # Installer/portable binaries for the update page

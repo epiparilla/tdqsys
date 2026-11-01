@@ -24,6 +24,7 @@ async function runEdge(body, records = {}, environment = {}) {
       const query = {
         select() { return query; },
         eq(key, value) { filters.push([key, value]); return query; },
+        is(key, value) { filters.push([key,value]); return query; },
         in() { return query; },
         order() { calls.push({table,filters}); return Promise.resolve(result()); },
         maybeSingle() { calls.push({ table, filters }); return Promise.resolve(result()); }
@@ -112,4 +113,14 @@ test('private snapshots expose active SE codes only on requested staff views and
   const read=calls.find(call=>call.table==='se_daily_checkins');
   assert.ok(read.filters.some(([key,value])=>key==='instance_id'&&value===INSTANCE));
   assert.ok(read.filters.some(([key,value])=>key==='operating_day'&&value==='2026-11-01'));
+  assert.ok(read.filters.some(([key,value])=>key==='revoked_at'&&value===null));
+});
+
+test('SE reset requires confirmation and supplies authenticated ownership to its transaction',async()=>{
+  const denied=await runEdge({action:'reset-sales-executives',reason:'Testing'});
+  assert.equal(denied.response.status,400);assert.equal(denied.calls.some(call=>call.rpc),false);
+  const accepted=await runEdge({action:'reset-sales-executives',confirm:true,reason:' Testing '});
+  assert.equal(accepted.response.status,200);
+  const rpc=accepted.calls.find(call=>call.rpc);assert.equal(rpc.rpc,'tdqsys_reset_sales_executives');
+  assert.equal(rpc.args.p_instance_id,INSTANCE);assert.equal(rpc.args.p_reason,'Testing');
 });

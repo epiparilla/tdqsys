@@ -115,6 +115,15 @@ test('each facilitator page can read the same location snapshot with configured 
   }
 });
 
+test('SE reset never changes TV counters or requests the queue-reset action',async()=>{
+  const calls=[];
+  const {call,context}=bridge('http://localhost:8081/sales-executives.html',config,async(url,options)=>{
+    calls.push({url,body:JSON.parse(options.body)});return Response.json({deactivated:2});
+  });
+  assert.equal((await call({action:'reset-sales-executives',confirm:true,reason:'Testing'})).ok,true);
+  assert.equal(calls.length,1);assert.equal(calls[0].body.action,'reset-sales-executives');assert.equal(context.pushed,undefined);
+});
+
 test('Sheets worker keeps retrying independently of pages and syncs a newly saved destination first',async()=>{
   let savedConfig=JSON.parse(JSON.stringify(config));const calls=[];let fail=true;
   const context={app:{isQuitting:false},engineDown:()=>false,registrationSyncBusy:false,registrationSettingsHash:null,registrationSyncStatus:{},BASE_DIR:'isolated',RES_SERVER:'server',SUPABASE_URL:'https://cloud.test',path,crypto,AbortSignal,

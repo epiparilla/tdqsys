@@ -67,6 +67,14 @@ Deno.serve(async (req) => {
       if (error) throw error;
       return Response.json({ configured: true }, { headers: cors });
     }
+    if (body.action === 'reset-sales-executives') {
+      if (body.confirm !== true || typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > 240) {
+        return Response.json({error:'Confirm the SE reset and provide a reason.'},{status:400,headers:cors});
+      }
+      const {data,error} = await admin.rpc('tdqsys_reset_sales_executives',{p_instance_id:instanceId,p_reason:body.reason.trim()});
+      if (error) throw error;
+      return Response.json(data,{headers:cors});
+    }
     if (body.action === 'snapshot') {
       const { error: ensureError } = await admin.rpc('tdqsys_ensure_daily_run', { p_instance_id: instanceId });
       if (ensureError) throw ensureError;
@@ -105,14 +113,14 @@ Deno.serve(async (req) => {
       }
       const seCheckins = [];
       if (body.includeSalesExecutives === true) {
-        let query = admin.from('se_daily_checkins').select('id,operating_day,expires_at,code_ciphertext,sales_executives(name,dealership)').eq('instance_id',instanceId);
-        if (body.salesHistory !== true) query = query.eq('operating_day',run.operating_day);
+        let query = admin.from('se_daily_checkins').select('id,operating_day,expires_at,revoked_at,code_ciphertext,sales_executives(name,dealership)').eq('instance_id',instanceId);
+        if (body.salesHistory !== true) query = query.eq('operating_day',run.operating_day).is('revoked_at',null);
         const { data: checkins, error: checkinError } = await query.order('issued_at',{ascending:false});
         if (checkinError) throw checkinError;
         for (const checkin of checkins || []) {
-          const active = new Date(checkin.expires_at).getTime() > Date.now();
+          const active = !checkin.revoked_at && new Date(checkin.expires_at).getTime() > Date.now();
           seCheckins.push({id:checkin.id,name:checkin.sales_executives?.name,dealership:checkin.sales_executives?.dealership,
-            operatingDay:checkin.operating_day,expiresAt:checkin.expires_at,code:active ? await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY')) : null});
+            operatingDay:checkin.operating_day,expiresAt:checkin.expires_at,revokedAt:checkin.revoked_at,code:active ? await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY')) : null});
         }
       }
       return Response.json({ run, models, entries, earlierEntries, display, seCheckins, printJobs:pendingPrintJobs }, { headers: cors });

@@ -10,6 +10,12 @@ GitHub assets or `public/version.json` before acceptance.
 - Backup branch: `backup/v1.1.28-pre-test-drive`.
 - Released installer remains `app/dist-installer/tdqsys-setup-1.1.28.exe`.
 - New manual installer: `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe`.
+- Installer bundles the signed `dist/NiimbotPrinterDriverInstaller-3.0.2.1.exe`
+  in `resources/drivers`. It checks machine printer-driver registrations and
+  vendor package registrations first. Existing NIIMBOT installations are skipped;
+  otherwise the vendor setup opens with elevation for printer-model selection.
+  Cancelling driver setup leaves TDQSYS installed and permits a later retry from
+  that folder. TDQSYS uninstall does not remove system printer drivers.
 - Back up the installation's queue state/videos through existing Settings
   before manually installing on a test laptop. Use a test location identity
   for registration testing rather than borrowing a live location's identity.
@@ -45,6 +51,11 @@ GitHub assets or `public/version.json` before acceptance.
   SE codes appear in Print Queue's queue/code column, including leading zeros.
   The SE label keeps its four-digit code at 36pt (twice the previous 18pt) and
   fits the name within the 50 x 30mm label without shrinking the code.
+- The SE page has a dedicated confirmed reset with a required reason. It
+  deactivates today's SE codes, cancels their unprinted slips, and allows fresh
+  same-day SE registrations. History and client references are retained; old
+  four-digit codes are not reassigned during the same operating day. It does
+  not reset client queues, the queue run, or the TV display.
 - Printer list comes from the installed Windows printers. A successful spool
   submission removes a ticket from pending. Physical output must be checked
   during hardware acceptance; spool success alone cannot detect empty labels.
@@ -116,6 +127,8 @@ The established public queue display flow remains unchanged.
    does not change the released app's public queue mirror.
    Then apply `202611010002_per_model_ongoing.sql`, which enforces one ongoing
    client per vehicle model rather than one across the whole location.
+   Apply `202611020001_sales_executive_reset.sql` for revocable SE check-ins
+   and the history-preserving SE reset transaction.
 3. Deploy `test-drive-operations` with the accompanying `supabase/config.toml`
    JWT-verification setting. Its own authorization checks the installation's
    existing writer token and remote revocation record.
@@ -155,8 +168,8 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 260 passing tests, three optional skips, and
-14 PostgreSQL integration checks. The rebuilt packaged speech engine was
+Latest automated verification: 264 passing tests, three optional skips, and
+15 PostgreSQL integration checks. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
 
@@ -190,6 +203,13 @@ missing-voice fallback. Desktop/public route boundaries passed on both sites.
    Check the source/destination ID warning and confirm the receiving PC keeps
    its Instance ID, cloud writer credentials, and licence. Its previous queue
    state is retained as a `data.before-restore-*.json` safety copy.
+10. On a clean Windows test machine, confirm bundled NIIMBOT setup opens and
+    registers the selected driver. On the next install, confirm it is skipped.
+    Existing-driver detection passed on the developer PC without changing its
+    driver; an actual clean-machine driver installation still needs acceptance.
+11. From Sales Executives, confirm a dedicated reset invalidates old codes and
+    enables fresh registrations. Check reset entries in history, and confirm
+    existing clients and the ongoing TV numbers stay unchanged.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

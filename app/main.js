@@ -924,7 +924,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
         const cfg = state.config || {};

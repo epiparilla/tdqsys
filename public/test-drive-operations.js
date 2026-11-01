@@ -122,7 +122,7 @@
     for (const checkin of checkins.filter(item => `${item.name} ${item.dealership}`.toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
       cell(row,checkin.code || 'Expired'); cell(row,checkin.name); cell(row,checkin.dealership);
-      cell(row,checkin.operatingDay); cell(row,new Date(checkin.expiresAt).toLocaleString()); cell(row,checkin.code ? 'Active' : 'Expired');
+      cell(row,checkin.operatingDay); cell(row,new Date(checkin.expiresAt).toLocaleString()); cell(row,checkin.revokedAt ? 'Reset' : checkin.code ? 'Active' : 'Expired');
       byId('sales-rows').appendChild(row);
     }
   }
@@ -163,7 +163,9 @@
     try {
       const result = await request(body);
       if (result.audioUrl) { const audio = new Audio(result.audioUrl); await audio.play(); }
-      await refresh(); byId('message').textContent = body.action === 'reset'
+      await refresh(); byId('message').textContent = body.action === 'reset-sales-executives'
+        ? `${result.deactivated} SE code(s) deactivated. SEs may register again. Client registrations, queues and TV numbers are unchanged.`
+        : body.action === 'reset'
         ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and SE history are retained.'
         : result.audioUrl ? 'Call-back announcement playing.' : 'Saved.';
     }
@@ -205,6 +207,12 @@
   };
   byId('search').oninput = renderMaster;
   byId('sales-search').oninput = renderSales;
+  byId('sales-reset-form').onsubmit = event => {
+    event.preventDefault();
+    if (!byId('sales-reset-form').reportValidity()) return;
+    mutate({action:'reset-sales-executives',confirm:byId('sales-reset-confirm').checked,reason:byId('sales-reset-reason').value.trim()});
+    byId('sales-reset-confirm').checked = false;
+  };
   byId('sales-history').onchange = () => refresh().catch(error => { byId('message').textContent = error.message; });
   byId('history').onchange = () => refresh().catch(error => { byId('message').textContent = error.message; });
   refreshLicence().then(() => refresh()).catch(error => { byId('message').textContent = error.message; });

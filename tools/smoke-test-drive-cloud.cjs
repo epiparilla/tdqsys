@@ -96,6 +96,19 @@ async function main() {
     const after=await operation({action:'snapshot',history:true,includeSalesExecutives:true}); assert.equal(after.entries.length,0); assert.ok(after.earlierEntries.length>0);
     assert.equal(after.seCheckins[0].code,se.code);
     console.log('PASS same-day reset and earlier-run history.');
+    const current=await publicPost('registrations',submission,crypto.randomUUID());
+    await operation({action:'ongoing',entryId:current.entries[0].entryId});
+    const seReset=await operation({action:'reset-sales-executives',confirm:true,reason:'Disposable SE reset verification'});
+    assert.equal(seReset.deactivated,1);
+    const retained=await operation({action:'snapshot',includeSalesExecutives:true,salesHistory:true});
+    assert.equal(retained.run.id,after.run.id);assert.equal(retained.entries[0].status,'ongoing');
+    assert.equal(retained.display.active_test_drive_entry_id,current.entries[0].entryId);
+    assert.ok(retained.seCheckins[0].revokedAt);assert.equal(retained.seCheckins[0].code,null);
+    const rejected=await fetch(`${PREVIEW}/api/test-drive/se-code`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instanceId:INSTANCE,code:se.code})});
+    assert.equal(rejected.ok,false);
+    const freshSe=await publicPost('se-checkins',{instanceId:INSTANCE,name:'Verification Sales Executive',dealership:'Verification Dealership'});
+    assert.match(freshSe.code,/^\d{4}$/);assert.notEqual(freshSe.code,se.code);
+    console.log('PASS dedicated SE reset, old-code rejection, fresh same-day registration, and unchanged client queue.');
   } finally {
     if(seeded) {
       sql(`begin;

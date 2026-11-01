@@ -32,6 +32,14 @@
       {
         "from": "server",
         "to": "server"
+      },
+      {
+        "from": "../dist/NiimbotPrinterDriverInstaller-3.0.2.1.exe",
+        "to": "drivers/NiimbotPrinterDriverInstaller-3.0.2.1.exe"
+      },
+      {
+        "from": "build/install-niimbot-driver.ps1",
+        "to": "drivers/install-niimbot-driver.ps1"
       }
     ],
     "directories": {
@@ -52,6 +60,7 @@
       "artifactName": "${productName} ${version} Portable.exe"
     },
     "nsis": {
+      "include": "build/installer.nsh",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,

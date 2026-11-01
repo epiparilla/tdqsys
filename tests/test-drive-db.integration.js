@@ -23,6 +23,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec('create role anon; create role authenticated; create role service_role bypassrls;');
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010001_test_drive_platform.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010002_per_model_ongoing.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020001_sales_executive_reset.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_test_drive', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms']);
@@ -105,6 +106,22 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       assert.equal(await rpc('tdqsys_finish_sheet_job',[A,job.id,job.claim_token,'offline']),true);
       const saved = (await db.query('select status,next_attempt_at>now() as scheduled from sheet_sync_jobs where id=$1',[job.id])).rows[0];
       assert.equal(saved.status,'failed'); assert.equal(saved.scheduled,true);
+    });
+    await check('SE reset invalidates codes, retains clients and queues, and permits fresh same-day check-in without code reuse', async () => {
+      const other=await rpc('tdqsys_register_se_checkin',[B,'Other SE','Other Dealer',today,hash('0123'),'other-cipher','2099-11-02T00:00:00Z']);
+      const before=await db.query('select id,se_daily_checkin_id from registrations where instance_id=$1 order by id',[A]);
+      const queues=await db.query('select * from queue_counters order by queue_run_id,vehicle_model_id');
+      const runBefore=await db.query("select id from queue_runs where instance_id=$1 and status='active'",[A]);
+      const reset=await rpc('tdqsys_reset_sales_executives',[A,'Testing SE registrations']);assert.equal(reset.deactivated,1);
+      assert.deepEqual((await db.query('select id,se_daily_checkin_id from registrations where instance_id=$1 order by id',[A])).rows,before.rows);
+      assert.deepEqual((await db.query('select * from queue_counters order by queue_run_id,vehicle_model_id')).rows,queues.rows);
+      assert.deepEqual((await db.query("select id from queue_runs where instance_id=$1 and status='active'",[A])).rows,runBefore.rows);
+      assert.equal((await db.query('select revoked_at is null and expires_at>now() as active from se_daily_checkins where id=$1',[other])).rows[0].active,true);
+      assert.equal((await db.query("select count(*)::int as n from print_jobs where instance_id=$1 and kind='se_code_slip' and status in ('pending','claimed','failed')",[A])).rows[0].n,0);
+      await assert.rejects(rpc('tdqsys_submit_registration',args('after-se-reset')),/invalid or expired/);
+      const fresh=await rpc('tdqsys_register_se_checkin',[A,'SE One','Toyota',today,hash('4567'),'fresh-cipher','2099-11-02T00:00:00Z']);assert.ok(fresh);
+      assert.equal((await db.query('select count(*)::int as n from se_daily_checkins where instance_id=$1',[A])).rows[0].n,2);
+      await assert.rejects(rpc('tdqsys_register_se_checkin',[A,'Another SE','Toyota',today,hash('0123'),'cipher','2099-11-02T00:00:00Z']),/unique constraint/);
     });
     await check('three locations retain independent Sheet destinations and public form configurations', async () => {
       const C='33333333-4444-4555-8666-777777777777';
