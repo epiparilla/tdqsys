@@ -30,7 +30,9 @@ Deno.serve(async (req) => {
       if (body.action === 'integration-info') {
         return Response.json({ configured: true, serviceAccountEmail: credentials.client_email }, { headers: cors });
       }
-      const destination = await verifySheetConnection(String(body.sheetsUrl || ''), await googleToken(credentials));
+      const { data: locationSettings, error: settingsError } = await admin.from('test_drive_settings').select('timezone').eq('instance_id',instanceId).maybeSingle();
+      if (settingsError) throw settingsError;
+      const destination = await verifySheetConnection(String(body.sheetsUrl || ''), await googleToken(credentials), {timeZone:locationSettings?.timezone || 'Asia/Manila'});
       return Response.json({ connected: true, ...destination }, { headers: cors });
     }
     if (body.action === 'sync-sheets') {

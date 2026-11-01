@@ -362,10 +362,10 @@
             <div class="field"><label for="cfg-callback-prefix">Call-back prefix</label><input id="cfg-callback-prefix" value="Test driver" required></div>
             <div class="field"><label for="cfg-callback-suffix">Call-back suffix</label><input id="cfg-callback-suffix" value="please stand by, you are next in line to test" required></div>
             <div class="field"><label for="cfg-sheets-url">This location's Google Sheets URL</label><input id="cfg-sheets-url" type="url" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0">
-                <p class="hint">Create an empty tracking sheet for this location. Share it with the account below as Editor, then paste the full URL of the tracking tab.</p>
+                <p class="hint">Share this location's spreadsheet with the account below as Editor, then paste its URL. TDQSYS automatically creates or reuses a daily tab named TDQSYS Reg mm/dd/yyyy and prepares its column headers.</p>
                 <label for="sheets-share-email">Share with this account</label><input id="sheets-share-email" readonly placeholder="Checking connection account…">
                 <button id="sheets-copy-email" type="button" class="btn-ghost settings-btn">Copy account email</button>
-                <button id="sheets-test" type="button" class="btn-ghost settings-btn">Test this Sheet connection</button>
+                <button id="sheets-test" type="button" class="btn-ghost settings-btn">Connect Sheet / prepare today's tab</button>
                 <p id="sheets-connection-status" role="status" class="hint"></p>
                 <p class="hint">Each desktop has its own form QR codes, registrations, and Sheet destination. After saving, select Sync saved Settings in Test Drive Operations.</p>
             </div>

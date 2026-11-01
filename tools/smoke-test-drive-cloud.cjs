@@ -57,8 +57,8 @@ async function main() {
     await operation({action:'configure',models:[{fullName:'Verification vehicle',shortname:'VERIFY',brandKey:'brand1',unit:1}],waiver:'Verification waiver',terms:'Verification terms',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
     const info=await operation({action:'integration-info'});assert.equal(info.serviceAccountEmail,credentials.client_email);
     const connection=await operation({action:'test-sheets',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
-    assert.equal(connection.connected,true);assert.equal(connection.tabTitle,properties.title);
-    console.log('PASS desktop sharing-account guidance and read-only Sheet connection test.');
+    assert.equal(connection.connected,true);assert.match(connection.tabTitle,/^TDQSYS Reg \d{2}\/\d{2}\/\d{4}$/);
+    console.log('PASS desktop sharing-account guidance and automatic daily tab preparation.');
     const snapshot=await operation({action:'snapshot'}); assert.ok(snapshot.run?.id);
     console.log('PASS private authorization, configuration, and initial queue run.');
     const configResponse=await fetch(`${PREVIEW}/api/test-drive/config?id=${INSTANCE}`);
@@ -80,12 +80,13 @@ async function main() {
     await operation({action:'print-result',jobId:seJob.id,status:'failed',error:'Automated cloud check; no physical printing attempted.'});
     await operation({action:'ongoing',entryId:registration.entries[0].entryId});
     console.log('PASS matching Pages/Edge encryption keys, print claim, and Ongoing operation.');
-    const sync=await operation({action:'sync-sheets'}); assert.equal(sync.delivered,true);
-    const range=`'${properties.title.replace(/'/g,"''")}'!A:K`;
+    // A gid no longer chooses the destination: the worker uses its daily tab.
+    // Do not send synthetic registrations to the user's real daily tab.
+    const range=`'${connection.tabTitle.replace(/'/g,"''")}'!A:K`;
     const rowsResponse=await fetch(`${sheetRoot}/values/${encodeURIComponent(range)}`,{headers:googleHeaders});
     const rows=(await rowsResponse.json()).values;
-    assert.equal(rows[0][0],'Registration ID'); assert.equal(rows[1][0],registration.registrationId);
-    console.log('PASS deployed Google secret, background worker, and raw-data write to temporary tab.');
+    assert.equal(rows[0][0],'Registration ID'); assert.equal(rows.some(row=>row[0]===registration.registrationId),false);
+    console.log('PASS daily headers prepared without synthetic leads in the user daily tab.');
     await operation({action:'reset',reason:'Automated verification'});
     const after=await operation({action:'snapshot',history:true}); assert.equal(after.entries.length,0); assert.ok(after.earlierEntries.length>0);
     console.log('PASS same-day reset and earlier-run history.');

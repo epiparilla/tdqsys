@@ -26,7 +26,7 @@
   test.onclick = async () => {
     if (!url.value.trim() || !url.reportValidity()) { status.textContent = 'Paste this location’s Google Sheets URL first.'; return; }
     const checkedUrl = url.value.trim();
-    test.disabled = true; status.textContent = 'Checking your Sheet and tracking tab…';
+    test.disabled = true; status.textContent = 'Connecting your spreadsheet and preparing today’s tab…';
     try {
       const result = await call({ action: 'test-sheets', sheetsUrl: checkedUrl });
       if (url.value.trim() !== checkedUrl) return;

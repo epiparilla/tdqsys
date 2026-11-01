@@ -71,11 +71,15 @@ client-form links and three separate SE-form links without separate deploys.
 
 On each laptop, open desktop System Settings, create an empty Google tracking
 spreadsheet for that location, and share it as Editor with the email displayed
-under **Share with this account**. Paste the full tracking-tab URL, select
-**Test this Sheet connection**, save, then **Sync saved Settings** in Test
+under **Share with this account**. Paste the spreadsheet URL, select
+**Connect Sheet / prepare today's tab**, save, then **Sync saved Settings** in Test
 Drive Operations. Repeat with a different Sheet at the other two locations.
-The connection check reads the selected tab and validates its header; it does
-not create test leads. Keep Editor permission enabled so the worker can write.
+TDQSYS creates or reuses **TDQSYS Reg mm/dd/yyyy** using the location's local
+date, and initializes its column headers. No manual tab creation is needed,
+and any `gid` in the pasted URL is ignored. Same-day queue resets reuse the
+same daily tab. Jobs retried after midnight still target their registration
+date, preserving the original raw record. Existing tabs are never deleted.
+Keep Editor permission enabled so TDQSYS can create tabs and write rows.
 
 The existing server account is reused, so facilitators do not need to create
 Cloud projects, service accounts, API keys, or JSON files. Sheet URLs, models,
@@ -102,10 +106,10 @@ The established public queue display flow remains unchanged.
    Enable the Sheets API for that service account and share the selected
    spreadsheet with its `client_email`. Pasting a URL selects a destination;
    it does not grant write permission to a private spreadsheet.
-7. Open an empty Google tracking tab and paste its full URL (including `gid`)
-   into Settings. On its first write TDQSYS creates its eleven column headers,
-   beginning with Registration ID. It refuses to overwrite a tab with
-   different existing columns. [Google Sheets value-write behavior](https://developers.google.com/workspace/sheets/api/guides/values).
+7. Paste the spreadsheet URL into Settings. TDQSYS automatically prepares its
+   dated tab and eleven column headers beginning with Registration ID. A tab
+   whose existing columns do not match is preserved and reported for review.
+   [Google Sheets tab operations](https://developers.google.com/workspace/sheets/api/samples/sheet).
 
 The current retry worker runs every 15 seconds while Test Drive Operations is
 open. Pending jobs remain durable when it is closed and resume on reopening.

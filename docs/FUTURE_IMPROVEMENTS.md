@@ -84,6 +84,13 @@ email, paste its URL, test the connection, then save and sync Settings. The
 initial server Google account is configured once; adding another location
 must not require another Cloud project, JSON key, code change, or web deploy.
 
+The Sheet URL selects the spreadsheet only. TDQSYS must automatically create
+or reuse a tab named **TDQSYS Reg mm/dd/yyyy** (for example, **TDQSYS Reg
+11/12/2026**) and prepare the raw-data column headers. The date uses the
+location's operating timezone. Same-day queue resets reuse that tab and never
+delete its leads; retries after midnight still use the original registration
+date's tab. Other tabs and their contents must remain untouched.
+
 In the vehicle configuration table, add a **Printable shortname** column beside each vehicle model's full name. The shortname is configured by the test-drive administrator and must fit the 50 mm × 30 mm queue-ticket header. It is the `[Header]` printed above the assigned queue number; the full vehicle name remains available in the registration form, dashboard, master table, and audit history.
 
 Add two facilitator-editable Settings fields: **Waiver statement** and **Terms and Conditions**. Both are shown in the client form's Consent step and their exact saved versions are recorded with each accepted registration. Seed each field with Lorem Ipsum placeholder text so the public web form never presents an empty waiver or Terms and Conditions statement. The facilitator must replace the placeholders with approved dealership wording before event use.
@@ -125,7 +132,7 @@ Email address and contact number are not duplicate-prevention keys. A client may
 
 Raw data from webform will be used 2 ways,
 1st is to be forwarded to the testdrive queue database for the Test Drive Queue List and Test Drive Dashboard. TDQSYS may retain and display the full raw registration data to authorised users, but **For Application?** and **For Reservation?** are disregarded by the current queue and print workflows; they are retained only for a future use case.
-and 2nd is to append the raw client-registration data to Google Sheets "TDQ REGISTRATION" for giveaway tracking. Google Sheets is client-based, not test-drive-model or queue-number-based: later changes to a client's vehicle models do not update or add a Sheets row. Corrections are not required. The Google Sheets integration must retry silently in the background from a recorded outbox/job; a temporary Sheets failure must not interrupt the client registration flow, create a duplicate registration, or change committed queue numbers.
+and 2nd is to append the raw client-registration data to the configured Google spreadsheet's **TDQSYS Reg mm/dd/yyyy** tab for giveaway tracking. Google Sheets is client-based, not test-drive-model or queue-number-based: later changes to a client's vehicle models do not update or add a Sheets row. Corrections are not required. The Google Sheets integration must retry silently in the background from a recorded outbox/job; a temporary Sheets failure must not interrupt the client registration flow, create a duplicate registration, or change committed queue numbers.
 
 ### Database structure
 
