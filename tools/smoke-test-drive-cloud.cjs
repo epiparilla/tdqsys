@@ -55,6 +55,10 @@ async function main() {
     sql(`insert into public.tdqsys_queue_writers(instance_id,token_hash) values('${INSTANCE}','${crypto.createHash('sha256').update(WRITER).digest('hex')}');`);
     seeded=true;
     await operation({action:'configure',models:[{fullName:'Verification vehicle',shortname:'VERIFY',brandKey:'brand1',unit:1}],waiver:'Verification waiver',terms:'Verification terms',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
+    const info=await operation({action:'integration-info'});assert.equal(info.serviceAccountEmail,credentials.client_email);
+    const connection=await operation({action:'test-sheets',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
+    assert.equal(connection.connected,true);assert.equal(connection.tabTitle,properties.title);
+    console.log('PASS desktop sharing-account guidance and read-only Sheet connection test.');
     const snapshot=await operation({action:'snapshot'}); assert.ok(snapshot.run?.id);
     console.log('PASS private authorization, configuration, and initial queue run.');
     const configResponse=await fetch(`${PREVIEW}/api/test-drive/config?id=${INSTANCE}`);

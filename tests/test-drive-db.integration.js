@@ -22,11 +22,12 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
   try {
     await db.exec('create role anon; create role authenticated; create role service_role bypassrls;');
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010001_test_drive_platform.sql'), 'utf8'));
+    const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_test_drive', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms']);
     const modelIds = (await db.query('select id from vehicle_models where instance_id=$1 order by full_name', [A])).rows.map(m => m.id);
-    const run = await rpc('tdqsys_open_queue_run', [A, '2026-11-01', 'Testing', 'facilitator']);
-    await rpc('tdqsys_register_se_checkin', [A, 'SE One', 'Toyota', '2026-11-01', hash('0123'), 'encrypted-test-fixture', '2099-11-02T00:00:00Z']);
+    const run = await rpc('tdqsys_open_queue_run', [A, today, 'Testing', 'facilitator']);
+    await rpc('tdqsys_register_se_checkin', [A, 'SE One', 'Toyota', today, hash('0123'), 'encrypted-test-fixture', '2099-11-02T00:00:00Z']);
     const args = key => [A, 'Ana Cruz', 'ana cruz', 'ana@example.com', 'Manila', '09170000000', null, null, hash('0123'), hash('Approved waiver'), hash('Approved terms'), key, modelIds];
     let first;
     await check('multi-model submission creates two tickets and two pending print jobs', async () => {
@@ -63,7 +64,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       await assert.rejects(rpc('tdqsys_claim_print_job', [A, job]), /print job not available/);
     });
     await check('same-day reset preserves client records and restarts at one', async () => {
-      const nextRun = await rpc('tdqsys_open_queue_run', [A, '2026-11-01', 'Testing again', 'facilitator']);
+      const nextRun = await rpc('tdqsys_open_queue_run', [A, today, 'Testing again', 'facilitator']);
       assert.equal(nextRun.run_number, run.run_number + 1);
       const next = await rpc('tdqsys_submit_registration', args('request-0003'));
       assert.ok(next.entries.every(e => e.queueNumber === 1 && !e.existing));
@@ -71,7 +72,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       await assert.rejects(rpc('tdqsys_set_ongoing', [first.entries[0].entryId, 'facilitator']), /active run/);
     });
     await check('SE duplicate codes are rejected by database uniqueness', async () => {
-      await assert.rejects(rpc('tdqsys_register_se_checkin', [A, 'Another SE', 'Toyota', '2026-11-01', hash('0123'), 'cipher', '2099-11-02T00:00:00Z']), /unique constraint/);
+      await assert.rejects(rpc('tdqsys_register_se_checkin', [A, 'Another SE', 'Toyota', today, hash('0123'), 'cipher', '2099-11-02T00:00:00Z']), /unique constraint/);
     });
     await check('anonymous role cannot access registrations', async () => {
       await db.exec('set role anon');
@@ -90,6 +91,21 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       assert.equal(await rpc('tdqsys_finish_sheet_job',[A,job.id,job.claim_token,'offline']),true);
       const saved = (await db.query('select status,next_attempt_at>now() as scheduled from sheet_sync_jobs where id=$1',[job.id])).rows[0];
       assert.equal(saved.status,'failed'); assert.equal(saved.scheduled,true);
+    });
+    await check('three locations retain independent Sheet destinations and public form configurations', async () => {
+      const C='33333333-4444-4555-8666-777777777777';
+      const locations=[A,B,C];
+      for (const [index,instance] of locations.entries()) {
+        await rpc('tdqsys_configure_test_drive',[instance,JSON.stringify([{fullName:`Location ${index+1} vehicle`,shortname:`LOC${index+1}`,brandKey:'brand1',unit:1}]),`Waiver ${index+1}`,`Terms ${index+1}`,`https://docs.google.com/spreadsheets/d/location-${index+1}/edit#gid=0`]);
+      }
+      const targets=(await db.query('select instance_id,google_sheet_url from test_drive_settings')).rows;
+      assert.equal(new Set(targets.map(t=>t.google_sheet_url)).size,3);
+      for (const [index,instance] of locations.entries()) {
+        const config=await rpc('tdqsys_public_registration_config',[instance]);
+        assert.equal(config.models.length,1); assert.equal(config.models[0].name,`Location ${index+1} vehicle`);
+        assert.equal(config.waiverStatement,`Waiver ${index+1}`);
+        assert.equal(Object.hasOwn(config,'google_sheet_url'),false);
+      }
     });
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }

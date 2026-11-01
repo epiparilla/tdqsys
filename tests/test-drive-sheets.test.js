@@ -37,3 +37,16 @@ test('Sheets refuses a destination whose existing columns do not match', async (
   const api = adapter(async url => url.includes('?fields=') ? Response.json({ sheets:[{ properties:{ sheetId:0,title:'Sheet1' } }] }) : Response.json({values:[['Customer name']]}));
   await assert.rejects(api.appendRegistration('https://docs.google.com/spreadsheets/d/abc/edit#gid=0',payload,'token'),/empty tracking tab/);
 });
+
+test('Sheet connection check returns the selected destination without writing rows', async () => {
+  let writes = 0;
+  const api = adapter(async (url, options) => {
+    if (options.method) writes++;
+    return url.includes('?fields=')
+      ? Response.json({ properties:{title:'Location B Leads'},sheets:[{properties:{sheetId:12,title:'TDQ REGISTRATION'}}] })
+      : Response.json({values:[]});
+  });
+  const result = await api.verifySheetConnection('https://docs.google.com/spreadsheets/d/location-b/edit#gid=12', 'token');
+  assert.equal(result.spreadsheetTitle,'Location B Leads'); assert.equal(result.tabTitle,'TDQ REGISTRATION');
+  assert.equal(result.emptyTab,true); assert.equal(writes,0);
+});

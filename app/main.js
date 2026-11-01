@@ -857,10 +857,13 @@ function killPortHolders(ports) {
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
-        if (sender.origin !== `http://localhost:${PORT}` || sender.pathname !== '/test-drive-operations.html') {
+        const settingsActions = ['integration-info', 'test-sheets'];
+        const allowedPage = sender.pathname === '/test-drive-operations.html'
+            || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
+        if (sender.origin !== `http://localhost:${PORT}` || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback'];
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
         const cfg = state.config || {};
@@ -875,7 +878,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
                 waiver: cfg.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
                 terms: cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl: cfg.testDrive?.sheetsUrl || '' };
         }
-        if (request.action !== 'snapshot') {
+        if (!['snapshot', 'integration-info'].includes(request.action)) {
             const licence = require(path.join(RES_SERVER, 'shared', 'licence.js'));
             if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
         }

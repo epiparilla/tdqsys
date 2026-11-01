@@ -2,7 +2,7 @@
 // this function: the installed TDQSYS app supplies its per-location writer
 // token, matching the existing queue-sync trust boundary.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { syncOneRegistration } from '../_shared/google-sheets.js';
+import { syncOneRegistration, googleToken, verifySheetConnection } from '../_shared/google-sheets.js';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'content-type,x-tdqsys-instance,x-tdqsys-writer' };
 const validId = (v: string) => /^[0-9a-f-]{1,64}$/i.test(v);
@@ -23,6 +23,16 @@ Deno.serve(async (req) => {
     const { data: revoked, error: revocationError } = await admin.from('revoked_licenses').select('instance_id').eq('instance_id', instanceId).maybeSingle();
     if (revocationError) throw revocationError;
     if (revoked) return Response.json({ error: 'license_revoked' }, { status: 403, headers: cors });
+    if (['integration-info', 'test-sheets'].includes(body.action)) {
+      const secret = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
+      if (!secret) return Response.json({ configured: false, error: 'Google Sheets service has not been connected by the system administrator.' }, { status: body.action === 'test-sheets' ? 503 : 200, headers: cors });
+      const credentials = JSON.parse(secret);
+      if (body.action === 'integration-info') {
+        return Response.json({ configured: true, serviceAccountEmail: credentials.client_email }, { headers: cors });
+      }
+      const destination = await verifySheetConnection(String(body.sheetsUrl || ''), await googleToken(credentials));
+      return Response.json({ connected: true, ...destination }, { headers: cors });
+    }
     if (body.action === 'sync-sheets') {
       const result = await syncOneRegistration(admin, instanceId, Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON'));
       return Response.json(result, { headers: cors });

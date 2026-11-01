@@ -63,6 +63,25 @@ state; this website restriction does not modify already installed apps.
 
 The steps below remain a deployment reference for future environments.
 
+### User setup for three independent locations
+
+Each laptop keeps its own installation identity. Its client and SE QR links
+contain that identity, so the same hosted form pages provide three separate
+client-form links and three separate SE-form links without separate deploys.
+
+On each laptop, open desktop System Settings, create an empty Google tracking
+spreadsheet for that location, and share it as Editor with the email displayed
+under **Share with this account**. Paste the full tracking-tab URL, select
+**Test this Sheet connection**, save, then **Sync saved Settings** in Test
+Drive Operations. Repeat with a different Sheet at the other two locations.
+The connection check reads the selected tab and validates its header; it does
+not create test leads. Keep Editor permission enabled so the worker can write.
+
+The existing server account is reused, so facilitators do not need to create
+Cloud projects, service accounts, API keys, or JSON files. Sheet URLs, models,
+waivers, SE codes, queue runs, and registrations are stored per location.
+The established public queue display flow remains unchanged.
+
 1. Authenticate the Supabase CLI for the existing project
    `pnyptdyfkftrcgjlaqnr` using `npx supabase login`.
 2. Apply `supabase/migrations/202611010001_test_drive_platform.sql` once, after

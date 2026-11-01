@@ -24,7 +24,7 @@ export function sheetRow(payload) {
     payload.se?.name || '', payload.se?.dealership || ''];
 }
 
-export async function appendRegistration(sheetUrl, payload, accessToken) {
+async function readSheetDestination(sheetUrl, accessToken) {
   const url = new URL(sheetUrl);
   const match = url.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
   if (url.origin !== 'https://docs.google.com' || !match) throw new Error('Configure a valid Google Sheets URL in Settings.');
@@ -32,7 +32,7 @@ export async function appendRegistration(sheetUrl, payload, accessToken) {
   const gid = new URLSearchParams(url.hash.slice(1)).get('gid') || url.searchParams.get('gid');
   const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
   const root = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheet}`;
-  const metadataResponse = await fetch(`${root}?fields=sheets.properties`, { headers });
+  const metadataResponse = await fetch(`${root}?fields=properties.title,sheets.properties`, { headers });
   if (!metadataResponse.ok) throw new Error('Google sheet is unavailable. Check sharing permissions.');
   const metadata = await metadataResponse.json();
   const selected = metadata.sheets.find(sheet => gid !== null ? String(sheet.properties.sheetId) === gid : sheet.properties.title === 'TDQ REGISTRATION');
@@ -41,6 +41,17 @@ export async function appendRegistration(sheetUrl, payload, accessToken) {
   const idsResponse = await fetch(`${root}/values/${encodeURIComponent(`${tab}!A:A`)}`, { headers });
   if (!idsResponse.ok) throw new Error('Could not read giveaway registration IDs.');
   const ids = (await idsResponse.json()).values || [];
+  return { root, headers, tab, ids, spreadsheetTitle: metadata.properties?.title || 'Spreadsheet', tabTitle: selected.properties.title };
+}
+
+export async function verifySheetConnection(sheetUrl, accessToken) {
+  const destination = await readSheetDestination(sheetUrl, accessToken);
+  if (destination.ids.length && destination.ids[0][0] !== 'Registration ID') throw new Error('Use an empty tracking tab, or a tab with the TDQSYS Registration ID header in column A.');
+  return { spreadsheetTitle: destination.spreadsheetTitle, tabTitle: destination.tabTitle, emptyTab: destination.ids.length === 0 };
+}
+
+export async function appendRegistration(sheetUrl, payload, accessToken) {
+  const { root, headers, tab, ids } = await readSheetDestination(sheetUrl, accessToken);
   if (ids.some(row => row[0] === payload.registrationId)) return { alreadyDelivered: true };
   if (ids.length && ids[0][0] !== 'Registration ID') throw new Error('Use an empty tracking tab, or a tab with the TDQSYS Registration ID header in column A.');
   const row = sheetRow(payload);
