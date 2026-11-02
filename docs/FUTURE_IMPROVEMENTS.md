@@ -2,6 +2,8 @@
 
 Last reconciled with source and the manual test build: **2 November 2026**.
 
+Canonical planning document: `docs/FUTURE_IMPROVEMENTS.md`. `docs/FUTURE_IMPROVEMENTS.txt` is its synchronized text copy.
+
 This document records approved requirements, their current implementation, and remaining acceptance work. The production desktop release and public update manifest remain **1.1.28**. Development installers are installed manually; release assets and update notifications must stay unchanged until acceptance. The deployment target is **12 November 2026 at three independent locations**.
 
 ## Current implementation and verification
