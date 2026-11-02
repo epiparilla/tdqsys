@@ -412,7 +412,7 @@
 
         function startDisplay() {
             document.getElementById('start-overlay').style.display = 'none';
-            voiceEnabled = true;
+            voiceEnabled = !window.afDesktop; // Native desktop service owns queue speech.
             const unlockAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
             unlockAudio.play().catch(() => {});
             goFullscreen();

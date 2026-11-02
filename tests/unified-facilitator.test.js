@@ -51,7 +51,7 @@ test('vehicle board renders full name, unique registrant total, inline prefixed 
 function bridge(url,config,fetch) {
   let handler;
   const context={ipcMain:{handle:(_name,fn)=>{handler=fn;}},URL,PORT:8081,BASE_DIR:'isolated',RES_SERVER:'server',SUPABASE_URL:'https://cloud.test',path,AbortSignal,
-    registrationSyncStatus:{hasUrl:true},cloudSyncTick:()=>{context.pushed=true;},
+    registrationSyncStatus:{hasUrl:true},queueTicketSpeech:async()=>({speechQueued:true,speechPreparing:false}),cloudSyncTick:()=>{context.pushed=true;},
     fs:{readFileSync:()=>JSON.stringify({config})},fetch,require:()=>({status:()=>({canWrite:true})})};
   vm.runInNewContext(main.slice(main.indexOf("ipcMain.handle('af:testDrive'"),main.indexOf("ipcMain.handle('af:chooseVideos'")),context);
   return {call:body=>handler({senderFrame:{url}},body),context};
@@ -97,12 +97,37 @@ test('Print Queue displays the unchanged four-digit SE code in the queue-number 
     seCheckins:[{code:'0042',name:'Test Executive',dealership:'Toyota Dealer',operatingDay:'2026-11-01',expiresAt:'2099-11-02T00:00:00Z'}]});
   assert.equal(rendered['print-rows'].children[0].children[0].textContent,'0042');
   assert.equal(rendered['sales-rows'].children[0].children[0].textContent,'0042');assert.equal(rendered['sales-rows'].children[0].children[2].textContent,'Toyota Dealer');
+  assert.equal(rendered['sales-rows'].children[0].children[6].children[0].textContent,'Reprint');
+});
+
+test('Master Table shows the linked agent name and its complete four-digit code',()=>{
+  const rendered=board({models:[{id:'model',full_name:'RAV4'}],entries:[{id:'entry',vehicle_model_id:'model',queue_number:1,status:'waiting',agentName:'Test Agent',agentCode:'0042',registrations:{full_name:'Test Client'}}],printJobs:[]});
+  assert.equal(rendered['master-rows'].children[0].children[2].textContent,'Test Agent / 0042');
+});
+
+test('client labels use complete prefixed numbers and the same large-code layout as SE slips',()=>{
+  const context={};vm.createContext(context);vm.runInContext(extractFunction(main,'formatClientLabel')+'\n'+extractFunction(main,'buildPrintLabelHtml'),context);
+  for(const number of [1,9,99,100]) {
+    const label=context.formatClientLabel({kind:'client_ticket',header:'GX3 PRO',brandKey:'toyota',unit:1,queueNumber:number},config);
+    assert.equal(label.value,'AA'+String(number).padStart(2,'0'));
+    const html=context.buildPrintLabelHtml(label);assert.match(html,/client-ticket large-code/);assert.ok(html.includes(`<p>${label.value}</p>`));
+  }
+  assert.throws(()=>context.formatClientLabel({kind:'client_ticket',brandKey:'foreign',unit:1,queueNumber:1},config),/mapping changed/);
+});
+
+test('desktop queues ticket speech through its private local service instead of a renderer Audio element',async()=>{
+  let sent;
+  const context={TTS_PORT:9000,TTS_PLAYBACK_TOKEN:'private-test',AbortSignal,fetch:async(url,options)=>{sent={url,options};return Response.json({queued:true,cacheReady:true});}};
+  vm.createContext(context);vm.runInContext(extractFunction(main,'queueTicketSpeech'),context);
+  const result=await context.queueTicketSpeech('callback',{brand_key:'toyota',unit_index:1},7);
+  assert.equal(result.speechQueued,true);assert.equal(sent.options.headers['X-TDQSYS-Playback'],'private-test');assert.equal(JSON.parse(sent.options.body).number,7);
+  assert.doesNotMatch(source,/new Audio\(|result.audioUrl/);
 });
 
 test('SE label is 50 by 30mm with a 36pt code and auto-fits the name without shrinking the code',()=>{
   const context={};vm.createContext(context);vm.runInContext(extractFunction(main,'buildPrintLabelHtml'),context);
   const html=context.buildPrintLabelHtml({kind:'se_code_slip',header:'Long <Executive> Name',value:'0042'});
-  assert.match(html,/size:50mm 30mm/);assert.match(html,/\.se-code p\{font-size:36pt/);assert.match(html,/Long &lt;Executive&gt; Name/);assert.match(html,/<p>0042<\/p>/);
+  assert.match(html,/size:50mm 30mm/);assert.match(html,/\.large-code p\{font-size:36pt/);assert.match(html,/Long &lt;Executive&gt; Name/);assert.match(html,/<p>0042<\/p>/);
   const header={style:{fontSize:'32px'},clientHeight:38,clientWidth:174};const number={style:{fontSize:'36pt'}};
   const name={getBoundingClientRect:()=>({height:parseFloat(header.style.fontSize)*4}),get scrollWidth(){return 174;}};
   header.querySelector=()=>name;context.document={querySelector:tag=>tag==='h1'?header:number,body:{classList:{contains:()=>true}}};

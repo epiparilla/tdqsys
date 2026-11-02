@@ -13,25 +13,24 @@ The current manual installer is `app/dist-test-drive/tdqsys-test-drive-1.1.28.ex
 | Area | Current manual-build status |
 | --- | --- |
 | Restore | Preserves the destination Instance ID, writer credential and licence binding, shows source/destination identities, and retains a queue-state safety copy. |
-| Speech | Packaged Kokoro voices, default/fallback voice, normal prefix/main/suffix templates, validated placeholders, and local voice/announcement/call-back previews are implemented. |
+| Speech | Packaged Kokoro voices, templates and previews are implemented. Ongoing/Call Back use a private desktop-owned FIFO player with persistent voice/text-specific clips, prefixed tickets and background preparation; playback continues across facilitator pages. |
 | Registration | Separate location-scoped client and SE forms; required four-step client form, consent snapshots, SE-code validation/prefill, multi-model tickets, duplicate checks and submission idempotency are implemented. |
 | Facilitator pages | The former plus/minus dashboard is replaced by the test-drive board. Separate Master Table, Print Queue, Sales Executives and Event Setup pages are implemented. Brand 2 has its own enabled-only board. |
 | Dashboard layout | Black background, centered heading/buttons, configured brand Controls heading/accent, at most three visible wide model columns, horizontal scrolling and one-line client/action rows are implemented. |
 | First-render appearance | The local engine embeds saved brand names/colors before the page renders. Inter is bundled/preloaded locally, and status text has reserved space. Branding and initial styling do not wait for the cloud snapshot or Google Fonts. |
 | Queue/display | One ongoing client per model; selecting Ongoing completes only that model's previous client and updates its local/TV number through the existing queue mirror. |
-| Printing | Windows printer selection, 50 x 30 mm client labels, separate per-model jobs, exclusive claims, failure recovery, passed-number reissue and SE slips are implemented. SE codes appear in Print Queue's queue-number column; SE names auto-fit and the code prints at 36pt. |
+| Printing | Windows printer selection, 50 x 30 mm labels, separate per-model jobs, exclusive claims, recovery and reissue are implemented. SE names and client model shortnames auto-fit; both code/number sizes start at 36pt. Client labels include the complete prefix and at least two digits (AA01, AA100). Active SE codes can be requeued from Sales Executives. |
 | Driver integration | The installer bundles `NiimbotPrinterDriverInstaller-3.0.2.1.exe`. Registered NIIMBOT drivers/vendor driver packages are detected and skipped; otherwise the signed vendor setup opens for installation/model selection. |
 | Reset controls | Event Setup starts a new queue run and resets all model/TV numbers. Settings clears display counters only. The separate SE reset deactivates today's codes and permits fresh check-ins. All preserve client records. |
 | Google Sheets | Saved location Settings sync automatically; the desktop-owned worker retries raw-registration jobs every 15 seconds while TDQSYS runs, independently of the open page. Daily tabs, headers and duplicate-delivery checks are implemented. |
 
-Recorded verification: **268 automated tests passed, three optional skips, and 15 PostgreSQL integration checks passed**. Live disposable-location checks covered SE/client registration, code previews, print claims, per-run history, and SE reset with fresh registration. Packaged resources and the unchanged released installer were checked. These are recorded results, not a claim that every manual acceptance criterion below is complete.
+Recorded verification: **272 Node tests passed, three optional skips, 16 PostgreSQL integration checks and four Python speech checks passed**. Live disposable-location checks covered Master Table agent identity/code, SE reprint, client label metadata, callback mapping, registration, per-run history and SE reset. The rebuilt packaged speech engine reused prepared clips with a 3.34 ms median cached HTTP assembly time and completed two FIFO jobs with physical playback suppressed. This is assembly timing, not speaker latency. These recorded results do not replace physical/manual acceptance.
 
 Physical labels, a clean-machine NIIMBOT installation, the installed-app visual recheck of the red-accent flash fix, and the complete three-location walkthrough remain manual acceptance work. See [TEST_DRIVE_TEST_BUILD.md](TEST_DRIVE_TEST_BUILD.md) for setup, build and acceptance instructions.
 
 ### Remaining approved requirements and implementation gaps
 
 - Verify the startup/model-availability gate and clear administrator-facing reporting when registration configuration cannot sync. Automatic Settings synchronization currently retries in the desktop background.
-- The call-back requirement below uses a prefixed ticket such as `AA01`; the current native call-back bridge formats its numeric ticket only. Prefix-aware call-back wording remains to be completed/verified.
 - Extend authorized historical browsing/export beyond the Master Table's current **Earlier runs today** view if prior-day lead lookup is required in the app. Database records remain retained.
 - Complete the export/confirmation flow around retiring models with registrants and the broader settings/export audit requirements. Soft retirement and CSV backup are present; the full acceptance flow remains pending.
 - The header currently reports overall **ticket** count; per-model counts use distinct registrations. An overall distinct-client total remains a separate acceptance item.
@@ -218,9 +217,9 @@ Each vehicle model may have one `ongoing` test-drive entry at a time. Different 
 | --- | --- |
 | Primary brand Queue Board | `dashboard.html`; the configured primary brand name appears in navigation. |
 | Brand 2 Queue Board | `dashboard-brand2.html`; linked when Brand 2 is enabled. Each board filters its own models and uses its saved brand accent. |
-| Master Table | `master-table.html`; current-run search, earlier same-day history, reprint/reissue, and add/change model actions. |
+| Master Table | `master-table.html`; agent name/code, current-run search, earlier same-day history, compact reprint/reissue and add/change model actions. |
 | Print Queue | `print-queue.html`; printer selection, queue numbers or SE codes in the first column, print attempts and recovery. |
-| Registered Sales Exec Master List | `sales-executives.html`; name/dealership search, active codes, expiry, history and a dedicated confirmed SE reset. |
+| Registered Sales Exec Master List | `sales-executives.html`; name/dealership search, active codes, expiry, history, active-code reprint and a dedicated confirmed SE reset. |
 | Event Setup / QR Codes | `event-setup.html`; both registration QR codes, manual Settings sync, CSV backup and queue-run reset. |
 | Compatibility address | `test-drive-operations.html` redirects to the Facilitator Dashboard. |
 
@@ -273,7 +272,7 @@ Claiming a print entry must be atomic, so an accidental double-click or later mu
 - Create and commit all selected-model queue records before starting any print job.
 - Print one queue number for every vehicle model selected by the client. For example, selecting three models produces three queue entries and three printed queue numbers.
 - Each printed item must identify the relevant vehicle model and show the queue number assigned by that model's table or queue record.
-- The NIMBOT B1 label size is **50 mm × 30 mm**. Its layout is the configured printable shortname `[Header]` on the first line and `[Queue no.]` below it. The header is bold and uses a larger font than the queue number.
+- The NIMBOT B1 label size is **50 mm × 30 mm**. Its layout is the configured printable shortname `[Header]` on the first line and `[Queue no.]` below it. The latest approved layout auto-fits the bold model shortname like the SE name and uses the same 36pt size for the complete prefixed queue number; exceptionally long values shrink to fit.
 - Keep the client label to the approved two-line `[Header]` and `[Queue no.]` layout. Registration timestamps remain in stored records. SE slips use the SE name as an auto-fitted header and the four-digit code at 36pt, preserving leading zeros.
 - Use the configured NIMBOT B1 label printer; provide a clear retry/reprint action when it is unavailable, disconnected, offline, or out of labels.
 - A print failure must not discard the submitted registration or issue a different queue number on retry. The failed entry remains visible in the facilitator Print Queue until it is printed or deliberately cancelled.

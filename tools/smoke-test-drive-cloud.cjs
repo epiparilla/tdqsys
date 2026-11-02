@@ -74,7 +74,9 @@ async function main() {
     assert.deepEqual(await publicPost('registrations',submission,requestKey),registration);
     const duplicate=await publicPost('registrations',submission,crypto.randomUUID()); assert.equal(duplicate.entries[0].existing,true);
     console.log('PASS live ticket allocation, idempotent retry, and duplicate-name/model handling.');
-    const staffSnapshot=await operation({action:'snapshot',includePrintCodes:true,includeSalesExecutives:true});
+    const staffSnapshot=await operation({action:'snapshot',includeAgentCodes:true,includePrintCodes:true,includeSalesExecutives:true});
+    assert.equal(staffSnapshot.entries[0].agentName,'Verification Sales Executive');
+    assert.equal(staffSnapshot.entries[0].agentCode,se.code);
     const jobs=staffSnapshot.printJobs;
     const seJob=jobs.find(j=>j.kind==='se_code_slip');
     assert.equal(seJob.seCode,se.code);assert.equal(staffSnapshot.seCheckins[0].code,se.code);
@@ -83,6 +85,20 @@ async function main() {
     console.log('PASS private Print Queue code preview and registered SE master list.');
     const slip=await operation({action:'claim-print',jobId:seJob.id}); assert.equal(slip.label.value,se.code);
     await operation({action:'print-result',jobId:seJob.id,status:'failed',error:'Automated cloud check; no physical printing attempted.'});
+    const checkinId=staffSnapshot.seCheckins[0].id;
+    assert.equal((await operation({action:'reprint-se-code',checkinId})).jobId,seJob.id);
+    await operation({action:'claim-print',jobId:seJob.id});
+    await operation({action:'print-result',jobId:seJob.id,status:'printed'});
+    const reprint=await operation({action:'reprint-se-code',checkinId});assert.notEqual(reprint.jobId,seJob.id);
+    const repeatedSlip=await operation({action:'claim-print',jobId:reprint.jobId});assert.equal(repeatedSlip.label.value,se.code);
+    await operation({action:'print-result',jobId:reprint.jobId,status:'failed',error:'Simulated spool result; no physical printing attempted.'});
+    const clientJob=jobs.find(j=>j.kind==='client_ticket');
+    const clientLabel=(await operation({action:'claim-print',jobId:clientJob.id})).label;
+    assert.equal(clientLabel.queueNumber,1);assert.equal(clientLabel.brandKey,'brand1');assert.equal(clientLabel.unit,1);
+    await operation({action:'print-result',jobId:clientJob.id,status:'failed',error:'No physical printing attempted.'});
+    const callback=await operation({action:'callback',entryId:registration.entries[0].entryId});
+    assert.deepEqual(callback.model,{brand_key:'brand1',unit_index:1});assert.equal(callback.ticket,1);
+    console.log('PASS Master Table agent identity/code, SE slip reprint, complete client label metadata and callback mapping.');
     await operation({action:'ongoing',entryId:registration.entries[0].entryId});
     console.log('PASS matching Pages/Edge encryption keys, print claim, and Ongoing operation.');
     // A gid no longer chooses the destination: the worker uses its daily tab.

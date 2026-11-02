@@ -75,6 +75,11 @@ Deno.serve(async (req) => {
       if (error) throw error;
       return Response.json(data,{headers:cors});
     }
+    if (body.action === 'reprint-se-code' && body.checkinId) {
+      const {data,error}=await admin.rpc('tdqsys_reprint_se_code',{p_instance_id:instanceId,p_checkin_id:body.checkinId});
+      if(error)throw error;
+      return Response.json(data,{headers:cors});
+    }
     if (body.action === 'snapshot') {
       const { error: ensureError } = await admin.rpc('tdqsys_ensure_daily_run', { p_instance_id: instanceId });
       if (ensureError) throw ensureError;
@@ -84,7 +89,7 @@ Deno.serve(async (req) => {
       if (modelError) throw modelError;
       if (!run) return Response.json({ run: null, models, entries: [], printJobs: [] }, { headers: cors });
       const { data: entries, error: entryError } = await admin.from('test_drive_entries')
-        .select('*,registrations(full_name,email,city_address,contact_number)')
+        .select('*,registrations(full_name,email,city_address,contact_number,se_daily_checkins(code_ciphertext,sales_executives(name)))')
         .eq('instance_id', instanceId).eq('queue_run_id', run.id).order('queue_number');
       if (entryError) throw entryError;
       const { data: printJobs, error: printError } = await admin.from('print_jobs').select('*,se_daily_checkins(expires_at,code_ciphertext,sales_executives(name))')
@@ -96,7 +101,7 @@ Deno.serve(async (req) => {
         const { data: earlierRuns, error } = await admin.from('queue_runs').select('id').eq('instance_id', instanceId).eq('operating_day', run.operating_day).eq('status','closed');
         if (error) throw error;
         if (earlierRuns?.length) {
-          const { data, error: historyError } = await admin.from('test_drive_entries').select('*,registrations(full_name,email,city_address,contact_number),vehicle_models(full_name)')
+          const { data, error: historyError } = await admin.from('test_drive_entries').select('*,registrations(full_name,email,city_address,contact_number,se_daily_checkins(code_ciphertext,sales_executives(name))),vehicle_models(full_name)')
             .eq('instance_id', instanceId).in('queue_run_id',earlierRuns.map(r => r.id)).order('issued_at');
           if (historyError) throw historyError;
           earlierEntries = data || [];
@@ -104,6 +109,18 @@ Deno.serve(async (req) => {
       }
       const { data: display, error: displayError } = await admin.from('display_state').select('*').eq('instance_id', instanceId).maybeSingle();
       if (displayError) throw displayError;
+      const agentCodes=new Map();
+      for(const entry of [...(entries||[]),...earlierEntries]) {
+        const checkin=entry.registrations?.se_daily_checkins;
+        if(checkin) {
+          entry.agentName=checkin.sales_executives?.name || '';
+          if(body.includeAgentCodes===true) {
+            if(!agentCodes.has(checkin.code_ciphertext))agentCodes.set(checkin.code_ciphertext,await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY')));
+            entry.agentCode=agentCodes.get(checkin.code_ciphertext);
+          }
+          delete entry.registrations.se_daily_checkins;
+        }
+      }
       const pendingPrintJobs = (printJobs || []).filter(j => j.kind === 'se_code_slip'
         ? new Date(j.se_daily_checkins?.expires_at || 0).getTime() > Date.now() : activeIds.has(j.test_drive_entry_id));
       for (const job of pendingPrintJobs) {
@@ -137,11 +154,11 @@ Deno.serve(async (req) => {
       return Response.json({ entry: data }, { headers: cors });
     }
     if (body.action === 'callback' && body.entryId) {
-      const { data, error } = await admin.from('test_drive_entries').select('queue_number,vehicle_models(full_name),queue_runs(status)')
+      const { data, error } = await admin.from('test_drive_entries').select('queue_number,vehicle_models(full_name,brand_key,unit_index),queue_runs(status)')
         .eq('id',body.entryId).eq('instance_id',instanceId).single();
       if (error) throw error;
       if (data.queue_runs.status !== 'active') throw new Error('This ticket belongs to an earlier run.');
-      return Response.json({ ticket: data.queue_number, modelName: data.vehicle_models.full_name }, { headers: cors });
+      return Response.json({ticket:data.queue_number,modelName:data.vehicle_models.full_name,model:{brand_key:data.vehicle_models.brand_key,unit_index:data.vehicle_models.unit_index}},{headers:cors});
     }
     if (body.action === 'reissue' && body.entryId) {
       const { data, error } = await admin.rpc('tdqsys_reissue_ticket', { p_instance_id: instanceId, p_entry_id: body.entryId, p_model_id: body.modelId || null, p_cancel_source: body.cancelSource === true });

@@ -3,6 +3,7 @@
   const byId = id => document.getElementById(id);
   let snapshot = { entries: [], models: [], printJobs: [] };
   let busy = false;
+  let actionGeneration = 0;
   let licenceCanWrite = false;
   let licenceStatus = null;
   function applyLicenceLock(st) {
@@ -112,6 +113,12 @@
       const row = document.createElement('tr');
       cell(row,checkin.code || 'Expired'); cell(row,checkin.name); cell(row,checkin.dealership);
       cell(row,checkin.operatingDay); cell(row,new Date(checkin.expiresAt).toLocaleString()); cell(row,checkin.revokedAt ? 'Reset' : checkin.code ? 'Active' : 'Expired');
+      const action=document.createElement('td');
+      if(checkin.code) {
+        const button=document.createElement('button');button.textContent='Reprint';button.dataset.write='';
+        button.onclick=()=>mutate({action:'reprint-se-code',checkinId:checkin.id});action.appendChild(button);
+      }
+      row.appendChild(action);
       byId('sales-rows').appendChild(row);
     }
   }
@@ -122,8 +129,9 @@
     for (const entry of list.filter(e => (e.registrations?.full_name || '').toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
       cell(row, formatTicket(entry,snapshot.models.find(m => m.id === entry.vehicle_model_id) || entry.vehicle_models)); cell(row, entry.registrations?.full_name);
+      cell(row,[entry.agentName,entry.agentCode].filter(Boolean).join(' / '));
       cell(row, snapshot.models.find(m => m.id === entry.vehicle_model_id)?.full_name || entry.vehicle_models?.full_name); cell(row, entry.status);
-      const actions = document.createElement('td');
+      const actions = document.createElement('td'); actions.className='master-actions';
       const reissue = document.createElement('button'); reissue.textContent = byId('history').checked ? 'Issue in current run' : 'Reprint / issue new number';
       reissue.onclick = () => mutate({ action: 'reissue', entryId: entry.id }); actions.appendChild(reissue);
       const selection = document.createElement('select'); selection.add(new Option('Select another model', ''));
@@ -144,19 +152,24 @@
     applyLicenceLock(licenceStatus);
   }
   async function refresh() {
-    snapshot = await request({ action: 'snapshot', history: byId('history').checked,
-      includePrintCodes:document.body.dataset.view === 'prints', includeSalesExecutives:document.body.dataset.view === 'sales',salesHistory:byId('sales-history').checked }); render();
+    const generation=actionGeneration;
+    const next = await request({ action: 'snapshot', history: byId('history').checked,
+      includeAgentCodes:document.body.dataset.view === 'master',includePrintCodes:document.body.dataset.view === 'prints', includeSalesExecutives:document.body.dataset.view === 'sales',salesHistory:byId('sales-history').checked });
+    if(generation!==actionGeneration)return;
+    snapshot=next;render();
   }
   async function mutate(body) {
-    if (busy || !licenceCanWrite) return; busy = true; applyLicenceLock(licenceStatus); byId('message').textContent = 'Saving...';
+    if (busy || !licenceCanWrite) return; busy = true; actionGeneration++; applyLicenceLock(licenceStatus);
+    byId('message').textContent = body.action==='callback' ? 'Queuing announcement...' : body.action==='ongoing' ? 'Updating queue...' : 'Saving...';
     try {
       const result = await request(body);
-      if (result.audioUrl) { const audio = new Audio(result.audioUrl); await audio.play(); }
-      await refresh(); byId('message').textContent = body.action === 'reset-sales-executives'
+      byId('message').textContent = body.action==='reprint-se-code' ? 'SE slip queued in Print Queue.' : body.action === 'reset-sales-executives'
         ? `${result.deactivated} SE code(s) deactivated. SEs may register again. Client registrations, queues and TV numbers are unchanged.`
         : body.action === 'reset'
         ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and SE history are retained.'
-        : result.audioUrl ? 'Call-back announcement playing.' : 'Saved.';
+        : result.speechError ? `Queue action completed. ${result.speechError}`
+        : result.speechQueued ? result.speechPreparing ? 'Announcement queued; preparing missing audio clips.' : 'Announcement queued.' : 'Saved.';
+      refresh().catch(error=>{byId('message').textContent=`Action completed. Refresh failed: ${error.message}`;});
     }
     catch (error) { byId('message').textContent = error.message; }
     finally { busy = false; applyLicenceLock(licenceStatus); }

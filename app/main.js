@@ -13,6 +13,7 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const TTS_PLAYBACK_TOKEN = crypto.randomBytes(32).toString('hex');
 
 const IS_PACKAGED = app.isPackaged;
 const APP_DIR = __dirname;
@@ -203,7 +204,7 @@ function startTTS() {
         // Installed build: packaged PyInstaller exe, run directly (no python on PATH).
         ttsProcess = spawn(TTS_PATH, [], {
             cwd: path.dirname(TTS_PATH),
-            env: { ...process.env, AF_DATA_DIR: BASE_DIR, AF_TTS_PORT: String(TTS_PORT) },
+            env: { ...process.env, AF_DATA_DIR: BASE_DIR, AF_TTS_PORT: String(TTS_PORT), AF_TTS_PLAYBACK_TOKEN:TTS_PLAYBACK_TOKEN },
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true   // packaged TTS console-subsystem exe: keep it hidden
         });
@@ -212,7 +213,7 @@ function startTTS() {
         const python = process.env.AF_PYTHON || 'python';
         ttsProcess = spawn(python, [TTS_PATH], {
             cwd: path.dirname(TTS_PATH),
-            env: { ...process.env, AF_DATA_DIR: BASE_DIR, AF_TTS_PORT: String(TTS_PORT) },
+            env: { ...process.env, AF_DATA_DIR: BASE_DIR, AF_TTS_PORT: String(TTS_PORT), AF_TTS_PLAYBACK_TOKEN:TTS_PLAYBACK_TOKEN },
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true   // dev python console: keep it hidden (darwin/linux: no-op)
         });
@@ -893,21 +894,44 @@ function killPortHolders(ports) {
     }
 }
 
+async function queueTicketSpeech(kind, model, number) {
+    try {
+        const response=await fetch(`http://127.0.0.1:${TTS_PORT}/api/play-ticket`,{
+            method:'POST',signal:AbortSignal.timeout(2000),headers:{'Content-Type':'application/json','X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN},
+            body:JSON.stringify({kind,brandKey:model.brand_key,unit:model.unit_index,number})
+        });
+        if(!response.ok)throw Error('Speech service is not ready. Use Call Back to retry the announcement.');
+        const speech=await response.json();
+        return {speechQueued:!!speech.queued,speechPreparing:!speech.cacheReady};
+    } catch(error) {return {speechQueued:false,speechError:error.message};}
+}
+
+function formatClientLabel(label, config) {
+    if(label.kind!=='client_ticket')return label;
+    const model=(config.brands||[]).find(brand=>brand.key===label.brandKey)?.models?.[label.unit-1];
+    if(!model || !Number.isInteger(label.queueNumber) || label.queueNumber<1) throw Error('Vehicle label mapping changed. Sync Settings before printing.');
+    return {...label,value:(model.prefix||'')+String(label.queueNumber).padStart(2,'0')};
+}
+
 function buildPrintLabelHtml(label) {
     const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const seCode = label.kind === 'se_code_slip';
-    return `<html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}body{margin:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Arial;text-align:center;overflow:hidden}h1{font-size:24pt;line-height:1.05;margin:1mm 2mm;font-weight:900;max-width:46mm;overflow-wrap:anywhere}p{font-size:18pt;font-weight:700;margin:1mm}.se-code h1{width:46mm;height:10mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.se-code h1 span{width:100%;overflow-wrap:anywhere}.se-code p{font-size:36pt;line-height:1.05;flex-shrink:0;margin:1mm 0;white-space:nowrap}</style></head><body class="${seCode?'se-code':'client-ticket'}"><h1><span>${escape(label.header)}</span></h1><p>${escape(label.value)}</p></body></html>`;
+    return `<html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}body{margin:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Arial;text-align:center;overflow:hidden}h1{font-size:24pt;line-height:1.05;margin:1mm 2mm;font-weight:900;max-width:46mm;overflow-wrap:anywhere}p{font-size:18pt;font-weight:700;margin:1mm}.large-code h1{width:46mm;height:10mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.large-code h1 span{width:100%;overflow-wrap:anywhere}.large-code p{font-size:36pt;max-width:46mm;line-height:1.05;flex-shrink:0;margin:1mm 0;white-space:nowrap}</style></head><body class="${seCode?'se-code':'client-ticket'} large-code"><h1><span>${escape(label.header)}</span></h1><p>${escape(label.value)}</p></body></html>`;
 }
 
 function fitPrintLabel() {
     const header = document.querySelector('h1'), number = document.querySelector('p');
     let size = 32;
-    if (document.body.classList.contains('se-code')) {
+    if (document.body.classList.contains('large-code')) {
         const name = header.querySelector('span');
         while (size > 6 && (name.getBoundingClientRect().height > header.clientHeight || name.scrollWidth > header.clientWidth)) {
             size -= 0.5; header.style.fontSize = size + 'px';
         }
-        return; // Keep the four-digit code at exactly 36pt.
+        let numberSize=48;
+        while(numberSize>12 && number.scrollWidth>number.clientWidth) {
+            numberSize-=0.5;number.style.fontSize=numberSize+'px';
+        }
+        return; // Normal four-character ticket/code remains 36pt.
     }
     while (size > 16 && document.body.scrollHeight > document.body.clientHeight) {
         size--; header.style.fontSize = size + 'px'; number.style.fontSize = Math.max(12,size-4) + 'px';
@@ -924,7 +948,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
         const cfg = state.config || {};
@@ -953,15 +977,14 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || `Queue service returned ${response.status}.`);
         if (request.action === 'callback') {
-            const text = `${cfg.testDrive?.callbackPrefix || 'Test driver'} ${String(result.ticket).padStart(2,'0')} ${cfg.testDrive?.callbackSuffix || 'please stand by, you are next in line to test'} ${result.modelName}`;
-            return { ok: true, audioUrl: `http://localhost:${cfg.ttsPort || 8001}/api/announcement?voice=${encodeURIComponent(cfg.announcements?.voice || 'af_heart')}&text=${encodeURIComponent(text)}` };
+            return {ok:true,...await queueTicketSpeech('callback',result.model,result.ticket)};
         }
         if (printerName) {
             const label = result.label;
             const printWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
             let printError;
             try {
-                const html = buildPrintLabelHtml(label);
+                const html = buildPrintLabelHtml(formatClientLabel(label,cfg));
                 await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
                 await printWindow.webContents.executeJavaScript(`(${fitPrintLabel.toString()})()`);
                 await new Promise((resolve, reject) => printWindow.webContents.print({ silent: true, deviceName: printerName,
@@ -995,6 +1018,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             });
             if (!saved.ok) throw new Error('Queue action saved in the cloud; local display update failed. Retry Ongoing to reconcile it.');
             cloudSyncTick();
+            if(request.action==='ongoing') Object.assign(result,await queueTicketSpeech('ongoing',result.model,result.entry.queue_number));
         }
         if (request.action === 'snapshot') {
             const firstBrandCount = (cfg.brands || []).find(brand => brand.key === 'brand1')?.models?.length || 0;

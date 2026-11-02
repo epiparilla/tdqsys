@@ -114,6 +114,14 @@ test('private snapshots expose active SE codes only on requested staff views and
   assert.ok(read.filters.some(([key,value])=>key==='instance_id'&&value===INSTANCE));
   assert.ok(read.filters.some(([key,value])=>key==='operating_day'&&value==='2026-11-01'));
   assert.ok(read.filters.some(([key,value])=>key==='revoked_at'&&value===null));
+  const linked=records();linked.test_drive_entries=[{id:'entry',registrations:{full_name:'Test Client',se_daily_checkins:{code_ciphertext:ciphertext,sales_executives:{name:'Test SE'}}}}];
+  const master=await(await runEdge({action:'snapshot',includeAgentCodes:true},linked,environment)).response.json();
+  assert.equal(master.entries[0].agentName,'Test SE');assert.equal(master.entries[0].agentCode,'0042');assert.equal(JSON.stringify(master).includes('code_ciphertext'),false);
+});
+
+test('SE reprint always passes authenticated location ownership to its RPC',async()=>{
+  const {response,calls}=await runEdge({action:'reprint-se-code',checkinId:'checkin'});
+  assert.equal(response.status,200);const action=calls.find(c=>c.rpc);assert.equal(action.rpc,'tdqsys_reprint_se_code');assert.equal(action.args.p_instance_id,INSTANCE);
 });
 
 test('SE reset requires confirmation and supplies authenticated ownership to its transaction',async()=>{

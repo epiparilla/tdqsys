@@ -486,7 +486,7 @@
         // just error, and the ad overlay has nothing to unlock.
         function startViewer() {
             const onLocalBox = afIsLocal();
-            voiceEnabled = onLocalBox;
+            voiceEnabled = onLocalBox && !window.afDesktop;
             if (onLocalBox) fetchLocalVideos();
         }
 

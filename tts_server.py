@@ -6,14 +6,18 @@ import shutil
 import hashlib
 import json
 import threading
+import secrets
+import asyncio
 from collections import OrderedDict
 import soundfile as sf
 import numpy as np
 import re
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from kokoro_onnx import Kokoro
+from speech_segments import SegmentCache
+from speech_service import DesktopSpeech
 
 app = FastAPI()
 
@@ -243,7 +247,8 @@ def render_and_cache(text, key, voice="af_heart", speed=1.0, lang="en-us"):
     best-effort save to disk. A disk write failure must never block playback —
     the in-memory copy is what the announce path actually plays."""
     global global_sr
-    raw, sr = kokoro.create(text, voice=voice, speed=speed, lang=lang)
+    with speech_lock:
+        raw, sr = kokoro.create(text, voice=voice, speed=speed, lang=lang)
     trimmed = trim_silence(raw)
     global_sr = sr
     AUDIO_CACHE[key] = trimmed
@@ -257,7 +262,8 @@ def render_and_cache_number(num_str, voice="af_heart", speed=1.0, lang="en-us"):
     """Render a number clip, store in memory first, then best-effort to disk."""
     global global_sr
     spaced_num = " ".join(num_str)
-    raw, sr = kokoro.create(spaced_num, voice=voice, speed=speed, lang=lang)
+    with speech_lock:
+        raw, sr = kokoro.create(spaced_num, voice=voice, speed=speed, lang=lang)
     trimmed = trim_silence(raw)
     global_sr = sr
     AUDIO_CACHE[spaced_num] = trimmed
@@ -442,8 +448,8 @@ try:
         # clip is saved as it's done, and the dynamic continuous renderer below
         # extends past 150 as needed).
         load_available_from_cache()
-        threading.Thread(target=background_render_speakers, daemon=True).start()
-        threading.Thread(target=background_render_range, args=(1, 150), daemon=True).start()
+        # The desktop clip worker below now fills voice-specific caches. Avoid
+        # competing legacy synthesis sweeps during live announcements.
     
 except Exception as e:
     print(f"Failed to load model or render audio: {e}")
@@ -461,6 +467,80 @@ def resolve_voice(requested=''):
     available = kokoro.get_voices() if kokoro else []
     candidate = requested or saved_voice()
     return candidate if candidate in available else DEFAULT_VOICE
+
+
+def _desktop_state():
+    with open(DATA_FILE, 'r', encoding='utf-8-sig') as stream:
+        return json.load(stream)
+
+
+def _render_segment(text, voice, speed):
+    with speech_lock:
+        samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang='en-us')
+    buffer = io.BytesIO()
+    sf.write(buffer, trim_silence(samples), sample_rate, format='WAV', subtype='PCM_16')
+    return buffer.getvalue()
+
+
+def _seed_number(text, voice, speed):
+    if voice == DEFAULT_VOICE and speed == 1.0 and re.fullmatch(r'\d(?: \d)*', text):
+        filename = number_cache_path(text.replace(' ', ''))
+        if os.path.exists(filename):
+            with open(filename, 'rb') as stream:
+                return stream.read()
+    return None
+
+
+def _play_desktop_audio(audio):
+    if os.environ.get('AF_TTS_DISABLE_PLAYBACK') == '1':
+        return
+    import winsound
+    winsound.PlaySound(audio, winsound.SND_MEMORY)
+
+
+desktop_cache = SegmentCache(os.path.join(CACHE_DIR, 'segments-v1'), _render_segment, _seed_number)
+desktop_speech = DesktopSpeech(desktop_cache, _desktop_state, resolve_voice, _play_desktop_audio,
+                              warmup=os.environ.get('AF_TTS_DISABLE_WARMUP') != '1')
+
+
+def _desktop_authorized(request):
+    token = os.environ.get('AF_TTS_PLAYBACK_TOKEN', '')
+    return bool(token and request.client and request.client.host in ('127.0.0.1', '::1') and
+                secrets.compare_digest(token, request.headers.get('X-TDQSYS-Playback', '')))
+
+
+@app.post('/api/play-ticket')
+async def play_ticket(request: Request):
+    if not _desktop_authorized(request):
+        return Response(status_code=403)
+    if not kokoro:
+        return Response(content='Speech service is starting.', status_code=503)
+    try:
+        return desktop_speech.enqueue(await request.json())
+    except (ValueError, TypeError, KeyError) as error:
+        return Response(content=str(error), status_code=400)
+
+
+@app.get('/api/speech-status')
+async def speech_status(request: Request):
+    if not _desktop_authorized(request):
+        return Response(status_code=403)
+    return desktop_speech.status()
+
+
+@app.post('/api/prepare-ticket')
+@app.post('/api/ticket-audio')
+async def prepare_ticket(request: Request):
+    if not _desktop_authorized(request):
+        return Response(status_code=403)
+    try:
+        parts, voice = desktop_speech.plan(await request.json())
+        audio = await asyncio.to_thread(desktop_cache.compose, parts, voice)
+        if request.url.path == '/api/ticket-audio':
+            return Response(content=audio, media_type='audio/wav', headers={'X-TDQSYS-Voice':voice})
+        return {'ready':True,'clips':len(parts)}
+    except (ValueError, TypeError, KeyError) as error:
+        return Response(content=str(error), status_code=400)
 
 
 @app.get('/api/voices')

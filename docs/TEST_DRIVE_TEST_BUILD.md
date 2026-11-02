@@ -33,6 +33,16 @@ GitHub assets or `public/version.json` before acceptance.
   Google Sheets URL.
 - Local speech: packaged Kokoro voice list, safe fallback, prefix/main/suffix
   templates, validated placeholders, and voice/announcement/call-back previews.
+  Ongoing and Call Back now queue a private desktop-owned FIFO player. It
+  prepares separate phrase, model/prefix and number clips, stitches PCM audio
+  and keeps playing while facilitator pages change. Clips persist by text,
+  voice and speed; changed Settings prepare new clips. Numbers 00-150 are
+  prepared initially, with an additional range ahead of the displayed number.
+  Missing clips can require synthesis after startup or Settings changes.
+  The packaged cached assembly probe measured a 3.34 ms median; this excludes
+  cloud action time and physical speaker startup. Actual listening remains required.
+  Updating queue means committing queue status/display state; Queuing announcement
+  means handing Call Back to the desktop player. Table refresh runs afterward.
 - Backup restore: source/destination identity confirmation, destination licence
   and writer-token preservation, and a retained queue-state safety copy.
 - SE registration: daily code, encrypted slip storage, printed-slip queue.
@@ -47,6 +57,8 @@ GitHub assets or `public/version.json` before acceptance.
   Operations address redirects to the dashboard; the old plus/minus board is
   replaced. Each model column shows its full name, unique registrant total,
   then ticket prefix/number, client name, status and four actions on one line.
+  Master Table also shows the linked agent name and four-digit code, including
+  earlier same-day run entries, with compact action controls.
 - Branded dashboard: the original centered heading/button layout and black
   background are restored. Each brand has its own Controls heading and accent
   line. Brand 2 gets `dashboard-brand2.html` only when enabled in Settings.
@@ -64,6 +76,12 @@ GitHub assets or `public/version.json` before acceptance.
   SE codes appear in Print Queue's queue/code column, including leading zeros.
   The SE label keeps its four-digit code at 36pt (twice the previous 18pt) and
   fits the name within the 50 x 30mm label without shrinking the code.
+  Active codes have a Reprint button that queues a slip in Print Queue,
+  preserving its original code. An already pending/failed slip is reused;
+  a claimed slip requires output recovery first. Expired/reset codes cannot reprint.
+  Client labels now use the same auto-fit approach for the model shortname
+  and the same 36pt number size, including the full prefix and minimum two
+  digits (AA01; AA100 stays complete). Exceptionally long values shrink to fit.
 - The SE page has a dedicated confirmed reset with a required reason. It
   deactivates today's SE codes, cancels their unprinted slips, and allows fresh
   same-day SE registrations. History and client references are retained; old
@@ -145,6 +163,8 @@ The established public queue display flow remains unchanged.
    client per vehicle model rather than one across the whole location.
    Apply `202611020001_sales_executive_reset.sql` for revocable SE check-ins
    and the history-preserving SE reset transaction.
+   Apply `202611020002_ticket_labels_se_reprint.sql` for complete client label
+   metadata and the location-scoped SE reprint transaction.
 3. Deploy `test-drive-operations` with the accompanying `supabase/config.toml`
    JWT-verification setting. Its own authorization checks the installation's
    existing writer token and remote revocation record.
@@ -182,6 +202,7 @@ driver-bootstrap script and NSIS hook are tracked under `app/build/`.
 node tests\run.js
 npm.cmd install --prefix .dev-db --no-package-lock --no-audit --no-fund @electric-sql/pglite
 node tests\test-drive-db.integration.js
+python -m unittest discover -s tests -p speech_segments_test.py
 npm.cmd run --prefix app build:installer -- --config.directories.output=dist-test-drive --config.nsis.artifactName=tdqsys-test-drive-1.1.28.exe
 ```
 
@@ -189,8 +210,8 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 268 passing tests, three optional skips, and
-15 PostgreSQL integration checks. The rebuilt packaged speech engine was
+Latest automated verification: 272 passing Node tests, three optional skips,
+16 PostgreSQL integration checks and four Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
 
@@ -200,8 +221,6 @@ part of the walkthrough below.
 
 ## Remaining implementation and acceptance items
 
-- The native Call Back bridge currently formats the numeric queue ticket;
-  prefixed call-back speech such as `AA01` remains a tracked implementation gap.
 - Verify the startup model-availability gate and clear reporting when saved
   registration configuration cannot sync. Background Settings retries exist.
 - Prior-day lead browsing/export, full raw-data/consent detail viewing, broader
@@ -256,6 +275,14 @@ part of the walkthrough below.
     in Settings and with internet disconnected. If Brand 2 is enabled, confirm
     its separate board immediately uses its own saved accent. Registration data
     may still be loading; local page styling must already be correct.
+13. Start Ongoing and Call Back, then navigate to Master Table, Print Queue,
+    Sales Executives and Event Setup while speech plays. It must finish without
+    interruption. Queue another announcement: FIFO playback must finish the
+    first before starting the next. Check complete prefixed speech, saved
+    wording/voice, latency after startup and after changing speech Settings.
+14. Check agent name/code in Master Table. Reprint an active SE from its page,
+    then print the queued slip. Print client AA01 and a three-digit ticket;
+    verify complete numbers, fitted model headers and physical 50 x 30mm output.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

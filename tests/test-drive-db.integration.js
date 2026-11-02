@@ -24,6 +24,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010001_test_drive_platform.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010002_per_model_ongoing.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020001_sales_executive_reset.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020002_ticket_labels_se_reprint.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_test_drive', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms']);
@@ -76,6 +77,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       const job = (await db.query("select id from print_jobs where kind='client_ticket' limit 1")).rows[0].id;
       const payload = await rpc('tdqsys_claim_print_job', [A, job]);
       assert.ok(payload.header); assert.equal(payload.value, '01');
+      assert.equal(payload.brandKey,'brand1');assert.ok(payload.unit);assert.equal(payload.queueNumber,1);
       await assert.rejects(rpc('tdqsys_claim_print_job', [A, job]), /print job not available/);
     });
     await check('same-day reset preserves client records and restarts at one', async () => {
@@ -106,6 +108,17 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       assert.equal(await rpc('tdqsys_finish_sheet_job',[A,job.id,job.claim_token,'offline']),true);
       const saved = (await db.query('select status,next_attempt_at>now() as scheduled from sheet_sync_jobs where id=$1',[job.id])).rows[0];
       assert.equal(saved.status,'failed'); assert.equal(saved.scheduled,true);
+    });
+    await check('SE reprint reuses a pending slip, keeps its code, and refuses expired or foreign check-ins',async()=>{
+      const checkin=(await db.query('select id from se_daily_checkins where instance_id=$1',[A])).rows[0].id;
+      const firstJob=await rpc('tdqsys_reprint_se_code',[A,checkin]);
+      assert.deepEqual(await rpc('tdqsys_reprint_se_code',[A,checkin]),firstJob);
+      await db.query("update print_jobs set status='printed' where id=$1",[firstJob.jobId]);
+      const nextJob=await rpc('tdqsys_reprint_se_code',[A,checkin]);assert.notEqual(nextJob.jobId,firstJob.jobId);
+      const label=await rpc('tdqsys_claim_print_job',[A,nextJob.jobId]);assert.equal(label.ciphertext,'encrypted-test-fixture');
+      await assert.rejects(rpc('tdqsys_reprint_se_code',[A,checkin]),/being printed/);
+      await assert.rejects(rpc('tdqsys_reprint_se_code',[B,checkin]),/expired or reset/);
+      await db.query("update print_jobs set status='failed' where id=$1",[nextJob.jobId]);
     });
     await check('SE reset invalidates codes, retains clients and queues, and permits fresh same-day check-in without code reuse', async () => {
       const other=await rpc('tdqsys_register_se_checkin',[B,'Other SE','Other Dealer',today,hash('0123'),'other-cipher','2099-11-02T00:00:00Z']);
