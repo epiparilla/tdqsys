@@ -34,18 +34,7 @@
   }
   function renderBrand() {
     const brands = snapshot.brands || [{key:'brand1',name:'Brand 1',color:'#EB0A1E'}];
-    const selectedKey = document.body.dataset.brand || brands[0]?.key;
-    const selected = brands.find(brand => brand.key === selectedKey);
-    document.body.style.setProperty('--brand-accent', selected?.color || brands[0]?.color || '#EB0A1E');
-    byId('brand-controls-title').textContent = selected ? `${selected.name} CONTROLS` : 'Brand 2 is not enabled';
-    for (const [index,id] of ['brand1-link','brand2-link'].entries()) {
-      const brand = brands[index]; const link = byId(id); link.hidden = !brand;
-      if (brand) {
-        link.textContent = `${brand.name} Queue Board`;
-        if (document.body.dataset.view === 'board' && brand.key === selectedKey) link.setAttribute('aria-current','page');
-        else link.removeAttribute('aria-current');
-      }
-    }
+    const selected = applyFacilitatorBrand(brands);
     return selected ? snapshot.models.filter(model => !model.brand_key || model.brand_key === selected.key).sort((a,b) => a.unit_index-b.unit_index) : [];
   }
   function render() {

@@ -16,6 +16,7 @@ New-Item -ItemType Directory -Path (Join-Path $stage 'shared') -Force | Out-Null
 Copy-Item (Join-Path $root 'shared\config.js')     (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'shared\licence.js')    (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'shared\restore.js')    (Join-Path $stage 'shared')
+Copy-Item (Join-Path $root 'shared\facilitator-theme.js') (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'public')               (Join-Path $stage 'public') -Recurse
 Remove-Item (Join-Path $stage 'public\.wrangler') -Recurse -Force -ErrorAction SilentlyContinue
 # downloads/ = installer/portable binaries for the update-check page; they are

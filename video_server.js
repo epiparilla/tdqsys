@@ -6,6 +6,7 @@ const { defaultState, migrateLegacy, ensureInstanceId, ensureCloudWriterToken, n
 const licence = require('./shared/licence');
 const speech = require('./public/announcements');
 const { prepareRestoredState } = require('./shared/restore');
+const { FACILITATOR_PAGES, injectFacilitatorBootstrap } = require('./shared/facilitator-theme');
 
 const PORT = parseInt(process.env.AF_PORT, 10) || 80;
 // Data location: override from Electron (portable -> beside exe; installed -> %APPDATA%).
@@ -495,6 +496,11 @@ const server = http.createServer((req, res) => {
         const filePath = path.join(PUBLIC_DIR, safePath);
 
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            if (FACILITATOR_PAGES.has(safePath)) {
+                const html = injectFacilitatorBootstrap(fs.readFileSync(filePath,'utf8'),localData.config);
+                res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+                return res.end(html);
+            }
             const ext = path.extname(filePath);
             const mimeTypes = {
                 '.html': 'text/html',
@@ -502,7 +508,8 @@ const server = http.createServer((req, res) => {
                 '.css':  'text/css',
                 '.png':  'image/png',
                 '.jpg':  'image/jpeg',
-                '.svg':  'image/svg+xml'
+                '.svg':  'image/svg+xml',
+                '.woff2':'font/woff2'
             };
             res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
             return fs.createReadStream(filePath).pipe(res);

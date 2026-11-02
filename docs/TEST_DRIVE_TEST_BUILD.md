@@ -45,6 +45,12 @@ GitHub assets or `public/version.json` before acceptance.
   line. Brand 2 gets `dashboard-brand2.html` only when enabled in Settings.
   Up to three wide vehicle columns fit across; extra models scroll horizontally.
   Each client's number, name, status and four buttons share one line.
+- First-render branding comes directly from the local engine's saved config
+  in the HTML response, before styles and page scripts run. Brand 2 gets its
+  own saved accent immediately. The local bootstrap contains only brand names,
+  colors and a Sheets-configured flag. Private credentials are excluded. The
+  facilitator pages bundle Inter locally and reserve status-message space;
+  their appearance no longer waits on cloud snapshots or Google Fonts.
 - Event Setup / QR Codes (`event-setup.html`) and Registered Sales Exec Master
   List (`sales-executives.html`) are dedicated desktop pages. The SE list shows
   name, dealership, operating date, expiry and active code, with search/history.
@@ -168,7 +174,7 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 264 passing tests, three optional skips, and
+Latest automated verification: 268 passing tests, three optional skips, and
 15 PostgreSQL integration checks. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.

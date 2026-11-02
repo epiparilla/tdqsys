@@ -8,6 +8,7 @@ const crypto = require('node:crypto');
 const {PUBLIC,ROOT,extractFunction} = require('./helpers');
 const source = fs.readFileSync(path.join(PUBLIC,'test-drive-operations.js'),'utf8');
 const main = fs.readFileSync(path.join(ROOT,'app/main.js'),'utf8');
+const shell = fs.readFileSync(path.join(PUBLIC,'facilitator-shell.js'),'utf8');
 
 function element(tag='div') {
   return {tagName:tag,children:[],dataset:{},style:{setProperty(){}},value:'',checked:false,
@@ -16,8 +17,9 @@ function element(tag='div') {
 }
 function board(snapshot,brand) {
   const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','licence-locked','licence-locked-why','brand-controls-title','brand1-link','brand2-link','sales-rows','sales-search','sales-count'].map(id=>[id,element()]));
-  const context = {snapshot,byId:id=>elements[id],document:{body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
+  const context = {snapshot,byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
   vm.createContext(context);
+  vm.runInContext(extractFunction(shell,'applyFacilitatorBrand'),context);
   vm.runInContext(['cell','formatTicket','applyLicenceLock','renderBrand','renderSales','renderMaster','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
   context.render();return elements;
 }
