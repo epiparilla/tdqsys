@@ -54,7 +54,7 @@ async function main() {
     console.log('PASS Google write access (temporary verification tab created).');
     sql(`insert into public.tdqsys_queue_writers(instance_id,token_hash) values('${INSTANCE}','${crypto.createHash('sha256').update(WRITER).digest('hex')}');`);
     seeded=true;
-    await operation({action:'configure',models:[{fullName:'Verification vehicle',shortname:'VERIFY',brandKey:'brand1',unit:1}],waiver:'Verification waiver',terms:'Verification terms',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
+    await operation({action:'configure',models:[{fullName:'Verification vehicle',shortname:'VERIFY',brandKey:'brand1',unit:1}],dealerships:['Verification Dealership','Verification Branch'],waiver:'Verification waiver',terms:'Verification terms',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
     const info=await operation({action:'integration-info'});assert.equal(info.serviceAccountEmail,credentials.client_email);
     const connection=await operation({action:'test-sheets',sheetsUrl:`https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=${tabId}`});
     assert.equal(connection.connected,true);assert.match(connection.tabTitle,/^TDQSYS Reg \d{2}\/\d{2}\/\d{4}$/);
@@ -63,6 +63,10 @@ async function main() {
     console.log('PASS private authorization, configuration, and initial queue run.');
     const configResponse=await fetch(`${PREVIEW}/api/test-drive/config?id=${INSTANCE}`);
     const config=await configResponse.json(); assert.equal(config.models.length,1);
+    assert.deepEqual(config.dealerships,['Verification Dealership','Verification Branch']);
+    const unlisted=await fetch(`${PREVIEW}/api/test-drive/se-checkins`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instanceId:INSTANCE,name:'Unlisted Verification Executive',dealership:'Not configured'})});
+    assert.equal(unlisted.status,400);
+    console.log('PASS location dealership dropdown configuration and rejection of unlisted dealerships.');
     const se=await publicPost('se-checkins',{instanceId:INSTANCE,name:'Verification Sales Executive',dealership:'Verification Dealership'});
     assert.match(se.code,/^\d{4}$/);
     const verified=await publicPost('se-code',{instanceId:INSTANCE,code:se.code}); assert.equal(verified.name,'Verification Sales Executive');

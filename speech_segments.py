@@ -20,12 +20,13 @@ def ticket_plan(config, brand_key, unit, number, kind="ongoing"):
         raise ValueError("Vehicle model is not configured.")
     model = brand["models"][unit - 1]
     pronunciation = model.get("pronounce", "").strip() or " ".join(model.get("prefix", ""))
+    model_pronunciation = model.get("shortnamePronounce", "").strip() or model.get("label", "")
     digits = " ".join(str(number).zfill(2))
     speech = {**DEFAULTS, **(config.get("announcements") or {})}
     if kind == "callback":
         callback = config.get("testDrive") or {}
         parts = [callback.get("callbackPrefix") or "Test driver", pronunciation, digits,
-                 callback.get("callbackSuffix") or "please stand by, you are next in line to test", model.get("label", "")]
+                 callback.get("callbackSuffix") or "please stand by, you are next in line to test", model_pronunciation]
     elif kind == "ongoing":
         text = " ".join(speech[key] for key in ("prefix", "template", "suffix"))
         parts = []
@@ -33,7 +34,7 @@ def ticket_plan(config, brand_key, unit, number, kind="ongoing"):
             if item == "{ticket}":
                 parts.extend([pronunciation, digits])
             elif item == "{counter}":
-                parts.append(model.get("label", ""))
+                parts.append(model_pronunciation)
             elif item == "{service}":
                 parts.append(brand.get("name", ""))
             else:

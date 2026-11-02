@@ -1,4 +1,5 @@
 import io
+import copy
 import os
 import tempfile
 import threading
@@ -22,6 +23,13 @@ def wav_bytes():
     return output.getvalue()
 
 class SpeechSegments(unittest.TestCase):
+    def test_shortname_pronunciation_replaces_only_spoken_model_and_is_warmed(self):
+        config=copy.deepcopy(CONFIG)
+        config['brands'][0]['models'][0]['shortnamePronounce']='G X three pro'
+        config['announcements']['template']='{ticket} for {counter}'
+        self.assertIn('G X three pro',ticket_plan(config,'brand1',1,1)[0])
+        self.assertEqual(ticket_plan(config,'brand1',1,1,'callback')[0][-1],'G X three pro')
+        self.assertEqual(ticket_plan(config,'brand1',1,1)[0][1],'A A')
     def test_normal_and_callback_use_pronunciation_and_full_digits(self):
         self.assertEqual(ticket_plan(CONFIG,'brand1',1,1)[0],['Test driver','A A','0 1','please approach'])
         self.assertEqual(ticket_plan(CONFIG,'brand1',1,101,'callback')[0],['Test driver','A A','1 0 1','please stand by for','Geely GX3 Pro'])

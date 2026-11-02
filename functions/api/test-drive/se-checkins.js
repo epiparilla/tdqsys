@@ -58,12 +58,13 @@ export async function onRequest(context) {
     const codeKey = context.env.TEST_DRIVE_CODE_ENCRYPTION_KEY;
     if (!context.env.SUPABASE_URL || !serviceKey || !codeKey) return json({ error: 'Registration is temporarily unavailable.' }, 503);
     const instanceId = body.instanceId.trim().toLowerCase();
-    const settingResponse = await fetch(`${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_drive_settings?instance_id=eq.${encodeURIComponent(instanceId)}&select=timezone`, {
+    const settingResponse = await fetch(`${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/test_drive_settings?instance_id=eq.${encodeURIComponent(instanceId)}&select=timezone,dealerships`, {
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
     });
     if (!settingResponse.ok) return json({ error: 'Registration is temporarily unavailable.' }, 503);
     const settings = await settingResponse.json();
     if (!settings.length) return json({ error: 'Registration has not been configured for this location.' }, 404);
+    if(!settings[0].dealerships?.includes(checked.value.dealership))return json({error:'Select a dealership from the configured list. Ask the facilitator to update Settings if yours is missing.'},400);
     const zone = settings[0].timezone;
     const day = operatingDay(zone);
     const rpc = `${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/tdqsys_register_se_checkin`;

@@ -48,7 +48,7 @@
             display: flex; gap: 0.5rem; align-items: center;
             margin-bottom: 0.5rem;
         }
-        .model-row input[type="text"] { flex: 1; }
+        .model-row input[type="text"] { flex: 1; min-width:0; }
         .model-row .model-label { flex: 2.2; }
         .model-row .model-prefix { flex: 0.8; max-width: 110px; }
         .model-row .model-pronounce { flex: 1.4; }
@@ -369,6 +369,7 @@
         </div>
         <div class="settings-card">
             <h2>Test-drive configuration for this location</h2>
+            <div class="field"><label for="cfg-dealerships">Dealerships for Sales Executive registration</label><textarea id="cfg-dealerships" rows="5" style="width:100%" placeholder="One dealership per line"></textarea><p class="hint">Enter one dealership per line. Agents select from this list on the registration form. Save Settings to sync it. An empty list pauses new agent registrations; existing registrations remain saved.</p></div>
             <div class="field"><label for="cfg-callback-prefix">Call-back prefix</label><input id="cfg-callback-prefix" value="Test driver" required></div>
             <div class="field"><label for="cfg-callback-suffix">Call-back suffix</label><input id="cfg-callback-suffix" value="please stand by, you are next in line to test" required></div>
             <button type="button" id="speech-test-callback" class="btn-ghost settings-btn">Test call-back announcement</button>
@@ -1070,7 +1071,7 @@ function renderLicence(st) {
             const listEl = section.querySelector('.model-list');
             (spec.models || []).forEach((rawModel, i) => {
                 const m = normalizeModelClient(rawModel);
-                addModelRowEl(listEl, m.label, m.prefix, m.pronounce, m.shortname);
+                addModelRowEl(listEl, m.label, m.prefix, m.pronounce, m.shortname, m.shortnamePronounce);
             });
         }
 
@@ -1080,6 +1081,7 @@ function renderLicence(st) {
                 return {
                     label: String(m.label || '').trim(),
                     ...(m.shortname ? { shortname: String(m.shortname).trim() } : {}),
+                    ...(m.shortnamePronounce ? {shortnamePronounce:String(m.shortnamePronounce).trim()} : {}),
                     prefix: String(m.prefix || '').trim(),
                     pronounce: String(m.pronounce || '').trim()
                 };
@@ -1104,12 +1106,14 @@ function renderLicence(st) {
             addModelRowEl(btn.closest('.field').querySelector('.model-list'), '', '', '');
         }
 
-        function addModelRowEl(listEl, label, prefix, pronounce, shortname) {
+        function addModelRowEl(listEl, label, prefix, pronounce, shortname, shortnamePronounce) {
             const row = document.createElement('div');
             row.className = 'model-row';
             row.innerHTML = `
                 <input type="text" class="model-label" placeholder="Car name (e.g. RAV4 LTD HEV)" value="${escAttr(label || '')}">
                 <input type="text" class="model-shortname" aria-label="Printable shortname" maxlength="36" placeholder="Printed header" value="${escAttr(shortname || '')}">
+                <input type="text" class="model-shortname-pronounce" aria-label="Shortname pronunciation" maxlength="160" placeholder="Say model shortname" value="${escAttr(shortnamePronounce || '')}">
+                <button type="button" class="preview-btn" title="Preview shortname pronunciation" onclick="previewPronunciation(this, true)">&#x1F50A;</button>
                 <input type="text" class="model-prefix" placeholder="Prefix (e.g. RH)" value="${escAttr(prefix || '')}">
                 <input type="text" class="model-pronounce" placeholder="Speak (e.g. R H)" value="${escAttr(pronounce || '')}">
                 <button type="button" class="preview-btn" title="Preview pronunciation" onclick="previewPronunciation(this)">&#x1F50A;</button>
@@ -1165,11 +1169,11 @@ function renderLicence(st) {
         // endpoint, which returns an in-memory WAV (no files are written), so
         // nothing accumulates even if previews are played without saving.
         let previewAudio = null;
-        async function previewPronunciation(btn) {
+        async function previewPronunciation(btn, shortname = false) {
             const row = btn.closest('.model-row');
-            const pronounce = row.querySelector('.model-pronounce').value.trim();
-            const prefix = row.querySelector('.model-prefix').value.trim();
-            const text = pronounce || prefix.split('').join(' ');
+            const pronounce = row.querySelector(shortname ? '.model-shortname-pronounce' : '.model-pronounce').value.trim();
+            const prefix = row.querySelector(shortname ? '.model-shortname' : '.model-prefix').value.trim();
+            const text = pronounce || (shortname ? prefix || row.querySelector('.model-label').value.trim() : prefix.split('').join(' '));
             if (!text) { alert('Enter a pronunciation (or prefix) first.'); return; }
             const ttsPort = (stateDoc.config && stateDoc.config.ttsPort) || 8001;
             btn.disabled = true;
@@ -1199,6 +1203,7 @@ function renderLicence(st) {
             set('cfg-hostname', c.hostname || 'tdqsys.local');
             set('cfg-cloudbase', c.cloudBase || '');
             set('cfg-waiver', c.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
+            set('cfg-dealerships', (c.testDrive?.dealerships || []).join('\n'));
             set('cfg-sheets-url', c.testDrive?.sheetsUrl || '');
             set('cfg-callback-prefix', c.testDrive?.callbackPrefix || 'Test driver');
             set('cfg-callback-suffix', c.testDrive?.callbackSuffix || 'please stand by, you are next in line to test');
@@ -1267,7 +1272,10 @@ function renderLicence(st) {
                 const callbackSuffix = document.getElementById('cfg-callback-suffix')?.value?.trim() || 'please stand by, you are next in line to test';
                 if (document.getElementById('cfg-callback-prefix')?.value === '' || document.getElementById('cfg-callback-suffix')?.value === '') throw new Error('Call-back prefix and suffix cannot be empty.');
                 if (!document.getElementById('cfg-callback-prefix')?.value?.trim() || !document.getElementById('cfg-callback-suffix')?.value?.trim()) throw new Error('Call-back prefix and suffix cannot be blank.');
-                config.testDrive = { ...(stateDoc.config.testDrive || {}), waiver, terms, sheetsUrl, callbackPrefix, callbackSuffix };
+                const dealershipNames=document.getElementById('cfg-dealerships').value.split(/\r?\n/).map(name=>name.trim()).filter(Boolean);
+                const dealerships=[...new Map(dealershipNames.map(name=>[name.toLocaleLowerCase(),name])).values()];
+                if(dealerships.length>200 || dealerships.some(name=>name.length>160))throw Error('Use at most 200 dealerships, each no longer than 160 characters.');
+                config.testDrive = { ...(stateDoc.config.testDrive || {}), waiver, terms, sheetsUrl, callbackPrefix, callbackSuffix, dealerships };
             }
             config.announcements = TdqSpeech.validate({voice:val('cfg-voice') || 'af_heart',prefix:val('cfg-speech-prefix'),template:val('cfg-speech-template'),suffix:val('cfg-speech-suffix')});
 
@@ -1286,6 +1294,7 @@ function renderLicence(st) {
                         models.push({
                             label: label || prefix,
                             ...(row.querySelector('.model-shortname')?.value?.trim() ? { shortname: row.querySelector('.model-shortname').value.trim() } : {}),
+                            ...(row.querySelector('.model-shortname-pronounce')?.value?.trim() ? {shortnamePronounce:row.querySelector('.model-shortname-pronounce').value.trim().replace(/^["']+|["']+$/g,'').trim()} : {}),
                             prefix: prefix || '??',
                             pronounce: pronounce || String(prefix || '').split('').join(' ')
                         });

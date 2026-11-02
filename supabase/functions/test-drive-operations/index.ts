@@ -66,8 +66,9 @@ Deno.serve(async (req) => {
       return Response.json({ saved: true }, { headers: cors });
     }
     if (body.action === 'configure') {
-      const { error } = await admin.rpc('tdqsys_configure_test_drive', {
-        p_instance_id: instanceId, p_models: body.models, p_waiver: body.waiver, p_terms: body.terms, p_sheets_url: body.sheetsUrl || ''
+      const { error } = await admin.rpc(body.dealerships===undefined ? 'tdqsys_configure_test_drive' : 'tdqsys_configure_registration', {
+        p_instance_id: instanceId, p_models: body.models, p_waiver: body.waiver, p_terms: body.terms, p_sheets_url: body.sheetsUrl || '',
+        ...(body.dealerships===undefined ? {} : {p_dealerships:body.dealerships})
       });
       if (error) throw error;
       return Response.json({ configured: true }, { headers: cors });

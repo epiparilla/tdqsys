@@ -13,12 +13,12 @@
             if(!row)continue;
             const prefix=row.querySelector('.model-prefix').value.trim();
             const pronunciation=row.querySelector('.model-pronounce').value.trim().replace(/^["']+|["']+$/g,'').trim() || prefix.split('').join(' ');
-            return {ticket:spoken ? `${pronunciation} 0 1`.trim() : `${prefix}01`,counter:row.querySelector('.model-label').value.trim(),service:block.querySelector('.brand-name').value.trim()};
+            return {ticket:spoken ? `${pronunciation} 0 1`.trim() : `${prefix}01`,counter:spoken && row.querySelector('.model-shortname-pronounce')?.value.trim() || row.querySelector('.model-label').value.trim(),service:block.querySelector('.brand-name').value.trim()};
         }
         const brand=typeof stateDoc!=='undefined' ? stateDoc?.config?.brands?.find(brand=>brand.models?.length) : null;
         const model=brand?.models?.[0];
         if(!model)throw Error('Configure a vehicle model to preview its ticket and pronunciation.');
-        return {ticket:spoken ? `${model.pronounce || (model.prefix || '').split('').join(' ')} 0 1`.trim() : `${model.prefix || ''}01`,counter:model.label,service:brand.name};
+        return {ticket:spoken ? `${model.pronounce || (model.prefix || '').split('').join(' ')} 0 1`.trim() : `${model.prefix || ''}01`,counter:spoken && model.shortnamePronounce || model.label,service:brand.name};
     }
     function preview() {
         try {

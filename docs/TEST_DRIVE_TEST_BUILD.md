@@ -31,6 +31,15 @@ GitHub assets or `public/version.json` before acceptance.
 
 - Settings: printable model shortnames, waiver, Terms, callback wording, and
   Google Sheets URL.
+  Add dealership options one per line under Test-drive configuration. Save to
+  sync them to the location's agent registration dropdown. Until this list is
+  configured, new SE registrations are paused; existing codes/clients remain
+  valid. Removed options do not rewrite historical dealership records. The
+  list accepts up to 200 names, each at most 160 characters, without duplicates.
+  Vehicle rows have a Shortname pronunciation field directly after shortname,
+  with a separate preview button. It supplies the spoken model name in Call
+  Back and `{counter}`; a blank field keeps the full model name. Prefix speech
+  remains controlled by the existing prefix-pronunciation field.
 - Local speech: packaged Kokoro voice list, safe fallback, prefix/main/suffix
   templates, validated placeholders, and voice/announcement/call-back previews.
   Ongoing and Call Back now queue a private desktop-owned FIFO player. It
@@ -81,6 +90,10 @@ GitHub assets or `public/version.json` before acceptance.
   Use mouse wheel, trackpad, touch scrolling, mouse drag or focused-board arrow
   keys. Refresh and resize preserve the position; dragging defers board rebuilds.
   Models that already fit the available width are not repeated.
+  Unchanged snapshots retain the existing columns. Wheel and drag updates are
+  combined per animation frame; QR images are generated only on Event Setup
+  when their links change. Startup resize keeps local bootstrap branding,
+  correcting the red fallback that appeared before the first cloud snapshot.
 - First-render branding comes directly from the local engine's saved config
   in the HTML response, before styles and page scripts run. Brand 2 gets its
   own saved accent immediately. The local bootstrap contains only brand names,
@@ -184,6 +197,8 @@ The established public queue display flow remains unchanged.
    metadata and the location-scoped SE reprint transaction.
    Apply `202611020003_direct_reprint_cancel.sql` for explicit passed-ticket
    decisions, exact reprint job IDs and scoped print cancellation.
+   Apply `202611020004_registration_dealerships.sql` for location dealership
+   lists, atomic Settings synchronization and server-side SE selection checks.
 3. Deploy `test-drive-operations` with the accompanying `supabase/config.toml`
    JWT-verification setting. Its own authorization checks the installation's
    existing writer token and remote revocation record.
@@ -229,8 +244,8 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 279 passing Node tests, three optional skips,
-18 PostgreSQL integration checks and four Python speech tests. The rebuilt packaged speech engine was
+Latest automated verification: 285 passing Node tests, three optional skips,
+19 PostgreSQL integration checks and five Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
 
@@ -319,6 +334,16 @@ part of the walkthrough below.
     columns and confirm they operate on the correct model/client only once.
     Change a model prefix/pronunciation in Settings:
     preview text must show its compact ticket; speech must use its pronunciation.
+18. Save two dealership options in desktop Settings. Scan the SE QR, check
+    that both appear in a required dropdown, and register with one. Remove
+    that option: new forms must omit it, but existing codes/clients and history
+    must remain valid. An empty list must show a setup message and disable new
+    SE submission. Repeat with different lists at another location.
+19. Save a model shortname pronunciation, preview it, and test Call Back and
+    a template containing `{counter}`. Reload Settings and restore a test backup
+    to check it persists. Confirm printed shortname and prefix pronunciation
+    remain correct. Navigate repeatedly during initial cloud loading and
+    resize the board; saved accent must remain visible without a red flash.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

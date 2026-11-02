@@ -17,10 +17,10 @@ function element(tag='div') {
 }
 function board(snapshot,brand) {
   const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','print-search','master-sort','master-direction','sales-sort','sales-direction','licence-locked','licence-locked-why','brand-controls-title','brand1-link','brand2-link','sales-rows','sales-search','sales-count'].map(id=>[id,element()]));
-  const context = {snapshot,boardCycleWidth:0,boardDrag:null,selectedModels:new Map(),byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
+  const context = {snapshot:{brands:[{key:'brand1',name:'Test',color:'#abc123'}],...snapshot},boardSignature:'',boardViewportWidth:-1,boardScrollFrame:null,boardScrollTarget:null,registrationLinksSignature:'',boardCycleWidth:0,boardDrag:null,selectedModels:new Map(),byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
   vm.createContext(context);
   vm.runInContext(extractFunction(shell,'applyFacilitatorBrand'),context);
-  vm.runInContext(['cell','sortedRows','formatTicket','loopPosition','applyLicenceLock','renderBrand','createBoardColumn','renderBoard','renderSales','renderMaster','renderPrints','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
+  vm.runInContext(['cell','sortedRows','formatTicket','loopPosition','flushBoardScroll','applyLicenceLock','renderBrand','createBoardColumn','renderBoard','renderSales','renderMaster','renderPrints','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
   context.render();elements.rerender=context.render;elements.renderPrints=context.renderPrints;elements.context=context;return elements;
 }
 
@@ -88,6 +88,24 @@ test('infinite queue scrolling preserves its fractional phase across either seam
   assert.equal(loop(1999.5,1000),1999.5);assert.equal(loop(2000.5,1000),1000.5);
   assert.equal(loop(999.5,1000),1999.5);assert.equal(loop(-2300,1000),1700);assert.equal(loop(9300,1000),1300);assert.equal(loop(120,0),120);
 });
+test('resize before the first snapshot keeps local branding and unchanged snapshots preserve live columns',()=>{
+  const rendered=board({models:[],entries:[],printJobs:[]});
+  const ctx=rendered.context;let color;
+  ctx.document.documentElement.style.setProperty=(_key,value)=>{color=value;};
+  ctx.window={TDQSYS_FACILITATOR_BOOTSTRAP:{brands:[{key:'brand1',name:'GEELY',color:'#00B5E2'}]}};
+  ctx.snapshot={models:[],entries:[],printJobs:[]};ctx.renderBoard();
+  assert.equal(color,'#00B5E2');assert.equal(rendered['brand-controls-title'].textContent,'GEELY CONTROLS');
+  const columns=rendered.board.children;ctx.renderBoard();assert.equal(rendered.board.children,columns);
+  ctx.snapshot.entries=[{id:'new',status:'waiting'}];ctx.renderBoard();assert.notEqual(rendered.board.children,columns);
+});
+test('wheel input accumulates into one frame and scrolls by the complete requested distance',()=>{
+  const frames=new Map();let counter=0;const board={scrollLeft:1500};
+  const ctx={boardCycleWidth:1000,boardScrollTarget:null,boardScrollFrame:null,byId:()=>board,requestAnimationFrame:fn=>{frames.set(++counter,fn);return counter;},cancelAnimationFrame:id=>frames.delete(id)};
+  vm.createContext(ctx);vm.runInContext(['loopPosition','scrollBoard','scheduleBoardPosition','flushBoardScroll'].map(fn=>extractFunction(source,fn)).join('\n'),ctx);
+  ctx.scrollBoard(10);ctx.scrollBoard(20);ctx.scrollBoard(-5);
+  assert.equal(frames.size,1);assert.equal(board.scrollLeft,1500);
+  [...frames.values()][0]();assert.equal(board.scrollLeft,1525);assert.equal(ctx.boardScrollTarget,null);
+});
 
 test('overflowing queue boards repeat live columns on both sides and retain phase through refresh and resize',()=>{
   const rendered=board({brands:[{key:'brand1',name:'Test'}],models:Array.from({length:4},(_,n)=>({id:String(n),brand_key:'brand1',unit_index:n+1,full_name:`Model ${n}`})),entries:[{id:'client-ticket',vehicle_model_id:'0',status:'waiting',queue_number:1}],printJobs:[]});
@@ -103,7 +121,7 @@ test('overflowing queue boards repeat live columns on both sides and retain phas
   assert.equal(actions.length,1);assert.equal(actions[0].action,'ongoing');assert.equal(actions[0].entryId,'client-ticket');
   rendered.board.scrollLeft=cycle+267.125;ctx.renderBoard();assert.equal(rendered.board.scrollLeft,cycle+267.125);
   const before=rendered.board.children;ctx.boardDrag={id:1};ctx.renderBoard();assert.equal(rendered.board.children,before);ctx.boardDrag=null;
-  width=600;ctx.renderBoard();assert.ok(Math.abs((rendered.board.scrollLeft-ctx.boardCycleWidth)/ctx.boardCycleWidth-267.125/cycle)<1e-8);
+  width=600;rendered.board.clientWidth=1600;ctx.renderBoard();assert.ok(Math.abs((rendered.board.scrollLeft-ctx.boardCycleWidth)/ctx.boardCycleWidth-267.125/cycle)<1e-8);
   rendered.board.clientWidth=3000;ctx.renderBoard();assert.equal(ctx.boardCycleWidth,0);assert.equal(rendered.board.children.length,4);
   assert.doesNotMatch(shell,/board-previous|board-next|board-navigation/);
   const css=fs.readFileSync(path.join(PUBLIC,'facilitator.css'),'utf8');assert.match(css,/scrollbar-width:none/);assert.match(css,/#board::-webkit-scrollbar\{display:none\}/);
@@ -144,6 +162,8 @@ test('Settings sample shows a compact configured ticket and speaks its configure
   const ctx={document:{querySelectorAll:()=>[block]}};vm.createContext(ctx);vm.runInContext(sample,ctx);
   assert.equal(ctx.sampleTicket().ticket,'CRY01');assert.equal(ctx.sampleTicket(true).ticket,'Cool ray 0 1');
   assert.equal(ctx.sampleTicket().counter,'Geely Coolray');assert.equal(ctx.sampleTicket().service,'GEELY');
+  fields['.model-shortname-pronounce']={value:'Cool ray'};
+  assert.equal(ctx.sampleTicket(true).counter,'Cool ray');assert.equal(ctx.sampleTicket().counter,'Geely Coolray');
   assert.doesNotMatch(speech,/ticket:'A A 0 1'/);
 });
 test('dashboard Ongoing saves the selected model to the TV state and triggers the existing cloud mirror',async()=>{
@@ -247,8 +267,9 @@ test('Sheets worker keeps retrying independently of pages and syncs a newly save
     fetch:async(_url,options)=>{const body=JSON.parse(options.body);calls.push(body);if(body.action==='sync-sheets'&&fail)throw Error('offline');return Response.json({configured:true});}};
   vm.createContext(context);vm.runInContext(extractFunction(main,'buildTestDriveSettings')+'\n'+extractFunction(main,'registrationSyncTick'),context);
   await context.registrationSyncTick();assert.deepEqual(calls.map(c=>c.action),['configure']);
-  savedConfig.testDrive={sheetsUrl:'https://docs.google.com/spreadsheets/d/location/edit'};
+  savedConfig.testDrive={sheetsUrl:'https://docs.google.com/spreadsheets/d/location/edit',dealerships:['Toyota North']};
   await context.registrationSyncTick();assert.deepEqual(calls.map(c=>c.action),['configure','configure','sync-sheets']);
   assert.equal(calls[1].sheetsUrl,savedConfig.testDrive.sheetsUrl);
+  assert.deepEqual(calls[1].dealerships,['Toyota North']);
   fail=false;await context.registrationSyncTick();assert.equal(calls.at(-1).action,'sync-sheets');assert.equal(context.registrationSyncBusy,false);
 });

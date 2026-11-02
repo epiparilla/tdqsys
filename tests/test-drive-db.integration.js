@@ -26,9 +26,10 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020001_sales_executive_reset.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020002_ticket_labels_se_reprint.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020003_direct_reprint_cancel.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020004_registration_dealerships.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
-    await rpc('tdqsys_configure_test_drive', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms']);
+    await rpc('tdqsys_configure_registration', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms','',JSON.stringify(['Toyota'])]);
     const modelIds = (await db.query('select id from vehicle_models where instance_id=$1 order by full_name', [A])).rows.map(m => m.id);
     const run = await rpc('tdqsys_open_queue_run', [A, today, 'Testing', 'facilitator']);
     await rpc('tdqsys_register_se_checkin', [A, 'SE One', 'Toyota', today, hash('0123'), 'encrypted-test-fixture', '2099-11-02T00:00:00Z']);
@@ -160,6 +161,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       await db.query("update print_jobs set status='failed' where id=$1",[nextJob.jobId]);
     });
     await check('SE reset invalidates codes, retains clients and queues, and permits fresh same-day check-in without code reuse', async () => {
+      await rpc('tdqsys_configure_registration',[B,JSON.stringify(models),'Other waiver','Other terms','',JSON.stringify(['Other Dealer'])]);
       const other=await rpc('tdqsys_register_se_checkin',[B,'Other SE','Other Dealer',today,hash('0123'),'other-cipher','2099-11-02T00:00:00Z']);
       const before=await db.query('select id,se_daily_checkin_id from registrations where instance_id=$1 order by id',[A]);
       const queues=await db.query('select * from queue_counters order by queue_run_id,vehicle_model_id');
@@ -189,6 +191,16 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
         assert.equal(config.waiverStatement,`Waiver ${index+1}`);
         assert.equal(Object.hasOwn(config,'google_sheet_url'),false);
       }
+    });
+    await check('dealership configuration is normalized, isolated and enforced without changing prior SE records',async()=>{
+      await rpc('tdqsys_configure_registration',[A,JSON.stringify(models),'Approved waiver','Approved terms','',JSON.stringify(['  Toyota North  ','Toyota South','toyota north'])]);
+      assert.deepEqual((await rpc('tdqsys_public_registration_config',[A])).dealerships,['Toyota North','Toyota South']);
+      assert.deepEqual((await rpc('tdqsys_public_registration_config',[B])).dealerships,['Other Dealer']);
+      await assert.rejects(rpc('tdqsys_register_se_checkin',[A,'Unlisted SE','Other Dealer',today,hash('7777'),'cipher','2099-11-02T00:00:00Z']),/configured dealership/);
+      assert.equal((await db.query('select dealership from sales_executives where instance_id=$1 limit 1',[A])).rows[0].dealership,'Toyota');
+      await assert.rejects(rpc('tdqsys_configure_registration',[A,JSON.stringify(models),'Approved waiver','Approved terms','',JSON.stringify([42])]),/invalid dealership/);
+      await rpc('tdqsys_configure_registration',[A,JSON.stringify(models),'Approved waiver','Approved terms','',JSON.stringify([])]);
+      await assert.rejects(rpc('tdqsys_register_se_checkin',[A,'Paused SE','Toyota North',today,hash('7777'),'cipher','2099-11-02T00:00:00Z']),/configured dealership/);
     });
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }

@@ -45,6 +45,14 @@ async function runEdge(body, records = {}, environment = {}) {
   return { response, calls };
 }
 
+test('private Settings configuration sends dealerships atomically and old clients preserve the saved list',async()=>{
+  const current=await runEdge({action:'configure',models:[],waiver:'waiver',terms:'terms',dealerships:['Toyota North']});
+  assert.equal(current.calls.find(call=>call.rpc)?.rpc,'tdqsys_configure_registration');
+  assert.deepEqual(Array.from(current.calls.find(call=>call.rpc).args.p_dealerships),['Toyota North']);
+  const legacy=await runEdge({action:'configure',models:[],waiver:'waiver',terms:'terms'});
+  assert.equal(legacy.calls.find(call=>call.rpc)?.rpc,'tdqsys_configure_test_drive');
+});
+
 test('operations refuses another location entry before invoking RPC', async () => {
   const { response, calls } = await runEdge({ action: 'ongoing', entryId: 'foreign-entry' });
   assert.equal(response.status, 404);

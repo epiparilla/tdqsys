@@ -117,6 +117,7 @@ function normalizeModel(m) {
         return {
             label: String(m.label || '').trim(),
             ...(m.shortname ? { shortname: String(m.shortname).trim().slice(0, 36) } : {}),
+            ...(m.shortnamePronounce ? {shortnamePronounce:String(m.shortnamePronounce).trim().slice(0,160)} : {}),
             prefix: String(m.prefix || '').trim(),
             pronounce: String(m.pronounce || '').trim()
         };

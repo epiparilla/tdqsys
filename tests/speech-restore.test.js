@@ -27,6 +27,9 @@ test('speech and test-drive changes are recognized as actual Settings changes',(
     assert.equal(af.afConfigEqual(base,{...base,testDrive:{waiver:'Updated'}}),false);
     const edited=JSON.parse(JSON.stringify(base));edited.brands[0].models[0].shortname='PRINT';
     assert.equal(af.afConfigEqual(base,edited),false);
+    const spoken=JSON.parse(JSON.stringify(base));spoken.brands[0].models[0].shortnamePronounce='G X three';
+    assert.equal(af.afConfigEqual(base,spoken),false);
+    assert.equal(require('../shared/config').normalizeModel(spoken.brands[0].models[0]).shortnamePronounce,'G X three');
 });
 test('restore preparation preserves destination identity without mutating the backup',()=>{
     const source=defaultState(),destination=defaultState();

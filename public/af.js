@@ -324,7 +324,7 @@ function afConfigEqual(a, b) {
             key: br.key,
             name: br.name,
             color: br.color,
-            models: (br.models || []).map(m => ({ label: m.label, shortname:m.shortname || '', prefix: m.prefix, pronounce: m.pronounce }))
+            models: (br.models || []).map(m => ({ label: m.label, shortname:m.shortname || '', shortnamePronounce:m.shortnamePronounce || '', prefix: m.prefix, pronounce: m.pronounce }))
         }))
     });
     return norm(a) === norm(b);

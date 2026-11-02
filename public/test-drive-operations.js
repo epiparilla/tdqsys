@@ -7,6 +7,11 @@
   const selectedModels = new Map();
   let boardCycleWidth = 0;
   let boardDrag = null;
+  let boardSignature = '';
+  let boardViewportWidth = -1;
+  let boardScrollFrame = null;
+  let boardScrollTarget = null;
+  let registrationLinksSignature = '';
   let licenceCanWrite = false;
   let licenceStatus = null;
   function applyLicenceLock(st) {
@@ -40,7 +45,18 @@
   }
   function scrollBoard(delta) {
     if(!boardCycleWidth)return;
-    const board=byId('board');board.scrollLeft=loopPosition(board.scrollLeft+delta,boardCycleWidth);
+    scheduleBoardPosition((boardScrollTarget ?? byId('board').scrollLeft)+delta);
+  }
+  function scheduleBoardPosition(position) {
+    boardScrollTarget=position;
+    if(boardScrollFrame!==null)return;
+    boardScrollFrame=requestAnimationFrame(flushBoardScroll);
+  }
+  function flushBoardScroll() {
+    if(boardScrollFrame!==null)cancelAnimationFrame(boardScrollFrame);
+    boardScrollFrame=null;
+    if(boardScrollTarget!==null && boardCycleWidth)byId('board').scrollLeft=loopPosition(boardScrollTarget,boardCycleWidth);
+    boardScrollTarget=null;
   }
   async function request(body) {
     if (!window.afDesktop?.testDrive) throw new Error('Open this page inside the TDQSYS desktop app.');
@@ -49,11 +65,15 @@
     return result;
   }
   function renderBrand() {
-    const brands = snapshot.brands || [{key:'brand1',name:'Brand 1',color:'#EB0A1E'}];
+    const brands = snapshot.brands || (typeof window!=='undefined' ? window.TDQSYS_FACILITATOR_BOOTSTRAP?.brands : null) || [];
+    if(!brands.length)return [];
     const selected = applyFacilitatorBrand(brands);
     return selected ? snapshot.models.filter(model => !model.brand_key || model.brand_key === selected.key).sort((a,b) => a.unit_index-b.unit_index) : [];
   }
   function render() {
+    const linksSignature=JSON.stringify(snapshot.registrationLinks || {});
+    if(document.body.dataset.view==='setup' && linksSignature!==registrationLinksSignature) {
+    registrationLinksSignature=linksSignature;
     byId('registration-links').replaceChildren();
     for (const [kind, link] of Object.entries(snapshot.registrationLinks || {})) {
       const card = document.createElement('div'); const title = document.createElement('p');
@@ -67,6 +87,7 @@
       card.appendChild(canvas); const anchor = document.createElement('a'); anchor.href = canvas.toDataURL('image/png');
       anchor.download = `tdqsys-${kind}-registration.png`; anchor.textContent = 'Download QR'; card.appendChild(anchor);
       byId('registration-links').appendChild(card);
+    }
     }
     byId('run').textContent = snapshot.run ? `${snapshot.run.operating_day} · Run ${snapshot.run.run_number} · ${snapshot.entries.length} tickets` : 'No active queue run. Configure models and open a run before accepting registrations.';
     byId('sheets-status').textContent = snapshot.sheetsStatus?.hasUrl
@@ -103,10 +124,14 @@
   function renderBoard() {
     if(boardDrag)return;
     const board=byId('board'), oldCycle=boardCycleWidth;
+    const models=renderBrand();
+    const signature=JSON.stringify([models,snapshot.entries.map(entry=>[entry.id,entry.vehicle_model_id,entry.registration_id,entry.queue_number,entry.status,entry.registrations?.full_name])]);
+    if(boardSignature===signature && boardViewportWidth===board.clientWidth)return;
+    flushBoardScroll();
+    boardSignature=signature;boardViewportWidth=board.clientWidth;
     const oldPosition=board.scrollLeft || 0;
     const phase=oldCycle ? (loopPosition(oldPosition,oldCycle)-oldCycle)/oldCycle : 0;
     board.replaceChildren();
-    const models=renderBrand();
     const columns=models.map(createBoardColumn);
     columns.forEach(column=>board.appendChild(column));
     const columnWidth=columns[0]?.getBoundingClientRect?.().width || columns[0]?.offsetWidth || 0;
@@ -271,7 +296,9 @@
   for(const id of ['sales-sort','sales-direction'])byId(id).onchange=()=>{renderSales();applyLicenceLock(licenceStatus);};
   byId('board').onscroll=()=>{
     if(!boardCycleWidth)return;
-    const board=byId('board'), centered=loopPosition(board.scrollLeft,boardCycleWidth);
+    const board=byId('board');
+    if(board.scrollLeft>=boardCycleWidth && board.scrollLeft<2*boardCycleWidth)return;
+    const centered=loopPosition(board.scrollLeft,boardCycleWidth);
     if(Math.abs(centered-board.scrollLeft)>0.5)board.scrollLeft=centered;
   };
   byId('board').onwheel=event=>{
@@ -289,11 +316,12 @@
     if(!boardDrag.moved && Math.abs(delta)<5)return;
     boardDrag.moved=true;event.preventDefault();
     byId('board').setPointerCapture(event.pointerId);
-    byId('board').scrollLeft=loopPosition(boardDrag.position+delta,boardCycleWidth);
+    scheduleBoardPosition(boardDrag.position+delta);
     byId('board').classList.add('dragging');
   };
   function endBoardDrag(event) {
     if(!boardDrag || boardDrag.id!==event.pointerId)return;
+    flushBoardScroll();
     boardDrag=null;
     const board=byId('board');
     if(board.hasPointerCapture(event.pointerId))board.releasePointerCapture(event.pointerId);

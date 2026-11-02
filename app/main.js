@@ -428,7 +428,8 @@ function buildTestDriveSettings(cfg) {
     return { action:'configure', models:(cfg.brands || []).flatMap(brand => (brand.models || []).map((model,index) => ({
         fullName:model.label, shortname:model.shortname || model.label.slice(0,36), brandKey:brand.key, unit:index+1
     }))), waiver:cfg.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    terms:cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl:cfg.testDrive?.sheetsUrl || '' };
+    terms:cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl:cfg.testDrive?.sheetsUrl || '',
+    ...(Array.isArray(cfg.testDrive?.dealerships) ? {dealerships:cfg.testDrive.dealerships} : {}) };
 }
 
 // The app, rather than a particular renderer page, owns durable Sheets retries.

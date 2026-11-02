@@ -31,7 +31,7 @@
         const letters = String(displayValue).replace(/[^a-z]/gi,'');
         const digits = String(displayValue).replace(/\D/g,'').split('').join(' ');
         const spokenPrefix = model?.pronounce || letters.split('').join(' ');
-        return render(config.announcements, { ticket:`${spokenPrefix} ${digits}`.trim(), counter:model?.label || `Counter ${unit}`, service:brand?.name || '' });
+        return render(config.announcements, { ticket:`${spokenPrefix} ${digits}`.trim(), counter:model?.shortnamePronounce || model?.label || `Counter ${unit}`, service:brand?.name || '' });
     }
     return { defaults, normalize, validate, render, textForQueue };
 });
