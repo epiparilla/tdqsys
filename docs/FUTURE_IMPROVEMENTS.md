@@ -1,6 +1,43 @@
 # TDQSYS Future Improvements
 
-This document records approved future-feature ideas. It is not a change to the current production release.
+Last reconciled with source and the manual test build: **2 November 2026**.
+
+This document records approved requirements, their current implementation, and remaining acceptance work. The production desktop release and public update manifest remain **1.1.28**. Development installers are installed manually; release assets and update notifications must stay unchanged until acceptance. The deployment target is **12 November 2026 at three independent locations**.
+
+## Current implementation and verification
+
+The current manual installer is `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe`. The restorable production checkpoint is commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, with branch `backup/v1.1.28-pre-test-drive`; the released installer remains in `app/dist-installer/`.
+
+| Area | Current manual-build status |
+| --- | --- |
+| Restore | Preserves the destination Instance ID, writer credential and licence binding, shows source/destination identities, and retains a queue-state safety copy. |
+| Speech | Packaged Kokoro voices, default/fallback voice, normal prefix/main/suffix templates, validated placeholders, and local voice/announcement/call-back previews are implemented. |
+| Registration | Separate location-scoped client and SE forms; required four-step client form, consent snapshots, SE-code validation/prefill, multi-model tickets, duplicate checks and submission idempotency are implemented. |
+| Facilitator pages | The former plus/minus dashboard is replaced by the test-drive board. Separate Master Table, Print Queue, Sales Executives and Event Setup pages are implemented. Brand 2 has its own enabled-only board. |
+| Dashboard layout | Black background, centered heading/buttons, configured brand Controls heading/accent, at most three visible wide model columns, horizontal scrolling and one-line client/action rows are implemented. |
+| First-render appearance | The local engine embeds saved brand names/colors before the page renders. Inter is bundled/preloaded locally, and status text has reserved space. Branding and initial styling do not wait for the cloud snapshot or Google Fonts. |
+| Queue/display | One ongoing client per model; selecting Ongoing completes only that model's previous client and updates its local/TV number through the existing queue mirror. |
+| Printing | Windows printer selection, 50 x 30 mm client labels, separate per-model jobs, exclusive claims, failure recovery, passed-number reissue and SE slips are implemented. SE codes appear in Print Queue's queue-number column; SE names auto-fit and the code prints at 36pt. |
+| Driver integration | The installer bundles `NiimbotPrinterDriverInstaller-3.0.2.1.exe`. Registered NIIMBOT drivers/vendor driver packages are detected and skipped; otherwise the signed vendor setup opens for installation/model selection. |
+| Reset controls | Event Setup starts a new queue run and resets all model/TV numbers. Settings clears display counters only. The separate SE reset deactivates today's codes and permits fresh check-ins. All preserve client records. |
+| Google Sheets | Saved location Settings sync automatically; the desktop-owned worker retries raw-registration jobs every 15 seconds while TDQSYS runs, independently of the open page. Daily tabs, headers and duplicate-delivery checks are implemented. |
+
+Recorded verification: **268 automated tests passed, three optional skips, and 15 PostgreSQL integration checks passed**. Live disposable-location checks covered SE/client registration, code previews, print claims, per-run history, and SE reset with fresh registration. Packaged resources and the unchanged released installer were checked. These are recorded results, not a claim that every manual acceptance criterion below is complete.
+
+Physical labels, a clean-machine NIIMBOT installation, the installed-app visual recheck of the red-accent flash fix, and the complete three-location walkthrough remain manual acceptance work. See [TEST_DRIVE_TEST_BUILD.md](TEST_DRIVE_TEST_BUILD.md) for setup, build and acceptance instructions.
+
+### Remaining approved requirements and implementation gaps
+
+- Verify the startup/model-availability gate and clear administrator-facing reporting when registration configuration cannot sync. Automatic Settings synchronization currently retries in the desktop background.
+- The call-back requirement below uses a prefixed ticket such as `AA01`; the current native call-back bridge formats its numeric ticket only. Prefix-aware call-back wording remains to be completed/verified.
+- Extend authorized historical browsing/export beyond the Master Table's current **Earlier runs today** view if prior-day lead lookup is required in the app. Database records remain retained.
+- Complete the export/confirmation flow around retiring models with registrants and the broader settings/export audit requirements. Soft retirement and CSV backup are present; the full acceptance flow remains pending.
+- The header currently reports overall **ticket** count; per-model counts use distinct registrations. An overall distinct-client total remains a separate acceptance item.
+- Full raw-data/consent detail viewing and additional languages remain future work; Application/Reservation fields remain optional raw-data fields without queue behavior.
+- An independently scheduled cloud Sheets worker is future work. The implemented worker requires the desktop app to be running.
+
+The sections below retain the approved workflow and acceptance criteria. Where an item is pending above, treat it as a requirement rather than a completed feature.
+
 #### Phase 1
 
 ## Preserve installation identity during backup restore
@@ -18,7 +55,7 @@ The restore workflow restores queue data, configuration, and videos while retain
 
 Implemented in the manual test build: TDQSYS uses the locally packaged **Kokoro ONNX** engine, lists its available voices in Settings, and retains `af_heart` as the default and safe fallback. Voice selection, preview playback, and synthesis work locally.
 
-Add a Settings option that lets an authorised operator select from the Kokoro voices packaged with TDQSYS.
+Settings lets an authorised operator select from the Kokoro voices packaged with TDQSYS.
 
 - List the Kokoro voices available in the installed TDQSYS package.
 - Retain the current voice as the default and safe fallback.
@@ -54,7 +91,7 @@ Design requirements:
 - Preserve current templates during application updates and location migration.
 - Consider separate templates and voices for each supported language in a later phase.
 
-## Acceptance criteria for a future implementation
+## Phase 1 acceptance criteria
 
 1. A selected available voice is used in the next queue announcement.
 2. A missing saved voice falls back safely without preventing announcements.
@@ -66,7 +103,7 @@ Design requirements:
 
 ## Test-drive registration and live queue dashboard
 
-Introduce a web-based registration flow that feeds a test-drive dashboard and the existing customer display.
+The manual build provides web registration feeding the unified Facilitator Dashboard and the existing customer display.
 
 ### Test-drive Settings configuration
 
@@ -80,7 +117,8 @@ Each installation/location has its own client-form QR link, SE-form QR link,
 and Google Sheets destination, all scoped by its installation identity. The
 facilitator configures that location's Sheet in desktop Settings: create an
 empty tracking sheet, share it as Editor with the displayed connection-account
-email, paste its URL, test the connection, then save and sync Settings. The
+email, paste its URL, test the connection, then save Settings. The desktop
+automatically syncs saved configuration; Event Setup also provides **Sync saved Settings now**. The
 initial server Google account is configured once; adding another location
 must not require another Cloud project, JSON key, code change, or web deploy.
 
@@ -97,11 +135,11 @@ Add two facilitator-editable Settings fields: **Waiver statement** and **Terms a
 
 ### Operating day and daily queue numbers
 
-Test-drive queues operate by the dealership's configured local **operating day**. The server, rather than a customer phone, determines the operating day. Every active vehicle model begins the new day's counter at zero; the first committed entry is normally issued queue number `01` (or the configured prefixed equivalent). Live registration, dashboard, display, and print-queue queries show only the current operating day, so prior-date registrants are disregarded operationally without deleting their records.
+Test-drive queues operate by the dealership's configured local **operating day**. The server, rather than a customer phone, determines the operating day. Every active vehicle model begins a new run's allocation counter at zero; the first committed entry is normally issued queue number `01` (or the configured prefixed equivalent). Live registration, dashboard and Print Queue queries use the active operating day/run, disregarding prior-run registrants without deleting them. At event/day opening, the facilitator uses Event Setup's Reset to Zero to align the local/TV display with the new live queue; the distinct Settings counter reset does not restart registration allocation.
 
 Each operating day may contain one or more **queue runs**. A new day opens its first run automatically. The facilitator's **Reset to Zero** action asks for a reset reason (including **Testing**), closes the current run, and opens a new run for the same day, with each model's live allocation restarted from zero and the active display cleared. This supports testing or an operational restart on the same day without deleting client details, rewriting historical queue numbers, or creating duplicate numbers inside a run. Every test-drive entry, display state, print entry, and reprint decision must carry its queue-run identity.
 
-Historical registrations, queue entries, print history, and lead data must remain available to authorised personnel. A unique database constraint must prevent duplicate queue numbers for the same location, operating day, and vehicle model.
+Historical registrations, queue entries, print history, and lead data must remain available to authorised personnel. A unique database constraint prevents duplicate queue numbers within the same queue run and vehicle model; runs belong to a location and operating day, so a new same-day run may safely start at `01`.
 
 ### Sales Executive daily check-in and registration authorisation
 
@@ -113,7 +151,7 @@ Clients may open the web form by scanning its QR code, but may submit only when 
 4. The form pre-fills and displays those details. Its Submit control remains disabled until a valid code has been confirmed and the required waiver and terms acknowledgements are complete.
 5. On submission, the registration stores the linked SE check-in and the exact waiver/terms version and consent timestamp.
 
-A four-digit code is an accompaniment check, not a high-assurance identity credential. The code generator must check previously issued daily SE codes in the SE database and retry until it finds an available candidate; a location-and-operating-day uniqueness constraint is the final protection against a race-condition duplicate. Codes expire at the dealership's local midnight, are stored as hashes, and are validated only server-side. Rate-limit failed public attempts and apply a short lockout after repeated incorrect entries. The client-registration page must not enumerate the staff list, retrieve staff contact information, or gain operator permissions.
+A four-digit code is an accompaniment check, not a high-assurance identity credential. The generator retries candidates against the database's location/day uniqueness constraint, including codes revoked by an SE reset. Validation uses a server-side hash; an AES-GCM encrypted copy supports authenticated desktop preview/printing. Codes expire at the dealership's local midnight or earlier when reset. Public validation is rate-limited by location and a hashed client/IP key. The client-registration page must not enumerate the staff list, retrieve staff contact information, or gain operator permissions.
 
 The SE Registration page has its own QR code, which an SE scans to open the page on a mobile device. Name and dealership are required. On successful submission, the SE daily check-in and assigned code are recorded in the SE table. The page shows the assigned four-digit code and the message, **“Collect your printed code at the registration booth.”** The desktop Print Queue includes a separate SE-code print entry, with the four-digit code in the same column as client queue numbers; either member of the facilitator team may print it through the NIMBOT B1. The SE code slip fits the SE name within the 50 mm header width and prints the four-digit code at 36pt, twice its previous size. A separate Registered Sales Exec Master List shows name, dealership, operating day, active code and expiry, with search and earlier-day history. Codes remain available only through authenticated desktop operations. Its dedicated confirmed reset requires a reason, deactivates today's codes, cancels unprinted SE slips, and permits fresh same-day registrations. It retains SE history and existing client references, never reuses a previously issued code that day, and leaves client queues and TV numbers unchanged. The Windows installer bundles NIIMBOT driver setup and skips it when a driver or vendor driver package is already registered.
 
@@ -142,19 +180,19 @@ Use normalized, location-scoped records rather than one physical table per vehic
 | --- | --- |
 | `vehicle_models` | Available models, including full name, printable shortname, and active/retired status. |
 | `sales_executives` | Sales Executive identity and active status. |
-| `se_daily_checkins` | Operating-day check-in, four-digit-code hash, check-in/out times. |
+| `se_daily_checkins` | Operating-day check-in, code hash/ciphertext, issue/expiry times and optional reset revocation time. |
 | `registrations` | Customer details, consent details, timestamp, and linked SE check-in. |
 | `queue_runs` | A numbered live queue session within one operating day, including reset reason, start/end timestamps, and active/closed status. |
 | `test_drive_entries` | One row per registration/model: operating day, queue run, queue number, and `waiting`, `ongoing`, `done`, `no_show`, or `cancelled` status. |
 | `print_jobs` | Facilitator print/reprint state and attempts for one committed test-drive entry or an SE-code slip. |
 | `sheet_sync_jobs` | Reliable delivery status for the Google Sheets giveaway-tracking update. |
-| `audit_log` | Sensitive operational actions, exports, settings changes, and reset/archive actions. |
+| `audit_log` | Recorded operational changes and resets; broader export/settings audit coverage remains an acceptance requirement. |
 
 Every record must be scoped to the TDQSYS installation/location identity. Public QR viewers must never read contact details or these operational records; the existing public queue-state document remains free of personal data.
 
 ### Dashboard behaviour
 
-The facilitator's Test Drive Queue List is a compact current-operating-day board for up to 12 active vehicle models. Each vehicle model is a column header; its entries show only the queue number and customer name, keeping the board usable when all 12 units are in use. The selected model is inherent in the column header, so it need not be repeated in each row.
+The facilitator's Test Drive Queue List is a current-operating-day board for up to 12 active vehicle models overall. Each model's full name heads its column, followed by the distinct registrant total. A client row contains the prefixed queue number, name, status, and four adjacent action buttons on one line. At most three wide model columns fit across; additional columns scroll horizontally. The model name is inherent in its column and is not repeated in each row.
 
 Each customer row has these actions:
 
@@ -171,6 +209,30 @@ The dashboard also shows live registration totals:
 The Facilitator Dashboard is the test-drive queue board; it replaces the old plus/minus controls. Master Table, Print Queue, Registered Sales Exec Master List, and Event Setup / QR Codes are separate desktop pages linked from its header. Each model column shows the full car name and total distinct registrants, then one line per waiting/ongoing entry containing its prefixed queue number, client name, status, and four action buttons. The black dashboard retains its original centered heading/buttons, brand Controls heading, and configured accent line. Each enabled brand has a separate dashboard page. At most three wide model columns fit across; additional models scroll horizontally, supporting up to 12 configured vehicles overall. The overall ticket total remains above the board. A separate authorised detail/master view may show the full raw registration record when needed.
 
 Each vehicle model may have one `ongoing` test-drive entry at a time. Different models may have ongoing clients simultaneously. The facilitator manually selects **Ongoing** beside the next client in that model's queue. This marks the previous ongoing entry for the same model `done`, makes the selected entry ongoing, and updates that model's displayed queue number. Other models remain unchanged. **Ongoing** is the only dashboard action that updates `display_with_ads.html`; the existing plus/minus counter controls are replaced for the test-drive workflow by this action.
+
+### Current desktop pages and initial appearance
+
+| Page | Path and scope |
+| --- | --- |
+| Primary brand Queue Board | `dashboard.html`; the configured primary brand name appears in navigation. |
+| Brand 2 Queue Board | `dashboard-brand2.html`; linked when Brand 2 is enabled. Each board filters its own models and uses its saved brand accent. |
+| Master Table | `master-table.html`; current-run search, earlier same-day history, reprint/reissue, and add/change model actions. |
+| Print Queue | `print-queue.html`; printer selection, queue numbers or SE codes in the first column, print attempts and recovery. |
+| Registered Sales Exec Master List | `sales-executives.html`; name/dealership search, active codes, expiry, history and a dedicated confirmed SE reset. |
+| Event Setup / QR Codes | `event-setup.html`; both registration QR codes, manual Settings sync, CSV backup and queue-run reset. |
+| Compatibility address | `test-drive-operations.html` redirects to the Facilitator Dashboard. |
+
+All of these staff pages are desktop-only and blocked on both public and preview Pages sites. The local engine injects saved brand names and validated colors into the HTML before rendering, using a bootstrap that excludes credentials and client records. The navigation labels, Controls heading and accent therefore appear before cloud registration data arrives. Inter is bundled/preloaded locally, and reserved status-line space avoids shifting the page when run/Sheets messages load. Page HTML is served with `Cache-Control: no-store` so a subsequent navigation uses newly saved Settings.
+
+### Reset controls and retained data
+
+| Control | Effect | Retained data |
+| --- | --- | --- |
+| Event Setup: Reset to Zero / open run | Requires a reason and confirmation; closes the active run, opens another, restarts model allocation from zero and clears every model's local/TV display number. The first new ticket is `01`. | Clients, original ticket numbers, earlier runs, SE check-ins and lead records. |
+| Settings: Reset Display Counters Only | Clears display counters; it does not start a new registration run or restart ticket allocation. Settings links to Event Setup for a complete operational reset. | Registration data, allocation counters, runs and SE codes. |
+| Sales Executives: Reset Sales Executives | Requires a reason and confirmation; deactivates today's codes, cancels their unprinted slips and allows fresh same-day SE registration. Previously issued codes remain reserved for that day. | SE history and client links; client queues, the active run and TV numbers are unchanged. |
+
+The SE history filter includes previous days and reset registrations. A reset code is shown as inactive rather than exposed as a usable code. Operational resets do not delete marketing leads.
 
 Every new test-drive entry begins as `waiting`. A facilitator may transition it to exactly one of `ongoing`, `done`, or `no_show`; a changed-model entry may additionally be marked `cancelled` before a new entry is created. **No Show** is a facilitator marker only: if that client later returns, issue a new queue number rather than changing the no-show entry. A queue number is considered **passed** when it is lower than the number currently displayed on `display_with_ads.html` for the same vehicle model and queue run. Passed numbers may not be reprinted or edited.
 
@@ -200,17 +262,17 @@ Selecting **Ongoing** updates the existing customer display with that registrati
 
 After a successful registration submission, commit all selected-model queue entries and create one **pending print entry** for each selected model. Do not print automatically from the web form.
 
-The TDQSYS desktop app provides a shared **Print Queue** page for the two-person facilitator team operating one laptop. Either team member may print, reprint, cancel, reissue, or add a model; separate per-person permissions are not required for this workflow. It displays only queue number, customer name, and car model for client tickets, with a separate clearly labelled entry type for an SE-code slip. A client who selected three models has three separate print entries, one for each ticket. The facilitator selects one entry at a time, starts printing, then marks it as handed over. Once printed, remove that entry from the active Print Queue.
+The TDQSYS desktop app provides a shared **Print Queue** page for the two-person facilitator team operating one laptop. Either team member may print, reprint, cancel, reissue, or add a model; separate per-person permissions are not required for this workflow. It shows queue number or SE code in the first column, then name, model/type, print status and actions. A client who selected three models has three separate print entries, one for each ticket. The facilitator prints one entry at a time. A successful Windows spool submission records `printed` and removes the job from the active list. The backend also supports `handed_over`; a separate handover button is not currently exposed. Physical label output must be checked during printer acceptance.
 
 Claiming a print entry must be atomic, so an accidental double-click or later multi-device use cannot print the same ticket simultaneously. Print states should include at least `pending`, `claimed`, `printed`, `failed`, and `handed_over`.
 
-**Target printer:** NIMBOT B1 label printer. The implementation should use the PC's supported connection method and validate the available Windows driver, local print bridge, or documented device protocol before development begins.
+**Target printer:** NIIMBOT B1 label printer, selected from the installed Windows printer list. The desktop uses Electron's native print API. The supplied NIIMBOT driver setup is bundled with TDQSYS and skipped when a driver/package is already registered; a clean-machine installation and physical label output still require acceptance.
 
 - Create and commit all selected-model queue records before starting any print job.
 - Print one queue number for every vehicle model selected by the client. For example, selecting three models produces three queue entries and three printed queue numbers.
 - Each printed item must identify the relevant vehicle model and show the queue number assigned by that model's table or queue record.
 - The NIMBOT B1 label size is **50 mm × 30 mm**. Its layout is the configured printable shortname `[Header]` on the first line and `[Queue no.]` below it. The header is bold and uses a larger font than the queue number.
-- The print layout should also include the registration date/time and a short instruction for the client, without printing unnecessary personal contact information.
+- Keep the client label to the approved two-line `[Header]` and `[Queue no.]` layout. Registration timestamps remain in stored records. SE slips use the SE name as an auto-fitted header and the four-digit code at 36pt, preserving leading zeros.
 - Use the configured NIMBOT B1 label printer; provide a clear retry/reprint action when it is unavailable, disconnected, offline, or out of labels.
 - A print failure must not discard the submitted registration or issue a different queue number on retry. The failed entry remains visible in the facilitator Print Queue until it is printed or deliberately cancelled.
 - Reprinting is initiated from an authorised master table by searching for the client name. Reprint the original queue number only while that number has not yet been passed. Once it has been passed, create a new queue entry and issue a new number instead; never alter the previous assigned number.
@@ -238,7 +300,7 @@ The daily operating-day boundary opens a new queue run; a same-day **Reset to Ze
 
 The preferred default is to close the current operating day while retaining historical registrations in an archive that can be exported by authorised client personnel. Permanent deletion of marketing leads should require a separate, deliberate data-retention action rather than being coupled to an operational queue reset.
 
-### Acceptance criteria for a future implementation
+### Workflow acceptance criteria
 
 1. A client can select one or more models and receives a queue entry for each selected model only after entering a valid, active daily SE code and accepting the required waiver and terms.
 2. Submitted entries appear in the matching model list without manual refresh.
@@ -259,7 +321,7 @@ The preferred default is to close the current operating day while retaining hist
 17. Historical registrant data remains available for authorised marketing use after a normal live-queue reset.
 18. The client-registration form cannot submit without every required field, at least one selected vehicle model, required consents, and a validated active SE code.
 19. A client who selects multiple models receives a separate queue and Print Queue entry for each selected model.
-20. The active Print Queue displays only queue number, customer name, and car model; successfully printed entries no longer appear there.
+20. The active Print Queue shows queue number or SE code, name, model/type, print status and actions; successfully printed entries no longer appear there.
 21. A passed queue number is never edited or reprinted. Reissue, added-model, and changed-model actions create new queue entries while preserving the original entry and an audit record.
 22. An SE code expires automatically at the dealership's local midnight, even if the SE has not checked out.
 23. A Google Sheets failure is retried silently in the background and never blocks a successful committed registration or changes its queue numbers.
@@ -267,7 +329,7 @@ The preferred default is to close the current operating day while retaining hist
 25. The client form follows the required Details, Test-drive Choices, Consent, and SE Validation steps; only Application and Reservation are optional.
 26. Google Sheets receives one immutable raw client-registration row per successful client submission. Later model or queue changes do not create or modify a Sheets row.
 27. A No Show entry remains an auditable marker; a returning client receives a new queue entry rather than a changed no-show number.
-28. The 50 mm × 30 mm NIMBOT label prints the bold, larger Header above the Queue no.
+28. The 50 mm × 30 mm client label prints the bold, larger Header above the Queue no. The SE slip auto-fits the name and prints the four-digit code at 36pt.
 29. Reset to Zero clears only the active test-drive display and opens a new queue run with a fresh live allocation cursor; it never deletes client details or rewrites historical queue numbers.
 30. Queue numbers are unique within a location, operating day, queue run, and vehicle model; a same-day reset may therefore safely allocate a new run's `01`.
 31. Reset to Zero records a reason, including Testing, and a timestamp before opening the new queue run.
@@ -282,34 +344,37 @@ The preferred default is to close the current operating day while retaining hist
 
 ## Technical blueprint
 
-This phase converts the approved workflow into a private Supabase data model,
-public registration endpoints, and desktop-only operational endpoints. It does
+This section describes the implemented private Supabase data model,
+public registration endpoints, and desktop-only operational bridge. It does
 not expose registration data through the existing public `queue_state` record
 or QR queue viewer.
 
 ### Storage model
 
-All tables are scoped by `instance_id`, the TDQSYS installation/location
-identity. The server assigns identifiers, timestamps, operating days, and
+Every record is scoped to the TDQSYS installation/location identity, either
+directly by `instance_id` or through its queue-run/registration foreign key.
+The server assigns identifiers, timestamps, operating days, and
 queue numbers; no phone-provided value is trusted for those fields.
 
 | Table | Required fields and purpose |
 | --- | --- |
 | `vehicle_models` | `id`, `instance_id`, `full_name`, `printable_shortname`, `active`, `retired_at`. The active models drive the client form; do not physically delete a retired model with history. |
 | `sales_executives` | `id`, `instance_id`, `name`, `dealership`, `active`, `created_at`. This is the durable SE directory created by the daily SE form. |
-| `se_daily_checkins` | `id`, `instance_id`, `sales_executive_id`, `operating_day`, `code_hash`, `code_ciphertext`, `issued_at`, `expires_at`. `code_hash` supports validation and uniqueness; encrypted code storage allows the assigned code slip to be printed again. |
+| `se_daily_checkins` | `id`, `instance_id`, `sales_executive_id`, `operating_day`, `code_hash`, `code_ciphertext`, `issued_at`, `expires_at`, `revoked_at`. Hashes enforce validation/uniqueness; ciphertext supports private code previews/printing. At most one non-revoked check-in exists per SE/day; an SE reset preserves older rows and permits a fresh one. |
 | `queue_runs` | `id`, `instance_id`, `operating_day`, `run_number`, `status`, `opened_at`, `closed_at`, `reset_reason`, `opened_by`. Exactly one run is active per location. |
 | `queue_counters` | `queue_run_id`, `vehicle_model_id`, `last_issued_number`. This row is locked and incremented when a new ticket is allocated; it starts at zero for each run and model. |
 | `registrations` | `id`, `instance_id`, `full_name`, `name_search`, `email`, `city_address`, `contact_number`, `for_application`, `for_reservation`, `se_daily_checkin_id`, `waiver_version`, `terms_version`, `consented_at`, `submitted_at`. Raw client information lives here. |
 | `test_drive_entries` | `id`, `instance_id`, `registration_id`, `queue_run_id`, `vehicle_model_id`, `queue_number`, `status`, `replaced_entry_id`, `issued_at`, `status_changed_at`, `status_changed_by`. An entry is never edited to reuse a number. |
 | `print_jobs` | `id`, `instance_id`, `kind` (`client_ticket` or `se_code_slip`), `test_drive_entry_id` or `se_daily_checkin_id`, `status`, `claimed_at`, `printed_at`, `handed_over_at`, `attempt_count`, `last_error`. |
-| `display_state` | `instance_id`, `queue_run_id`, `active_test_drive_entry_id`, `updated_at`. This contains only display-safe active-ticket context; it is the source used to update `display_with_ads.html`. |
+| `display_state` | `instance_id`, `queue_run_id`, `active_test_drive_entry_id`, `updated_at`. Private latest-Ongoing event context; it is not a location-wide single-ongoing restriction. |
+| `queue_model_display` | `queue_run_id`, `vehicle_model_id`, `queue_number`. Persists the last displayed number per model/run and is used for passed-number/reprint decisions. |
 | `sheet_sync_jobs` | `id`, `registration_id`, `payload_snapshot`, `status`, `attempt_count`, `next_attempt_at`, `last_error`, `completed_at`. It appends one raw client-registration row to Google Sheets. |
-| `audit_log` | `id`, `instance_id`, `actor_type`, `actor_id`, `action`, `target_type`, `target_id`, `details`, `created_at`. It records reset, issue, reissue, print, status, and export activity. |
+| `audit_log` | `id`, `instance_id`, `actor_type`, `actor_id`, `action`, `target_type`, `target_id`, `details`, `created_at`. Transactions record operational changes, including queue/SE resets, issues and status changes. Broader settings/export auditing remains an acceptance requirement. |
 
 ### Database rules and transactions
 
 - Enforce unique SE codes by `instance_id`, `operating_day`, and `code_hash`.
+- A confirmed SE reset revokes current-day check-ins without deleting them, expires their codes and cancels unprinted SE slips. A partial unique index allows a new check-in for the same SE/day after revocation; daily code uniqueness includes revoked rows to prevent reuse.
 - Enforce one active queue run per `instance_id` and one unique ticket by `queue_run_id`, `vehicle_model_id`, and `queue_number`.
 - Enforce no more than one `ongoing` test-drive entry per vehicle model within the active location/run.
 - Ticket allocation locks the matching `queue_counters` row, increments it, creates the test-drive entry and pending client print job, then commits all of those changes together.
@@ -326,29 +391,47 @@ queues, or another location's data.
 
 | Endpoint/action | Caller | Result |
 | --- | --- | --- |
+| `GET /api/test-drive/config?id=<instanceId>` | Public client form | Returns that location's active model names and waiver/Terms text/version hashes. |
 | `POST /api/test-drive/se-checkins` | Public SE QR form | Validates name/dealership, creates daily SE check-in and pending SE-code print job, returns the assigned four-digit code and collection message. |
-| `POST /api/test-drive/se-code/validate` | Public client form | Validates the active unexpired code and returns only SE name, dealership, and a short-lived server-signed proof. |
-| `POST /api/test-drive/registrations` | Public client form | Validates all required data, consent, proof, and selected active models; applies duplicate-name/model logic; commits new entries/print jobs and creates a Google Sheets sync job. Returns existing unpassed or new queue numbers and the collection message. |
-| `GET /api/test-drive/operations` | TDQSYS desktop only | Returns the active-run queue board, Print Queue, and authorised Master Table search results. |
-| `POST /api/test-drive/entries/:id/ongoing` | TDQSYS desktop only | Atomically advances the selected vehicle model's display ticket. |
-| `POST /api/test-drive/entries/:id/status` | TDQSYS desktop only | Marks an entry done, no-show, or cancelled where the transition is allowed. |
-| `POST /api/test-drive/runs/reset` | TDQSYS desktop only | Requires a reset reason; closes the active run and opens a new same-day or next-day run. |
-| `POST /api/test-drive/print-jobs/:id/claim` | TDQSYS desktop only | Atomically claims the next SE-code or client-ticket job. |
-| `POST /api/test-drive/print-jobs/:id/result` | TDQSYS desktop only | Records printed, failed, or handed-over outcome without changing its ticket number. |
-| `POST /api/test-drive/entries/:id/reissue` | TDQSYS desktop only | Reprints an unpassed ticket or creates a new current-run ticket if the old one has passed. |
-| `POST /api/test-drive/registrations/:id/models` | TDQSYS desktop only | Adds a model or cancels/replaces a selected model by creating a new ticket entry. |
+| `POST /api/test-drive/se-code` | Public client form | Rate-limits code checks and returns the active SE's name/dealership or an error. |
+| `POST /api/test-drive/registrations` | Public client form | Revalidates the code, required fields, consent versions and models server-side; applies duplicate-name/model logic; commits entries, print jobs and a Sheets job. Returns existing unpassed or new numbers and the collection message. |
+| `snapshot` | Private desktop bridge | Reads the active-run board, Print Queue and optional earlier same-day entries. Explicit staff-view flags include private code previews and the SE master list. |
+| `ongoing`, `status`, `callback` | Private desktop bridge | Advance the chosen model, mark allowed status changes, or fetch a ticket for a local speech announcement. |
+| `reset` | Private desktop bridge | Requires a reason; closes the active run and opens a new run, then clears every model's local/TV number. |
+| `reset-sales-executives` | Private desktop bridge | Requires explicit confirmation/reason; deactivates today's SE codes without changing client queues or TV numbers. |
+| `printers`, `print` | Native desktop actions | List Windows printers or claim one job, spool a 50 x 30 mm label and record its outcome. |
+| `claim-print`, `print-result` | Private desktop bridge | Atomically claim a job or record printed, failed, handed-over or recovery results without reallocating its ticket. |
+| `reissue` | Private desktop bridge | Reprint an unpassed ticket, issue a new number, add a model, or cancel/replace a waiting model while preserving the original entry. |
+| `configure`, `sync-sheets` | Desktop foreground/background work | Publish saved location Settings or retry a durable raw-registration delivery job. |
+| `integration-info`, `test-sheets` | Desktop Settings bridge | Display the sharing-account email and check/prepare the selected spreadsheet's dated tab without exposing credentials. |
 
-Desktop-only endpoints authenticate the installed TDQSYS application using the
-existing per-installation writer credential over TLS. The server validates that
-credential against `instance_id`; public browsers never receive it. Existing
-licence state remains the write gate for all desktop mutations.
+Desktop pages call the whitelisted `af:testDrive` Electron IPC bridge. The
+native process sends private operations as a JSON `action` to
+`POST /functions/v1/test-drive-operations` on Supabase, using the installation's
+writer credential over TLS. The function authenticates that credential against
+`instance_id` and checks revocation; the native bridge also enforces the local
+licence write gate. Public form scripts receive neither credential nor service key.
+
+Selecting Ongoing maps the returned model to the desktop's brand/unit slot,
+saves its committed number through the local engine, and triggers the existing
+queue-sync mirror. Local and remote `display_with_ads.html` continue reading
+the established queue-state feed. No client details are added to that public
+feed. Run reset uses the same local/TV update path, clearing all model slots.
 
 ### Background work and failure handling
 
-- The registration transaction writes a `sheet_sync_jobs` record but does not
-  wait for Google Sheets. A scheduled worker retries pending jobs silently with
-  backoff until they succeed; duplicate delivery is prevented with the
-  registration ID as the external idempotency key.
+- The registration transaction writes a `sheet_sync_jobs` record without waiting
+  for Google Sheets. The desktop main process runs its retry worker every 15
+  seconds while TDQSYS is open, independently of the active facilitator page.
+  Jobs persist while the app is closed and resume when it reopens. There is no
+  independent scheduled cloud worker in the current build.
+- Saved models, waiver/Terms and Sheet URL sync automatically. A newly saved
+  destination is configured before delivery is retried. When no URL is saved,
+  registrations stay queued and the staff pages show a setup notice.
+- Delivery failures retry silently with backoff. The worker checks the
+  registration ID in the destination before appending to prevent duplicate
+  delivery, uses the original submission date for its daily tab, and leaves
+  existing rows and unrelated tabs intact.
 - A NIMBOT failure updates its `print_jobs` record to `failed`; the committed
   registration and queue number remain unchanged. The desktop can retry from
   that job only when its associated entry remains unpassed.
@@ -368,3 +451,6 @@ licence state remains the write gate for all desktop mutations.
 8. A failed NIMBOT job and a failed Google Sheets job retry without changing committed registration or queue data.
 9. Public endpoints cannot retrieve PII, operations, staff lists, or another location's records beyond their permitted response.
 10. Unlicensed, expired, revoked, and reinstated desktop states keep the required write restrictions.
+11. SE reset deactivates old codes, permits fresh same-day check-in, preserves client/run/display state, and never reassigns a revoked code that day.
+12. Installer driver detection skips an existing NIIMBOT driver/package and bundles the supplied vendor setup for a clean installation.
+13. Every facilitator page receives saved brand metadata before its CSS/scripts render; Brand 2 uses its own accent, credentials are excluded, and status/font loading does not cause the default-red flash.

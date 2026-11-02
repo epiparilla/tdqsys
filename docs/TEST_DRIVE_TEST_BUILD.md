@@ -112,8 +112,9 @@ client-form links and three separate SE-form links without separate deploys.
 On each laptop, open desktop System Settings, create an empty Google tracking
 spreadsheet for that location, and share it as Editor with the email displayed
 under **Share with this account**. Paste the spreadsheet URL, select
-**Connect Sheet / prepare today's tab**, save, then **Sync saved Settings** in Test
-Drive Operations. Repeat with a different Sheet at the other two locations.
+**Connect Sheet / prepare today's tab**, then save Settings. The desktop syncs
+the destination automatically; **Sync saved Settings now** is also available
+on Event Setup / QR Codes. Repeat with a different Sheet at the other two locations.
 TDQSYS creates or reuses **TDQSYS Reg mm/dd/yyyy** using the location's local
 date, and initializes its column headers. No manual tab creation is needed,
 and any `gid` in the pasted URL is ignored. Same-day queue resets reuse the
@@ -184,8 +185,8 @@ missing-voice fallback. Desktop/public route boundaries passed on both sites.
 1. Install manually; confirm the licence and existing display/video behavior.
 2. Select the actual label printer and its 50 x 30 mm stock; verify clipping,
    header/number sizes, printing failures, and recovery with physical output.
-3. Save vehicle shortnames, real waiver/Terms, and Sheets URL; open Test Drive
-   Dashboard and download its two QR images. Confirm Sheets setup is shown
+3. Save vehicle shortnames, real waiver/Terms, and Sheets URL; open
+   Event Setup / QR Codes and download its two QR images. Confirm Sheets setup is shown
    clearly and a saved destination enables background delivery.
 4. Register an SE on a phone, print its code slip, register a client for
    multiple models, and collect the separate labels.
