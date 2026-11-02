@@ -234,7 +234,7 @@ function afRenderNoLocation(container, opts) {
         <h2>No location selected</h2>
         <p>This viewer needs a location's Instance ID.</p>
         <p class="no-location-hint">Open the link from
-            <strong>Settings &rsaquo; System Identity &rsaquo; Copy mirror link</strong>,
+            <strong>Event Setup / QR Codes &rsaquo; Copy mirror link</strong>,
             or add it to the address:</p>
         <form class="no-location-form" novalidate>
             <input type="text" inputmode="text" autocomplete="off" spellcheck="false"

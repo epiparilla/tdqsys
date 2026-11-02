@@ -7,6 +7,10 @@ const vm = require('node:vm');
 const {FACILITATOR_PAGES,injectFacilitatorBootstrap}=require('../shared/facilitator-theme');
 const {PUBLIC,startEngine}=require('./helpers');
 const shell=fs.readFileSync(path.join(PUBLIC,'facilitator-shell.js'),'utf8');
+test('Event Setup bootstrap carries only the correct location-scoped public mirror link',()=>{
+  const html=injectFacilitatorBootstrap('<!--TDQSYS_FACILITATOR_BOOTSTRAP-->',{instanceId:'location-123',cloudBase:'https://tdqsys.pages.dev/',cloudWriterToken:'private-token',brands:[]});
+  assert.match(html,/https:\/\/tdqsys.pages.dev\/client.html\?id=location-123/);assert.doesNotMatch(html,/private-token/);
+});
 
 test('every staff page receives its saved branding before CSS or cloud requests, without exposing private configuration',async()=>{
   const engine=await startEngine();

@@ -5,7 +5,8 @@ function facilitatorBootstrap(config) {
     const firstCount = (config.brands || []).find(brand => brand.key === 'brand1')?.models?.length || 0;
     return {brands:(config.brands || []).filter(brand => brand.models?.length && (brand.key !== 'brand2' || firstCount < 12)).map(brand => ({
         key:brand.key,name:brand.name,color:/^#[0-9a-f]{6}$/i.test(brand.color || '') ? brand.color : '#EB0A1E'
-    })),sheetsConfigured:!!config.testDrive?.sheetsUrl};
+    })),sheetsConfigured:!!config.testDrive?.sheetsUrl,mirrorLink:config.instanceId && /^https?:\/\//i.test(config.cloudBase || '')
+      ? `${config.cloudBase.replace(/\/+$/,'')}/client.html?id=${encodeURIComponent(config.instanceId)}` : ''};
 }
 
 function injectFacilitatorBootstrap(html, config) {

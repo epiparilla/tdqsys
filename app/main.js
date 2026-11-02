@@ -1042,7 +1042,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             result.sheetsStatus = {...registrationSyncStatus,hasUrl:!!cfg.testDrive?.sheetsUrl};
         }
         const publicBase = cfg.cloudBase || 'https://tdqsys.pages.dev';
-        return { ok: true, ...result, registrationLinks: {
+        return { ok: true, ...result, mirrorLink:/^https?:\/\//i.test(cfg.cloudBase || '') ? `${cfg.cloudBase.replace(/\/+$/, '')}/client.html?id=${encodeURIComponent(cfg.instanceId)}` : '', registrationLinks: {
             client: `${publicBase.replace(/\/+$/, '')}/test-drive-registration.html?id=${encodeURIComponent(cfg.instanceId)}`,
             se: `${publicBase.replace(/\/+$/, '')}/se-registration.html?id=${encodeURIComponent(cfg.instanceId)}`
         } };

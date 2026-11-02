@@ -34,7 +34,7 @@ function loadLib(ctx) {
 test('the QR library is vendored, not fetched', () => {
   const lib = path.join(PUBLIC, 'vendor', 'qrcode-generator.js');
   assert.ok(fs.existsSync(lib), 'vendor/qrcode-generator.js is missing');
-  const settings = readPublic('settings.html');
+  const settings = readPublic('event-setup.html');
   assert.ok(/src="vendor\/qrcode-generator\.js"/.test(settings));
   assert.ok(!/src="https?:[^"]*qrcode/i.test(settings),
     'the QR library must not be loaded from a CDN - Settings has to work offline');
@@ -79,7 +79,7 @@ function render(text, { focusWorks = true } = {}) {
   // The page loads af.js and the QR library before this function runs.
   loadLib(ctx);
 
-  const settingsSrc = readPublic('settings.html');
+  const settingsSrc = readPublic('mirror-qr.js');
   vm.runInContext(`
     var mirrorQrObj = null;
     ${extractFunction(settingsSrc, 'renderMirrorQr')}
@@ -175,7 +175,7 @@ test('download produces a correctly named .png link', () => {
   vm.createContext(ctx);
   vm.runInContext(`
     var mirrorQrObj = __qr;
-    ${extractFunction(readPublic('settings.html'), 'downloadMirrorQr')}
+    ${extractFunction(readPublic('mirror-qr.js'), 'downloadMirrorQr')}
     downloadMirrorQr('png');
   `, Object.assign(ctx, { __qr: r.qr }));
 
@@ -204,7 +204,7 @@ test('download produces a vector .svg link for print', () => {
   vm.createContext(ctx);
   vm.runInContext(`
     var mirrorQrObj = __qr;
-    ${extractFunction(readPublic('settings.html'), 'downloadMirrorQr')}
+    ${extractFunction(readPublic('mirror-qr.js'), 'downloadMirrorQr')}
     downloadMirrorQr('svg');
   `, Object.assign(ctx, { __qr: r.qr }));
 

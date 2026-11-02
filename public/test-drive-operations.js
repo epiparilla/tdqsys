@@ -71,6 +71,7 @@
     return selected ? snapshot.models.filter(model => !model.brand_key || model.brand_key === selected.key).sort((a,b) => a.unit_index-b.unit_index) : [];
   }
   function render() {
+    if(document.body.dataset.view==='setup' && typeof updateMirrorLink==='function')updateMirrorLink(snapshot.mirrorLink ?? window.TDQSYS_FACILITATOR_BOOTSTRAP?.mirrorLink ?? '');
     const linksSignature=JSON.stringify(snapshot.registrationLinks || {});
     if(document.body.dataset.view==='setup' && linksSignature!==registrationLinksSignature) {
     registrationLinksSignature=linksSignature;

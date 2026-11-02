@@ -151,6 +151,10 @@ online setup page: Cloudflare blocks Settings, the facilitator dashboard, and
 Test Drive Operations URLs. Only the registration forms and public queue
 displays are intended for online users.
 Open **Event Setup / QR Codes** from the facilitator header for registration QR codes.
+The same page now contains the read-only queue mirror link, Copy button and
+mirror QR downloads in PNG/SVG. These sharing controls were removed from
+Settings; the immutable Instance ID remains there. Check that scanning or
+downloading the mirror QR opens `client.html?id=<this installation ID>`.
 Saved models, waiver, Terms and Sheets destination sync automatically in the
 desktop background process. **Sync saved Settings now** also remains available.
 Choose the installed label printer on the separate **Print Queue** page.
@@ -244,7 +248,7 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 285 passing Node tests, three optional skips,
+Latest automated verification: 286 passing Node tests, three optional skips,
 19 PostgreSQL integration checks and five Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.

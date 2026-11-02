@@ -29,8 +29,7 @@ test('settings.html loads its local dependencies, not a CDN', () => {
       'it must work offline');
   }
   assert.ok(srcs.includes('af.js'), 'settings.html no longer loads af.js');
-  assert.ok(srcs.includes('vendor/qrcode-generator.js'),
-    'settings.html no longer loads the QR generator');
+  assert.ok(!srcs.includes('vendor/qrcode-generator.js'),'QR code generation belongs on Event Setup');
 });
 
 // --- Location Label ----------------------------------------------------------
@@ -265,15 +264,18 @@ test('opening the unlock modal explicitly enables its confirmation field', () =>
 
 // --- Identity card ------------------------------------------------------------
 
-test('the mirror link and instance id stay outside the locked form', () => {
+test('instance identity remains outside the locked form and mirror sharing moves to Event Setup', () => {
   // They used to live inside it, so an operator in "locked" mode could not read
   // the mirror link they were supposed to share.
   const formEnd = html.indexOf('</form>');
   const mirror = html.indexOf('id="cfg-mirrorlink"');
   const instance = html.indexOf('id="cfg-instance"');
-  assert.ok(mirror > -1 && instance > -1, 'identity fields are missing');
-  assert.ok(mirror < formEnd, 'the mirror link moved inside the locked form');
+  assert.equal(mirror,-1,'mirror link must be removed from Settings');
+  assert.ok(instance > -1, 'instance identity is missing');
   assert.ok(instance < formEnd, 'the instance id moved inside the locked form');
+  const shell=readPublic('facilitator-shell.js');
+  assert.match(shell,/id="cfg-mirrorlink"/);assert.match(shell,/id="mirror-qr-canvas"/);
+  const setup=readPublic('event-setup.html');assert.match(setup,/src="mirror-qr.js"/);
 });
 
 test('Settings links to itself are never removed by any filter', () => {

@@ -24,7 +24,30 @@ function applyFacilitatorBrand(brands) {
     <p id="message" role="status"></p><p id="sheets-status" role="status"></p><p id="run">Loading registrations...</p>
     <section id="event-setup" ${view!=='setup'?'hidden':''}><h2>Event setup and registration QR codes</h2>
       <p>Save vehicle shortnames, waiver, Terms and this location's Google Sheets URL in System Settings. Saved settings sync automatically while the desktop app is running.</p>
-      <button id="configure" data-write>Sync saved Settings now</button><div id="registration-links"></div>
+      <section id="mirror-link"><h3>Queue display mirror link / QR</h3>        <div class="field">
+            <label>Your mirror link (share to watch this location)</label>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <input type="text" id="cfg-mirrorlink" readonly style="flex:1; opacity:0.85;" onclick="this.select()">
+                <button type="button" class="btn-ghost settings-btn" style="flex:0 0 auto; padding:0.4rem 1rem;" onclick="copyMirrorLink()">&#x1F4CB; Copy</button>
+            </div>
+            <div class="hint">Opens the read-only web viewer for THIS location on any phone. Paste it into the viewer's "Instance / mirror link" box, or open it directly.</div>
+
+            <!-- Print/share QR. Regenerated from the field above, so it can never
+                 disagree with the link. Canvas is rendered at integer module
+                 scale: fractional cells look fine on screen but blur when
+                 printed, and a blurred QR will not scan. -->
+            <div style="display:flex; gap:1rem; align-items:center; margin-top:0.9rem; flex-wrap:wrap;">
+                <canvas id="mirror-qr-canvas" width="512" height="512" role="img"
+                        aria-label="QR code linking to this location's queue viewer"
+                        style="width:150px; height:150px; background:#fff; border-radius:8px; padding:6px; box-sizing:content-box; flex:0 0 auto; image-rendering:pixelated;"></canvas>
+
+                <div id="mirror-qr-actions" style="display:flex; flex-direction:column; gap:0.4rem; align-items:flex-start;">
+                    <button type="button" class="btn-ghost settings-btn" onclick="downloadMirrorQr('png')">&#x2B07; Download PNG</button>
+                    <button type="button" class="btn-ghost settings-btn" onclick="downloadMirrorQr('svg')">&#x2B07; Download SVG (print)</button>
+                    <div class="hint" style="max-width:22rem;">Scan to open this location's viewer. PNG/SVG are sized for printing on a sign or handout.</div>
+                </div>
+            </div>
+        </div><p id="mirror-link-notice" hidden>Set the Cloud Base URL in desktop Settings to generate this location's public mirror link.</p></section><button id="configure" data-write>Sync saved Settings now</button><div id="registration-links"></div>
       <button id="export">Download registrant backup (CSV)</button>
       <form id="reset-form"><label>Reset reason <input id="reset-reason" value="Testing" maxlength="240" required data-write></label>
       <label><input id="reset-confirm" type="checkbox" required data-write> Close this run and reset every model and the TV display to zero. Keep all client and SE history.</label><button type="submit" data-write>Reset to Zero / open run</button></form>
