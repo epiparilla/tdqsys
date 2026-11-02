@@ -17,6 +17,8 @@ class DesktopSpeech:
         self.completed = 0
         self.last_error = None
         self.last_compose_ms = None
+        self.preparing_previews = 0
+        self.preview_lock = threading.Lock()
         threading.Thread(target=self._play_loop, daemon=True).start()
         if warmup:
             threading.Thread(target=self._warm_loop, daemon=True).start()
@@ -33,10 +35,20 @@ class DesktopSpeech:
         self.jobs.put((job_id, parts, voice))
         return {'queued': True, 'jobId': job_id, 'cacheReady': ready}
 
+    def preview_audio(self, parts, voice):
+        with self.preview_lock:
+            self.preparing_previews += 1
+        try:
+            return self.cache.compose(parts, voice)
+        finally:
+            with self.preview_lock:
+                self.preparing_previews -= 1
+
     def status(self):
         return {'queued': self.jobs.qsize(), 'playing': self.busy, 'warming': self.warming,
                 'completed': self.completed, 'lastError': self.last_error,
-                'lastComposeMs': self.last_compose_ms, 'cachedClips': len(self.cache.memory)}
+                'lastComposeMs': self.last_compose_ms, 'cachedClips': len(self.cache.memory),
+                'preparingPreviews': self.preparing_previews}
 
     def _play_loop(self):
         while True:
@@ -76,7 +88,7 @@ class DesktopSpeech:
                     numbers = set(range(0, 151)) | set(range(max(151, highest - 10), min(99999, highest + 50) + 1))
                     parts.update(' '.join(str(number).zfill(2)) for number in numbers)
                     for text in sorted(parts):
-                        while self.busy or not self.jobs.empty():
+                        while self.busy or not self.jobs.empty() or self.preparing_previews:
                             time.sleep(0.02)
                         self.cache.ensure(text, voice)
                     previous = signature

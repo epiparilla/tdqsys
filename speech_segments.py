@@ -10,6 +10,33 @@ import wave
 
 DEFAULTS = {"voice": "af_heart", "prefix": "Test driver", "template": "{ticket}",
             "suffix": "you may now approach the registration area for your test drive."}
+JOIN_GAP_MS = 10
+
+
+def preview_plan(body):
+    """Validate unsaved Settings values, then use the identical live planner."""
+    if not isinstance(body, dict) or not isinstance(body.get('model'), dict):
+        raise ValueError('Select a configured vehicle for the preview.')
+    def field(source, key, limit, default=''):
+        value = source.get(key, default)
+        if not isinstance(value, str) or len(value) > limit:
+            raise ValueError('Invalid speech preview field: ' + key)
+        return value.strip()
+    model = {key:field(body['model'],key,limit) for key,limit in [('label',120),('prefix',36),('pronounce',160),('shortnamePronounce',160)]}
+    if not model['label'] and not model['prefix']:
+        raise ValueError('Select a configured vehicle for the preview.')
+    speech = {key:field(body,key,limit,DEFAULTS[key]) for key,limit in [('voice',64),('prefix',200),('template',400),('suffix',200)]}
+    if not re.fullmatch(r'[a-z0-9_]{1,64}',speech['voice']):
+        raise ValueError('Invalid preview voice.')
+    text = ' '.join(speech[key] for key in ('prefix','template','suffix'))
+    if '{ticket}' not in text or re.search(r'[{}]',re.sub(r'\{(?:ticket|counter|service)\}','',text)):
+        raise ValueError('Include {ticket} and use only valid announcement placeholders.')
+    config = {'brands':[{'key':'preview','name':field(body,'brandName',120),'models':[model]}],
+              'announcements':speech,'testDrive':{'callbackPrefix':field(body,'callbackPrefix',200,'Test driver'),
+              'callbackSuffix':field(body,'callbackSuffix',400,'please stand by, you are next in line to test')}}
+    if body.get('kind','ongoing') == 'callback' and not all(config['testDrive'].values()):
+        raise ValueError('Call-back prefix and suffix cannot be blank.')
+    return ticket_plan(config,'preview',1,body.get('number',1),body.get('kind','ongoing'))
 
 
 def ticket_plan(config, brand_key, unit, number, kind="ongoing"):
@@ -88,7 +115,7 @@ class SegmentCache:
 
     def compose(self, parts, voice, speed=1.0):
         frames = []
-        gap = b"\0\0" * 1200  # 50ms, with no silence synthesis required.
+        gap = b"\0\0" * (24000 * JOIN_GAP_MS // 1000)
         for index, part in enumerate(parts):
             with wave.open(io.BytesIO(self.ensure(part, voice, speed)), "rb") as clip:
                 if index:

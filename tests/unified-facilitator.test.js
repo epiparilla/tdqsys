@@ -57,6 +57,31 @@ function bridge(url,config,fetch,extra={}) {
   return {call:body=>handler({senderFrame:{url},sender:{getPrintersAsync:async()=>[{name:'B1'}]}},body),context};
 }
 const config={instanceId:'isolated',cloudWriterToken:'private',brands:[{key:'toyota',models:[{label:'RAV4',prefix:'AA'},{label:'Camry',prefix:'BB'}]}]};
+test('Settings announcement preview stays on authenticated loopback and returns WAV without a cloud action',async()=>{
+  const calls=[];
+  const {call}=bridge('http://localhost:8081/settings.html',config,async(url,options)=>{
+    calls.push({url,options});return new Response(Buffer.from('RIFFtest'),{headers:{'X-TDQSYS-Voice':'am_liam'}});
+  },{Buffer,TTS_PORT:8001,TTS_PLAYBACK_TOKEN:'private-test-token'});
+  const result=await call({action:'speech-preview',preview:{kind:'callback',voice:'am_liam',number:1}});
+  assert.equal(result.ok,true);assert.equal(Buffer.from(result.audioBase64,'base64').toString(),'RIFFtest');
+  assert.equal(result.voice,'am_liam');assert.equal(calls.length,1);assert.equal(calls[0].url,'http://127.0.0.1:8001/api/preview-ticket');
+  assert.equal(calls[0].options.headers['X-TDQSYS-Playback'],'private-test-token');assert.equal(JSON.parse(calls[0].options.body).kind,'callback');
+  assert.equal(JSON.stringify(result).includes('private-test-token'),false);
+});
+test('announcement preview uses unsaved Settings through native stitched playback instead of a full-sentence request',async()=>{
+  const speech=fs.readFileSync(path.join(PUBLIC,'settings-speech.js'),'utf8');
+  const requests=[],played=[];let paused=false;
+  const values={'speech-test-status':{},'cfg-callback-prefix':{value:'Now serving'},'cfg-callback-suffix':{value:'please approach'}};
+  const model={label:'Coolray',prefix:'CRY',pronounce:'C R Y',shortnamePronounce:'Cool ray'};
+  const ctx={audio:{pause(){paused=true;}},$:id=>values[id],selected:()=>({voice:'am_liam',prefix:'Unsaved prefix',template:'{ticket}',suffix:'Thank you'}),sampleTicket:()=>({service:'GEELY',model}),
+    window:{afDesktop:{testDrive:async body=>{requests.push(body);return {ok:true,audioBase64:'UklGRg=='};}}},Audio:function(src){this.play=async()=>played.push(src);this.pause=()=>{};}};
+  vm.createContext(ctx);vm.runInContext(['announcementPreview','playAnnouncement'].map(fn=>extractFunction(speech,fn)).join('\n'),ctx);
+  await ctx.playAnnouncement('ongoing');
+  assert.equal(requests[0].action,'speech-preview');assert.equal(requests[0].preview.prefix,'Unsaved prefix');assert.equal(requests[0].preview.voice,'am_liam');
+  assert.equal(requests[0].preview.model.pronounce,'C R Y');assert.equal(requests[0].preview.number,1);assert.equal(paused,true);
+  assert.equal(played[0],'data:audio/wav;base64,UklGRg==');
+  await ctx.playAnnouncement('callback');assert.equal(requests[1].preview.kind,'callback');assert.equal(requests[1].preview.callbackSuffix,'please approach');
+});
 test('Master reprint validates the printer before issuing, then claims and spools the exact returned job',async()=>{
   const calls=[];let printedHtml='',accepted=true;
   class PrintWindow {

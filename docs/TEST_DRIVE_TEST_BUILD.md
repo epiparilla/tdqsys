@@ -42,6 +42,13 @@ GitHub assets or `public/version.json` before acceptance.
   remains controlled by the existing prefix-pronunciation field.
 - Local speech: packaged Kokoro voice list, safe fallback, prefix/main/suffix
   templates, validated placeholders, and voice/announcement/call-back previews.
+  Test announcement and Test call-back announcement now use exactly the live
+  segmented planner/cache/stitcher, with ticket 01 and the current unsaved
+  Settings values. Matching saved values/ticket produce byte-identical WAVs.
+  Previews do not save Settings, change queues or enqueue physical playback;
+  the Settings page auditions the returned audio. Background preparation yields
+  to previews. Both preview/live paths use 10 ms joins instead of 50 ms, with
+  speech speed unchanged at 1.0. Individual cached clips remain valid.
   Ongoing and Call Back now queue a private desktop-owned FIFO player. It
   prepares separate phrase, model/prefix and number clips, stitches PCM audio
   and keeps playing while facilitator pages change. Clips persist by text,
@@ -248,8 +255,8 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 286 passing Node tests, three optional skips,
-19 PostgreSQL integration checks and five Python speech tests. The rebuilt packaged speech engine was
+Latest automated verification: 288 passing Node tests, three optional skips,
+19 PostgreSQL integration checks and nine Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
 
@@ -348,6 +355,12 @@ part of the walkthrough below.
     to check it persists. Confirm printed shortname and prefix pronunciation
     remain correct. Navigate repeatedly during initial cloud loading and
     resize the board; saved accent must remain visible without a red flash.
+20. Use Test announcement and Test call-back announcement with a saved voice,
+    model pronunciation and wording. Compare live ticket 01 for that model:
+    cadence and joins must match. Try unsaved edits, listen, then leave without
+    saving: live wording/voice must remain the saved values. Check that shorter
+    joins remain clear, including prefix, leading zeros and model names. The
+    Test voice button remains a separate general voice audition.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

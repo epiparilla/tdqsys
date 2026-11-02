@@ -13,12 +13,13 @@
             if(!row)continue;
             const prefix=row.querySelector('.model-prefix').value.trim();
             const pronunciation=row.querySelector('.model-pronounce').value.trim().replace(/^["']+|["']+$/g,'').trim() || prefix.split('').join(' ');
-            return {ticket:spoken ? `${pronunciation} 0 1`.trim() : `${prefix}01`,counter:spoken && row.querySelector('.model-shortname-pronounce')?.value.trim() || row.querySelector('.model-label').value.trim(),service:block.querySelector('.brand-name').value.trim()};
+            const model={label:row.querySelector('.model-label').value.trim(),prefix,pronounce:pronunciation,shortnamePronounce:row.querySelector('.model-shortname-pronounce')?.value.trim().replace(/^["']+|["']+$/g,'').trim() || ''};
+            return {ticket:spoken ? `${pronunciation} 0 1`.trim() : `${prefix}01`,counter:spoken && model.shortnamePronounce || model.label,service:block.querySelector('.brand-name').value.trim(),model};
         }
         const brand=typeof stateDoc!=='undefined' ? stateDoc?.config?.brands?.find(brand=>brand.models?.length) : null;
         const model=brand?.models?.[0];
         if(!model)throw Error('Configure a vehicle model to preview its ticket and pronunciation.');
-        return {ticket:spoken ? `${model.pronounce || (model.prefix || '').split('').join(' ')} 0 1`.trim() : `${model.prefix || ''}01`,counter:spoken && model.shortnamePronounce || model.label,service:brand.name};
+        return {ticket:spoken ? `${model.pronounce || (model.prefix || '').split('').join(' ')} 0 1`.trim() : `${model.prefix || ''}01`,counter:spoken && model.shortnamePronounce || model.label,service:brand.name,model};
     }
     function preview() {
         try {
@@ -44,14 +45,29 @@
             await audio.play(); $('speech-test-status').textContent = 'Playing preview.';
         } catch (error) { $('speech-test-status').textContent = error.message; }
     }
+    function announcementPreview(kind) {
+        const sample=sampleTicket(true);
+        return {...selected(),kind,number:1,brandName:sample.service,model:sample.model,
+            callbackPrefix:$('cfg-callback-prefix').value.trim(),callbackSuffix:$('cfg-callback-suffix').value.trim()};
+    }
+    async function playAnnouncement(kind) {
+        $('speech-test-status').textContent='Preparing the same audio clips used by live announcements...';
+        try {
+            if(!window.afDesktop?.testDrive)throw Error('Open Settings inside the TDQSYS desktop app.');
+            const result=await window.afDesktop.testDrive({action:'speech-preview',preview:announcementPreview(kind)});
+            if(!result.ok)throw Error(result.error || 'Local speech preview is unavailable.');
+            if(audio)audio.pause();
+            audio=new Audio(`data:audio/wav;base64,${result.audioBase64}`);
+            await audio.play();$('speech-test-status').textContent='Playing live-style preview (sample queue number 01).';
+        }catch(error){$('speech-test-status').textContent=error.message;}
+    }
     $('speech-test-voice').onclick = () => play('This is a test of the selected announcement voice.');
-    $('speech-test-announcement').onclick = () => { try { play(TdqSpeech.render(selected(),sampleTicket(true))); } catch(error) { $('speech-test-status').textContent=error.message; } };
+    $('speech-test-announcement').onclick = () => playAnnouncement('ongoing');
     $('speech-test-callback').onclick = () => {
         const prefix = $('cfg-callback-prefix').value.trim();
         const suffix = $('cfg-callback-suffix').value.trim();
         if (!prefix || !suffix) { $('speech-test-status').textContent = 'Call-back prefix and suffix cannot be blank.'; return; }
-        try { const sample=sampleTicket(true);play(`${prefix} ${sample.ticket} ${suffix} ${sample.counter}`); }
-        catch(error){$('speech-test-status').textContent=error.message;}
+        playAnnouncement('callback');
     };
     for (const id of ['cfg-voice','cfg-speech-prefix','cfg-speech-template','cfg-speech-suffix']) $(id).addEventListener('input',preview);
     document.addEventListener('tdqsys-speech-hydrated', () => { applySavedVoice(); preview(); });

@@ -943,7 +943,7 @@ function fitPrintLabel() {
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
-        const settingsActions = ['integration-info', 'test-sheets'];
+        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview'];
         const allowedPage = ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/event-setup.html','/test-drive-operations.html'].includes(sender.pathname)
             || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
@@ -951,6 +951,14 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         }
         const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
+        if(request.action==='speech-preview') {
+            const preview=await fetch(`http://127.0.0.1:${TTS_PORT}/api/preview-ticket`,{
+                method:'POST',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json','X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN},
+                body:JSON.stringify(request.preview)
+            });
+            if(!preview.ok)throw Error(await preview.text() || 'Local speech preview is unavailable.');
+            return {ok:true,audioBase64:Buffer.from(await preview.arrayBuffer()).toString('base64'),voice:preview.headers.get('X-TDQSYS-Voice')};
+        }
         const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
         const cfg = state.config || {};
         if (request.action === 'printers') {

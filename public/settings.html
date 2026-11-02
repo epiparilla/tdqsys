@@ -342,6 +342,7 @@
             <div class="field"><label for="cfg-speech-suffix">Announcement suffix</label><input id="cfg-speech-suffix" maxlength="200" value="you may now approach the registration area for your test drive."></div>
             <p class="hint">Available placeholders: {ticket} (selected vehicle prefix + queue number, e.g. CRY01), {counter} (vehicle/counter name), {service} (brand/service name). Spoken tickets use that vehicle's configured pronunciation. This preview uses the first configured vehicle and queue number 01. Include {ticket} in the announcement.</p>
             <p id="speech-preview" role="status"></p><button type="button" id="speech-test-announcement" class="btn-ghost settings-btn">Test announcement</button>
+            <p class="hint">Announcement and Call Back previews use the same cached clips and 10 ms joins as live playback, with sample queue number 01. Unsaved edits affect this preview only; save Settings to apply them to live announcements.</p>
             <p id="speech-test-status" class="hint" role="status"></p>
         </div>
         <div class="settings-card">

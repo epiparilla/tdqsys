@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from kokoro_onnx import Kokoro
-from speech_segments import SegmentCache
+from speech_segments import SegmentCache, preview_plan
 from speech_service import DesktopSpeech
 
 app = FastAPI()
@@ -541,6 +541,21 @@ async def prepare_ticket(request: Request):
         return {'ready':True,'clips':len(parts)}
     except (ValueError, TypeError, KeyError) as error:
         return Response(content=str(error), status_code=400)
+
+
+@app.post('/api/preview-ticket')
+async def preview_ticket(request: Request):
+    if not _desktop_authorized(request):
+        return Response(status_code=403)
+    if not kokoro:
+        return Response(content='Speech service is starting.',status_code=503)
+    try:
+        parts,voice=preview_plan(await request.json())
+        voice=resolve_voice(voice)
+        audio=await asyncio.to_thread(desktop_speech.preview_audio,parts,voice)
+        return Response(content=audio,media_type='audio/wav',headers={'X-TDQSYS-Voice':voice})
+    except (ValueError,TypeError,KeyError) as error:
+        return Response(content=str(error),status_code=400)
 
 
 @app.get('/api/voices')
