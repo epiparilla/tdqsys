@@ -1,5 +1,12 @@
 # Test-drive manual-test build
 
+Last reconciled with the local source and recorded test results: **2 November 2026**.
+
+This local file is the current manual-test guide. Approved requirements,
+implementation gaps and release gates are tracked in
+[FUTURE_IMPROVEMENTS.md](FUTURE_IMPROVEMENTS.md). Keep this guide and both
+roadmap copies updated locally before committing/pushing documentation changes.
+
 The released desktop and public update manifest remain at **1.1.28**. This
 development build is installed manually; it must not replace the released
 GitHub assets or `public/version.json` before acceptance.
@@ -31,9 +38,9 @@ GitHub assets or `public/version.json` before acceptance.
 - SE registration: daily code, encrypted slip storage, printed-slip queue.
 - Client registration: four steps, consent text hashes/snapshots, SE prefill,
   server-side code revalidation, retry identity, and per-model tickets.
-- Facilitator Dashboard (`dashboard.html`): active-run board, Ongoing/Done/No Show/Call
-  Back, Master Table search, earlier same-day runs, reprint/new-number,
-  add-model/change-model, registrant CSV backup, and reset to a new run.
+- Facilitator Dashboard (`dashboard.html`): active-run model board with
+  Ongoing/Done/No Show/Call Back actions. Search, reissue and model changes are
+  on Master Table; CSV backup and queue-run reset are on Event Setup / QR Codes.
   Each model has its own ongoing client and display number.
 - Master Table (`master-table.html`) and Print Queue (`print-queue.html`) are
   separate desktop pages linked from the dashboard. The former Test Drive
@@ -73,7 +80,7 @@ GitHub assets or `public/version.json` before acceptance.
 
 ## Cloud prerequisites
 
-### Verified deployment on 1 November 2026
+### Recorded cloud verification through 2 November 2026
 
 The additive schema, private operations function, Google service-account
 secret, and matching Pages/Edge encryption secrets are now deployed. The
@@ -82,8 +89,10 @@ working registration preview is:
 `https://test-drive-preview.tdqsys.pages.dev`
 
 A live probe passed SE registration/code validation, client registration,
-idempotent retries, duplicate ticket handling, encrypted SE slip retrieval,
-Ongoing, same-day reset/history, and the deployed Google Sheets worker. Its
+idempotent retries, duplicate ticket handling, private SE code previews/master
+list, encrypted SE slip retrieval, Ongoing, same-day reset/history, and the
+dedicated SE reset with fresh same-day registration and unchanged client queues.
+Google Sheets connection/delivery checks also passed. The probe's
 disposable location records and temporary Google tab were removed afterward;
 the real giveaway tab was left untouched. No physical printing was attempted.
 
@@ -164,6 +173,11 @@ resume after reopening the app; an independent cloud worker is not installed.
 
 ## Build and verification
 
+The supplied driver installer must exist at
+`dist/NiimbotPrinterDriverInstaller-3.0.2.1.exe` before building. This binary
+is excluded from Git; the build copies it into `resources/drivers`. The
+driver-bootstrap script and NSIS hook are tracked under `app/build/`.
+
 ```powershell
 node tests\run.js
 npm.cmd install --prefix .dev-db --no-package-lock --no-audit --no-fund @electric-sql/pglite
@@ -179,6 +193,24 @@ Latest automated verification: 268 passing tests, three optional skips, and
 15 PostgreSQL integration checks. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
+
+These are recorded results. The red-accent flash fix was packaged and checked
+with engine/DOM regression tests; its installed-app visual acceptance remains
+part of the walkthrough below.
+
+## Remaining implementation and acceptance items
+
+- The native Call Back bridge currently formats the numeric queue ticket;
+  prefixed call-back speech such as `AA01` remains a tracked implementation gap.
+- Verify the startup model-availability gate and clear reporting when saved
+  registration configuration cannot sync. Background Settings retries exist.
+- Prior-day lead browsing/export, full raw-data/consent detail viewing, broader
+  settings/export auditing, model-retirement export/confirmation flows, and an
+  overall distinct-client total remain tracked in the roadmap.
+- Sheets delivery requires the desktop app to remain open. An independent
+  scheduled cloud worker is not installed.
+- Physical labels, clean-machine driver installation and full acceptance at all
+  three locations must pass before raising the release version or manifest.
 
 ## Required manual acceptance at each of the three locations
 
@@ -217,6 +249,13 @@ missing-voice fallback. Desktop/public route boundaries passed on both sites.
 11. From Sales Executives, confirm a dedicated reset invalidates old codes and
     enables fresh registrations. Check reset entries in history, and confirm
     existing clients and the ongoing TV numbers stay unchanged.
+12. Navigate repeatedly among the Queue Board, Master Table, Print Queue,
+    Sales Executives and Event Setup / QR Codes. Confirm the saved brand accent,
+    brand name and navigation labels appear on the first render with no red
+    default flash or status-text jump. Repeat after changing/saving the accent
+    in Settings and with internet disconnected. If Brand 2 is enabled, confirm
+    its separate board immediately uses its own saved accent. Registration data
+    may still be loading; local page styling must already be correct.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a
