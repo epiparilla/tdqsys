@@ -7,7 +7,7 @@ const { pgcrypto } = require('../.dev-db/node_modules/@electric-sql/pglite/dist/
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const { createHash } = require('node:crypto');
+const { createHash,randomUUID } = require('node:crypto');
 const hash = text => createHash('sha256').update(text).digest('hex');
 const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-555555555555';
 
@@ -27,6 +27,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020002_ticket_labels_se_reprint.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020003_direct_reprint_cancel.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020004_registration_dealerships.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611030001_local_operation_sync.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_registration', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms','',JSON.stringify(['Toyota'])]);
@@ -111,6 +112,32 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
         const replacement=await rpc('tdqsys_reissue_ticket',[A,job.test_drive_entry_id,null,false]);
         await rpc('tdqsys_claim_print_job',[A,replacement.jobId]);
         await assert.rejects(rpc('tdqsys_cancel_print_job',[A,replacement.jobId]),/only pending/);
+      } finally {await db.exec('rollback');}
+    });
+    await check('local operation receipts prevent duplicate application and an old retry cannot undo a later status',async()=>{
+      await db.exec('begin');
+      try {
+        const operation={id:randomUUID(),runId:run.id,entryId:first.entries[0].entryId,action:'ongoing',createdAt:new Date().toISOString()};
+        const accepted=await rpc('tdqsys_apply_local_operation',[A,JSON.stringify(operation)]);
+        assert.equal(accepted.operationId,operation.id);
+        await rpc('tdqsys_apply_local_operation',[A,JSON.stringify({...operation,id:randomUUID(),action:'status',status:'done'})]);
+        assert.deepEqual(await rpc('tdqsys_apply_local_operation',[A,JSON.stringify(operation)]),accepted);
+        assert.equal((await db.query('select status from test_drive_entries where id=$1',[operation.entryId])).rows[0].status,'done');
+        assert.equal((await db.query('select count(*)::int n from tdqsys_local_operation_receipts')).rows[0].n,2);
+        await db.exec('savepoint payload_reuse');
+        await assert.rejects(rpc('tdqsys_apply_local_operation',[A,JSON.stringify({...operation,action:'status',status:'no_show'})]),/different content/);
+        await db.exec('rollback to savepoint payload_reuse');
+        await db.exec('savepoint foreign_ticket');
+        await assert.rejects(rpc('tdqsys_apply_local_operation',[A,JSON.stringify({...operation,id:randomUUID(),entryId:randomUUID()})]),/does not belong/);
+        await db.exec('rollback to savepoint foreign_ticket');
+        await assert.rejects(rpc('tdqsys_apply_local_operation',[B,JSON.stringify(operation)]),/run is no longer current|does not belong/);
+      } finally {await db.exec('rollback');}
+    });
+    await check('queued operations from a reset run are rejected without creating receipts',async()=>{
+      await db.exec('begin');
+      try {
+        await rpc('tdqsys_open_queue_run',[A,today,'Reset while desktop offline','facilitator']);
+        await assert.rejects(rpc('tdqsys_apply_local_operation',[A,JSON.stringify({id:randomUUID(),runId:run.id,entryId:first.entries[0].entryId,action:'ongoing'})]),/run is no longer current/);
       } finally {await db.exec('rollback');}
     });
     await check('print claim is exclusive', async () => {

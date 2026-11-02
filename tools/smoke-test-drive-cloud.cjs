@@ -6,6 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
+const { LocalTestDrive } = require('../shared/test-drive-local');
 const PROJECT = 'pnyptdyfkftrcgjlaqnr';
 const PREVIEW = 'https://test-drive-preview.tdqsys.pages.dev';
 const INSTANCE = crypto.randomUUID();
@@ -32,7 +33,7 @@ async function main() {
   const googleToken=(await tokenResponse.json()).access_token;
   const googleHeaders={Authorization:`Bearer ${googleToken}`,'Content-Type':'application/json'};
   const sheetRoot=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET}`;
-  let tabId; let seeded=false;
+  let tabId; let seeded=false;let localQueue;
   async function operation(body) {
     const response=await fetch(`https://${PROJECT}.supabase.co/functions/v1/test-drive-operations`,{
       method:'POST',headers:{'Content-Type':'application/json','X-TDQSYS-Instance':INSTANCE,'X-TDQSYS-Writer':WRITER},body:JSON.stringify(body)});
@@ -103,15 +104,33 @@ async function main() {
     const callback=await operation({action:'callback',entryId:registration.entries[0].entryId});
     assert.deepEqual(callback.model,{brand_key:'brand1',unit_index:1});assert.equal(callback.ticket,1);
     console.log('PASS Master Table agent identity/code, SE slip reprint, complete client label metadata and callback mapping.');
-    await operation({action:'ongoing',entryId:registration.entries[0].entryId});
-    console.log('PASS matching Pages/Edge encryption keys, print claim, and Ongoing operation.');
+    let loseAcknowledgement=true;
+    localQueue=new LocalTestDrive({directory:runtime,instanceId:INSTANCE,remote:async body=>{
+      const result=await operation(body);
+      if(body.action==='sync-local-operation' && loseAcknowledgement){loseAcknowledgement=false;throw Error('Simulated lost acknowledgement');}
+      return result;
+    }});
+    localQueue.acceptSnapshot(staffSnapshot);
+    const firstLocal=localQueue.commit({action:'ongoing',entryId:registration.entries[0].entryId});
+    const firstOperation=structuredClone(localQueue.state.outbox[0]);
+    assert.equal(firstLocal.entry.status,'ongoing');await localQueue.sync({force:true});assert.equal(localQueue.state.outbox.length,1);
+    localQueue=new LocalTestDrive({directory:runtime,instanceId:INSTANCE,remote:operation});
+    await localQueue.sync({force:true});assert.equal(localQueue.state.outbox.length,0);
+    assert.equal(localQueue.view().entries.find(entry=>entry.id===registration.entries[0].entryId).status,'ongoing');
+    console.log('PASS durable local Ongoing, restart, lost-acknowledgement retry and cloud receipt.');
     let secondTicket;
     for(let number=2;number<=4;number++) {
       const issued=await publicPost('registrations',{...submission,fullName:`Verification Client ${['','','Two','Three','Four'][number]}`},crypto.randomUUID());
       assert.equal(issued.entries[0].queueNumber,number);
       if(number===2)secondTicket=issued.entries[0];
     }
-    await operation({action:'ongoing',entryId:secondTicket.entryId});
+    localQueue.acceptSnapshot(await operation({action:'snapshot'}));
+    localQueue.commit({action:'ongoing',entryId:secondTicket.entryId});await localQueue.sync({force:true});
+    await operation({action:'sync-local-operation',operation:firstOperation});
+    const advanced=await operation({action:'snapshot'});
+    assert.equal(advanced.entries.find(entry=>entry.id===registration.entries[0].entryId).status,'done');
+    assert.equal(advanced.entries.find(entry=>entry.id===secondTicket.entryId).status,'ongoing');
+    console.log('PASS ordered replay and old duplicate operation cannot revert a newer ongoing client.');
     const fifth=await operation({action:'reissue',entryId:registration.entries[0].entryId});
     assert.equal(fifth.queueNumber,5);assert.equal(fifth.reprint,false);assert.ok(fifth.jobId);
     assert.equal((await operation({action:'claim-print',jobId:fifth.jobId})).label.queueNumber,5);
@@ -155,6 +174,7 @@ delete from sheet_sync_jobs where registration_id in(select id from registration
 delete from print_jobs where instance_id='${INSTANCE}';
 delete from display_state where instance_id='${INSTANCE}';
 delete from queue_model_display where queue_run_id in(select id from queue_runs where instance_id='${INSTANCE}');
+delete from tdqsys_local_operation_receipts where instance_id='${INSTANCE}';
 delete from test_drive_entries where instance_id='${INSTANCE}';
 delete from registrations where instance_id='${INSTANCE}';
 delete from se_daily_checkins where instance_id='${INSTANCE}';
@@ -174,6 +194,7 @@ commit;`);
       console.log('Temporary verification tab removed; real registration tab left untouched.');
     }
     if(fs.existsSync(sqlFile))fs.unlinkSync(sqlFile);
+    if(localQueue && fs.existsSync(localQueue.file))fs.unlinkSync(localQueue.file);
   }
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

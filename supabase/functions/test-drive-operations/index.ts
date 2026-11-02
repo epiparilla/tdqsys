@@ -24,6 +24,11 @@ Deno.serve(async (req) => {
     const { data: revoked, error: revocationError } = await admin.from('revoked_licenses').select('instance_id').eq('instance_id', instanceId).maybeSingle();
     if (revocationError) throw revocationError;
     if (revoked) return Response.json({ error: 'license_revoked' }, { status: 403, headers: cors });
+    if(body.action==='sync-local-operation') {
+      const {data,error}=await admin.rpc('tdqsys_apply_local_operation',{p_instance_id:instanceId,p_operation:body.operation});
+      if(error)return Response.json({error:error.message},{status:['P0001','22P02','23505'].includes(error.code)?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
     if (['integration-info', 'test-sheets'].includes(body.action)) {
       const secret = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
       if (!secret) return Response.json({ configured: false, error: 'Google Sheets service has not been connected by the system administrator.' }, { status: body.action === 'test-sheets' ? 503 : 200, headers: cors });
@@ -146,7 +151,11 @@ Deno.serve(async (req) => {
             operatingDay:checkin.operating_day,expiresAt:checkin.expires_at,revokedAt:checkin.revoked_at,code:active ? await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY')) : null});
         }
       }
-      return Response.json({ run, models, entries, earlierEntries, display, seCheckins, printJobs:pendingPrintJobs }, { headers: cors });
+      const {data:modelDisplays,error:modelDisplayError}=await admin.from('queue_model_display').select('vehicle_model_id,queue_number').eq('queue_run_id',run.id);
+      if(modelDisplayError)throw modelDisplayError;
+      const {data:locationSettings,error:locationError}=await admin.from('test_drive_settings').select('timezone').eq('instance_id',instanceId).maybeSingle();
+      if(locationError)throw locationError;
+      return Response.json({ run, timezone:locationSettings?.timezone || 'Asia/Manila', models, entries, earlierEntries, display, modelDisplays, seCheckins, printJobs:pendingPrintJobs }, { headers: cors });
     }
     // An authenticated location must never act on another location's UUID.
     if (body.entryId) {

@@ -51,6 +51,9 @@ test('vehicle board renders full name, unique registrant total, inline prefixed 
 function bridge(url,config,fetch,extra={}) {
   let handler;
   const context={ipcMain:{handle:(_name,fn)=>{handler=fn;}},URL,PORT:8081,BASE_DIR:'isolated',RES_SERVER:'server',SUPABASE_URL:'https://cloud.test',path,AbortSignal,
+    getLocalQueue:()=>({barrier:async()=>{},sync:async()=>{},remoteBusy:false}),
+    localQueueAction:async body=>{context.localRequest=body;return {ok:true,localSaved:true};},
+    dispatchLocalQueueAction:(body,cfg)=>context.localQueueAction(body,cfg),
     registrationSyncStatus:{hasUrl:true},queueTicketSpeech:async()=>({speechQueued:true,speechPreparing:false}),cloudSyncTick:()=>{context.pushed=true;},
     fs:{readFileSync:()=>JSON.stringify({config})},fetch,require:()=>({status:()=>({canWrite:true})}),...extra};
   vm.runInNewContext(main.slice(main.indexOf("ipcMain.handle('af:testDrive'"),main.indexOf("ipcMain.handle('af:chooseVideos'")),context);
@@ -191,15 +194,10 @@ test('Settings sample shows a compact configured ticket and speaks its configure
   assert.equal(ctx.sampleTicket(true).counter,'Cool ray');assert.equal(ctx.sampleTicket().counter,'Geely Coolray');
   assert.doesNotMatch(speech,/ticket:'A A 0 1'/);
 });
-test('dashboard Ongoing saves the selected model to the TV state and triggers the existing cloud mirror',async()=>{
-  let saved;
-  const {call,context}=bridge('http://localhost:8081/dashboard.html',config,async(url,options)=>{
-    if(url.includes('/functions/'))return Response.json({entry:{queue_number:7},model:{brand_key:'toyota',unit_index:1}});
-    if(options?.method==='POST'){saved=JSON.parse(options.body);return Response.json({success:true});}
-    return Response.json({config,queues:{toyota:{1:2,2:9}}});
-  });
+test('dashboard Ongoing delegates to the persistent local action path without a cloud request',async()=>{
+  const {call,context}=bridge('http://localhost:8081/dashboard.html',config,async()=>{throw Error('must not request cloud');});
   assert.equal((await call({action:'ongoing',entryId:'client'})).ok,true);
-  assert.deepEqual(saved.queues,{toyota:{1:7,2:9}});assert.equal(context.pushed,true);
+  assert.equal(context.localRequest.action,'ongoing');assert.equal(context.localRequest.entryId,'client');
 });
 
 test('Event Setup reset clears every brand on the TV and opens a new run without deleting client history',async()=>{
@@ -271,7 +269,8 @@ test('SE label is 50 by 30mm with a 36pt code and auto-fits the name without shr
 
 test('each facilitator page can read the same location snapshot with configured ticket prefixes',async()=>{
   for(const page of ['dashboard.html','dashboard-brand2.html','master-table.html','print-queue.html','sales-executives.html','event-setup.html']) {
-    const {call}=bridge(`http://localhost:8081/${page}`,config,async()=>Response.json({models:[{id:'model',brand_key:'toyota',unit_index:2}],entries:[]}));
+    const decoration=vm.runInNewContext('('+extractFunction(main,'decorateLocalSnapshot')+')',{registrationSyncStatus:{}});
+    const {call}=bridge(`http://localhost:8081/${page}`,config,async()=>{throw Error('must not fetch');},{localQueueAction:async()=>({ok:true,...decoration({models:[{id:'model',brand_key:'toyota',unit_index:2}],entries:[]},config)})});
     const result=await call({action:'snapshot'});assert.equal(result.ok,true);assert.equal(result.models[0].display_prefix,'BB');
   }
 });

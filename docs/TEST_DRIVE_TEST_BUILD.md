@@ -1,6 +1,6 @@
 # Test-drive manual-test build
 
-Last reconciled with the local source and recorded test results: **2 November 2026**.
+Last reconciled with the local source and recorded test results: **3 November 2026**.
 
 This local file is the current manual-test guide. Approved requirements,
 implementation gaps and release gates are tracked in
@@ -29,6 +29,22 @@ GitHub assets or `public/version.json` before acceptance.
 
 ## Implemented paths
 
+- Local working queue: Ongoing/status changes are durably recorded in
+  `test-drive-<instanceId>.json` in the desktop data directory. Ongoing updates
+  the local TV number and queues speech without waiting for the cloud. Call
+  Back uses the local ticket/model snapshot. Both work with cached current-run
+  records during a connection outage; initial use requires one successful sync.
+  Background replay uses operation IDs and cloud receipts, so lost responses
+  and restarts do not apply transitions twice. Pending overlays survive stale
+  snapshots. New registrations still arrive from cloud polling.
+  Printing/reissue/reset and other dependent cloud mutations sync pending
+  statuses first and require connectivity. The online viewer and registration
+  duplicate checks use the last synced state during an outage.
+  The sync message shows pending/offline/conflict state. Retry saved actions
+  after fixing a current-run rejection. Export local recovery from Event Setup
+  before reviewing/archiving earlier-run actions. No registration is deleted.
+  Backups include the local journal as a recovery sidecar. Restore keeps it in
+  `local-queue-recovery` rather than replaying older or foreign operations.
 - Settings: printable model shortnames, waiver, Terms, callback wording, and
   Google Sheets URL.
   Add dealership options one per line under Test-drive configuration. Save to
@@ -210,6 +226,8 @@ The established public queue display flow remains unchanged.
    decisions, exact reprint job IDs and scoped print cancellation.
    Apply `202611020004_registration_dealerships.sql` for location dealership
    lists, atomic Settings synchronization and server-side SE selection checks.
+   Apply `202611030001_local_operation_sync.sql` for private idempotent
+   operation receipts and scoped background replay.
 3. Deploy `test-drive-operations` with the accompanying `supabase/config.toml`
    JWT-verification setting. Its own authorization checks the installation's
    existing writer token and remote revocation record.
@@ -255,8 +273,8 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 288 passing Node tests, three optional skips,
-19 PostgreSQL integration checks and nine Python speech tests. The rebuilt packaged speech engine was
+Latest automated verification: 302 passing Node tests, three optional skips,
+21 PostgreSQL integration checks and nine Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
 
@@ -361,6 +379,23 @@ part of the walkthrough below.
     saving: live wording/voice must remain the saved values. Check that shorter
     joins remain clear, including prefix, leading zeros and model names. The
     Test voice button remains a separate general voice audition.
+21. With current-run clients cached and audio prepared, disconnect the laptop's
+    internet. Select Ongoing, Done/No Show and Call Back; local rows, TV numbers
+    and speech must respond without waiting for a cloud request. Keep another
+    model ongoing and confirm it stays unchanged. Close/reopen the desktop
+    while offline: accepted statuses and pending operations must remain saved.
+22. Reconnect. Pending counts must clear, cloud statuses must match local
+    statuses, and the online viewer must catch up. Retry/restart after a lost
+    acknowledgement: each transition must be applied only once. Printing and
+    reissue must drain the journal before using cloud passed-number decisions.
+23. In a disposable test location, reset/change the cloud run while operations
+    are unsynced, or cross midnight offline. Old-run actions must not affect the
+    new run. Export recovery and archive earlier-run actions explicitly; keep
+    all registration history. Check licence rejection/reinstatement and Retry.
+
+The local native-helper check measured approximately 80 ms for local save,
+display projection and speech enqueue with zero cloud calls. This excludes
+physical speaker startup and FIFO/cold-audio waits; listening remains required.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('afDesktop', {
     testDrive: (request) => ipcRenderer.invoke('af:testDrive', request),
+    onLocalQueueChanged: (callback) => {
+        const listener=()=>callback();
+        ipcRenderer.on('af:local-queue-changed',listener);
+        return ()=>ipcRenderer.removeListener('af:local-queue-changed',listener);
+    },
     // Open the OS file dialog for importing videos (used by settings.html).
     chooseVideos: () => ipcRenderer.invoke('af:chooseVideos'),
     // Path where portable data lives (for diagnostics/UI).

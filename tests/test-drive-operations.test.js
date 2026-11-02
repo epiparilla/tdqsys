@@ -52,6 +52,12 @@ test('private Settings configuration sends dealerships atomically and old client
   const legacy=await runEdge({action:'configure',models:[],waiver:'waiver',terms:'terms'});
   assert.equal(legacy.calls.find(call=>call.rpc)?.rpc,'tdqsys_configure_test_drive');
 });
+test('offline replay uses authenticated ownership and passes the operation unchanged to its idempotent transaction',async()=>{
+  const operation={id:'op',runId:'run',entryId:'entry',action:'ongoing'};
+  const {response,calls}=await runEdge({action:'sync-local-operation',instanceId:'foreign',operation});
+  assert.equal(response.status,200);const action=calls.find(call=>call.rpc);assert.equal(action.rpc,'tdqsys_apply_local_operation');
+  assert.equal(action.args.p_instance_id,INSTANCE);assert.equal(action.args.p_operation.entryId,'entry');
+});
 
 test('operations refuses another location entry before invoking RPC', async () => {
   const { response, calls } = await runEdge({ action: 'ongoing', entryId: 'foreign-entry' });

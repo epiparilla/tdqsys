@@ -94,6 +94,14 @@
     byId('sheets-status').textContent = snapshot.sheetsStatus?.hasUrl
       ? 'Google Sheets destination saved. Registrations sync automatically while TDQSYS is running.'
       : 'Google Sheets is not connected for this location. Paste its URL in System Settings and save. Already submitted registrations remain queued for delivery.';
+    const local=snapshot.localSync;
+    if(byId('local-sync-status'))byId('local-sync-status').textContent=!local ? '' : local.blocked
+      ? `Queue actions are saved locally and need review: ${local.lastError}`
+      : !local.ready ? `Loading today's queue into this desktop${local.lastError ? ': '+local.lastError : '...'}`
+      : local.pending ? `${local.pending} queue action(s) saved locally; cloud sync pending${local.lastError ? '. '+local.lastError : '.'}`
+      : local.lastError ? `Using the saved local queue. Cloud connection: ${local.lastError}` : 'Local queue ready. Cloud synchronization is up to date.';
+    if(byId('archive-local-conflicts'))byId('archive-local-conflicts').hidden=!local?.earlierRunPending;
+    if(byId('retry-local-sync'))byId('retry-local-sync').hidden=!local?.blocked || local?.earlierRunPending;
     renderBoard();
     renderMaster();
     renderPrints();
@@ -230,9 +238,9 @@
     }
     applyLicenceLock(licenceStatus);
   }
-  async function refresh() {
+  async function refresh(refreshCloud=false) {
     const generation=actionGeneration;
-    const next = await request({ action: 'snapshot', history: byId('history').checked,
+    const next = await request({ action: 'snapshot',refreshCloud, history: byId('history').checked,
       includeAgentCodes:document.body.dataset.view === 'master',includePrintCodes:document.body.dataset.view === 'prints', includeSalesExecutives:document.body.dataset.view === 'sales',salesHistory:byId('sales-history').checked });
     if(generation!==actionGeneration)return;
     snapshot=next;render();
@@ -242,22 +250,34 @@
     byId('message').textContent = body.action==='callback' ? 'Queuing announcement...' : body.action==='ongoing' ? 'Updating queue...' : 'Saving...';
     try {
       const result = await request(body);
+      if(result.localSnapshot){snapshot=result.localSnapshot;render();}
       byId('message').textContent = result.printed ? result.issuedTicket ? `Ticket ${result.issuedTicket.reprint?'reprinted':'issued and printed'}: ${result.issuedTicket.queueNumber}.` : 'Printed.' : body.action==='cancel-print' ? 'Print job cancelled. Client registration and queue number are retained.' : body.action==='reprint-se-code' ? 'SE slip queued in Print Queue.' : body.action === 'reset-sales-executives'
         ? `${result.deactivated} SE code(s) deactivated. SEs may register again. Client registrations, queues and TV numbers are unchanged.`
         : body.action === 'reset'
         ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and SE history are retained.'
         : result.speechError ? `Queue action completed. ${result.speechError}`
-        : result.speechQueued ? result.speechPreparing ? 'Announcement queued; preparing missing audio clips.' : 'Announcement queued.' : 'Saved.';
+        : result.speechQueued ? result.speechPreparing ? 'Announcement queued; preparing missing audio clips.' : 'Announcement queued locally.' : result.localSaved ? 'Saved locally; cloud synchronization runs in the background.' : 'Saved.';
       refresh().catch(error=>{byId('message').textContent=`Action completed. Refresh failed: ${error.message}`;});
     }
     catch (error) { byId('message').textContent = error.message; }
     finally { busy = false; applyLicenceLock(licenceStatus); }
   }
-  byId('refresh').onclick = () => refresh().catch(error => { byId('message').textContent = error.message; });
+  byId('refresh').onclick = () => refresh(true).catch(error => { byId('message').textContent = error.message; });
   byId('configure').onclick = () => mutate({ action: 'configure' });
+  byId('retry-local-sync').onclick=()=>mutate({action:'retry-local-sync'});
+  byId('export-local-queue').onclick=async()=>{
+    try {
+      const result=await request({action:'export-local-queue'});
+      const url=URL.createObjectURL(new Blob([JSON.stringify(result.recovery,null,2)],{type:'application/json'}));
+      const link=document.createElement('a');link.href=url;link.download='tdqsys-local-queue-recovery.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(error){byId('message').textContent=error.message;}
+  };
+  byId('archive-local-conflicts').onclick=()=>{
+    if(window.confirm('Retain earlier-run unsynced actions in the local recovery archive and stop retrying them? Current-run actions and all client registrations are kept.'))mutate({action:'archive-local-conflicts',confirm:true});
+  };
   byId('export').onclick = async () => {
     try {
-      const backup = await request({ action:'snapshot', history:true });
+      const backup = await request({ action:'snapshot', history:true,requireFresh:true });
       const rows = [['Run ID','Queue number','Name','Email','City','Contact','Model','Status','Issued at','Print status']];
       for (const entry of [...backup.entries,...(backup.earlierEntries || [])]) {
         const registration = entry.registrations || {};
@@ -352,6 +372,12 @@
   setInterval(refreshLicence, 30000);
   if (['prints','master'].includes(document.body.dataset.view)) loadPrinters();
   let refreshing = false;
+  const stopQueueUpdates=window.afDesktop?.onLocalQueueChanged?.(()=>{
+    if(busy || refreshing || document.hidden)return;
+    refreshing=true;
+    refresh().catch(error=>{byId('message').textContent=error.message;}).finally(()=>{refreshing=false;});
+  });
+  window.addEventListener('beforeunload',()=>stopQueueUpdates?.(),{once:true});
   setInterval(async () => {
     if (busy || refreshing || document.hidden) return;
     refreshing = true;

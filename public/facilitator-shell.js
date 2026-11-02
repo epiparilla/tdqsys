@@ -21,7 +21,7 @@ function applyFacilitatorBrand(brands) {
     <header class="dashboard-header"><h1>${titles[view]}</h1><div class="header-links"><a href="index.html" class="link-button">Hub</a><a href="display_with_ads.html" target="_blank" class="link-button">Open Display Screen (New Window)</a><a href="settings.html" class="link-button">System Settings</a><button id="refresh" class="link-button">Refresh</button></div></header>
     <nav class="header-links" aria-label="Facilitator pages"><a id="brand1-link" href="dashboard.html">Queue Board</a><a id="brand2-link" href="dashboard-brand2.html" hidden>Brand 2 Queue Board</a><a href="master-table.html" ${view==='master'?'aria-current="page"':''}>Master Table</a><a href="print-queue.html" ${view==='prints'?'aria-current="page"':''}>Print Queue</a><a href="sales-executives.html" ${view==='sales'?'aria-current="page"':''}>Sales Executives</a><a href="event-setup.html" ${view==='setup'?'aria-current="page"':''}>Event Setup / QR Codes</a></nav>
     <p id="licence-locked" role="status" hidden><strong>Controls disabled.</strong> <span id="licence-locked-why"></span> The display and live values are still being served. Open System Settings to renew.</p>
-    <p id="message" role="status"></p><p id="sheets-status" role="status"></p><p id="run">Loading registrations...</p>
+    <p id="message" role="status"></p><p id="local-sync-status" role="status"></p><button id="retry-local-sync" hidden data-write>Retry saved queue actions</button><p id="sheets-status" role="status"></p><p id="run">Loading registrations...</p>
     <section id="event-setup" ${view!=='setup'?'hidden':''}><h2>Event setup and registration QR codes</h2>
       <p>Save vehicle shortnames, waiver, Terms and this location's Google Sheets URL in System Settings. Saved settings sync automatically while the desktop app is running.</p>
       <section id="mirror-link"><h3>Queue display mirror link / QR</h3>        <div class="field">
@@ -47,7 +47,7 @@ function applyFacilitatorBrand(brands) {
                     <div class="hint" style="max-width:22rem;">Scan to open this location's viewer. PNG/SVG are sized for printing on a sign or handout.</div>
                 </div>
             </div>
-        </div><p id="mirror-link-notice" hidden>Set the Cloud Base URL in desktop Settings to generate this location's public mirror link.</p></section><button id="configure" data-write>Sync saved Settings now</button><div id="registration-links"></div>
+        </div><p id="mirror-link-notice" hidden>Set the Cloud Base URL in desktop Settings to generate this location's public mirror link.</p></section><button id="configure" data-write>Sync saved Settings now</button><button id="export-local-queue">Export local queue recovery</button><button id="archive-local-conflicts" hidden data-write>Archive earlier-run unsynced actions</button><div id="registration-links"></div>
       <button id="export">Download registrant backup (CSV)</button>
       <form id="reset-form"><label>Reset reason <input id="reset-reason" value="Testing" maxlength="240" required data-write></label>
       <label><input id="reset-confirm" type="checkbox" required data-write> Close this run and reset every model and the TV display to zero. Keep all client and SE history.</label><button type="submit" data-write>Reset to Zero / open run</button></form>

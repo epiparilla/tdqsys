@@ -463,6 +463,9 @@ function startCloudSync() {
     if (registrationTimer) clearInterval(registrationTimer);
     registrationTimer = setInterval(registrationSyncTick,15000);
     registrationSyncTick();
+    if(localQueueTimer)clearInterval(localQueueTimer);
+    localQueueTimer=setInterval(()=>localQueueTick(),1000);
+    localQueueTick();
 }
 
 // ---- In-app automatic update ("hot update") ----
@@ -907,6 +910,116 @@ async function queueTicketSpeech(kind, model, number) {
     } catch(error) {return {speechQueued:false,speechError:error.message};}
 }
 
+let localQueueTimer=null;
+let localQueueOwner=null;
+let displayProjection=null;
+let localActionChain=Promise.resolve();
+function localConfig() {return JSON.parse(fs.readFileSync(path.join(BASE_DIR,'data.json'),'utf8')).config;}
+async function remoteQueueOperation(body,expectedInstanceId) {
+    const cfg=localConfig();
+    if(expectedInstanceId && cfg.instanceId!==expectedInstanceId)throw Object.assign(Error('Installation identity changed; local actions have been retained for review.'),{status:409});
+    const response=await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`,{
+        method:'POST',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json','X-TDQSYS-Instance':cfg.instanceId,'X-TDQSYS-Writer':cfg.cloudWriterToken},body:JSON.stringify(body)
+    });
+    const result=await response.json();
+    if(!response.ok)throw Object.assign(Error(result.error || `Queue service returned ${response.status}.`),{status:response.status});
+    return result;
+}
+function getLocalQueue(cfg) {
+    if(!localQueueOwner || localQueueOwner.state.instanceId!==cfg.instanceId) {
+        const {LocalTestDrive}=require(path.join(RES_SERVER,'shared','test-drive-local.js'));
+        localQueueOwner=new LocalTestDrive({directory:BASE_DIR,instanceId:cfg.instanceId,remote:body=>remoteQueueOperation(body,cfg.instanceId)});
+    }
+    return localQueueOwner;
+}
+async function applyLocalDisplay(queue) {
+    while(queue.state.displayPending.length) {
+        if(displayProjection){await displayProjection;continue;}
+        const items=structuredClone(queue.state.displayPending);
+        displayProjection=(async()=>{
+            const cfg=localConfig();
+            const response=await fetch(`http://localhost:${PORT}/api/data`);
+            if(!response.ok)throw Error('Local display is unavailable; the queue action remains saved.');
+            const state=await response.json();
+            for(const item of items) {
+                const model=(cfg.brands || []).find(brand=>brand.key===item.brandKey)?.models?.[item.unit-1];
+                if(model?.label!==item.fullName || !state.queues[item.brandKey] || !(String(item.unit) in state.queues[item.brandKey]))throw Error('Vehicle display mapping changed. Review Settings before continuing.');
+                state.queues[item.brandKey][item.unit]=item.number;
+            }
+            const saved=await fetch(`http://localhost:${PORT}/api/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
+            if(!saved.ok)throw Error('Local display update failed; the queue action remains saved for recovery.');
+            queue.markDisplayApplied(items);cloudSyncTick();
+        })();
+        try {await displayProjection;}finally{displayProjection=null;}
+    }
+}
+function dispatchLocalQueueAction(request,cfg) {
+    const work=localActionChain.catch(()=>{}).then(()=>localQueueAction(request,cfg));
+    localActionChain=work;return work;
+}
+async function localQueueTick(force=false) {
+    if(engineDown() || app.isQuitting)return;
+    try {
+        const cfg=localConfig(),queue=getLocalQueue(cfg);
+        if(queue.remoteBusy)return;
+        const canWrite=require(path.join(RES_SERVER,'shared','licence.js')).status(cfg.instanceId,{dataDir:BASE_DIR}).canWrite;
+        if(queue.state.outbox.length && !canWrite)return;
+        const before=JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError]);
+        if(canWrite && queue.status().ready)await applyLocalDisplay(queue);
+        await queue.sync({force});
+        if(before!==JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError]))notifyLocalQueueChanged();
+    }catch(error){if(localQueueOwner)localQueueOwner.lastError=error.message;}
+}
+function notifyLocalQueueChanged() {
+    for(const win of BrowserWindow.getAllWindows()) {
+        if(win.isDestroyed())continue;
+        try {
+            const url=new URL(win.webContents.getURL());
+            if(url.origin===`http://localhost:${PORT}` && ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/event-setup.html'].includes(url.pathname))win.webContents.send('af:local-queue-changed');
+        }catch{}
+    }
+}
+function decorateLocalSnapshot(snapshot,cfg) {
+    const firstCount=(cfg.brands || []).find(brand=>brand.key==='brand1')?.models?.length || 0;
+    snapshot.brands=(cfg.brands || []).filter(brand=>brand.models?.length && (brand.key!=='brand2' || firstCount<12)).map(brand=>({key:brand.key,name:brand.name,color:brand.color}));
+    for(const model of snapshot.models || [])model.display_prefix=(cfg.brands || []).find(brand=>brand.key===model.brand_key)?.models?.[model.unit_index-1]?.prefix || '';
+    snapshot.sheetsStatus={...registrationSyncStatus,hasUrl:!!cfg.testDrive?.sheetsUrl};
+    const base=(cfg.cloudBase || 'https://tdqsys.pages.dev').replace(/\/+$/,'');
+    snapshot.registrationLinks={client:`${base}/test-drive-registration.html?id=${encodeURIComponent(cfg.instanceId)}`,se:`${base}/se-registration.html?id=${encodeURIComponent(cfg.instanceId)}`};
+    snapshot.mirrorLink=/^https?:\/\//i.test(cfg.cloudBase || '') ? `${base}/client.html?id=${encodeURIComponent(cfg.instanceId)}` : '';
+    return snapshot;
+}
+async function localQueueAction(request,cfg) {
+    const queue=getLocalQueue(cfg);
+    if(request.action==='snapshot') {
+        queue.setOptions(request);
+        if(request.requireFresh) {
+            await localQueueTick(true);
+            if(queue.lastError || !queue.status().ready)throw Error('Cannot prepare the full cloud history export. Retry when connected, or export local queue recovery.');
+        } else setTimeout(()=>localQueueTick(!!request.refreshCloud),0);
+        return {ok:true,...decorateLocalSnapshot(queue.view(),cfg)};
+    }
+    if(request.action==='export-local-queue')return {ok:true,recovery:structuredClone(queue.state)};
+    if(request.action==='retry-local-sync') {
+        const result=queue.retryBlocked();setTimeout(()=>localQueueTick(true),0);
+        return {ok:true,...result,localSnapshot:decorateLocalSnapshot(queue.view(),cfg)};
+    }
+    if(request.action==='archive-local-conflicts') {
+        const result=queue.archiveEarlierRun(request.confirm);setTimeout(()=>localQueueTick(true),0);
+        return {ok:true,...result,localSnapshot:decorateLocalSnapshot(queue.view(),cfg)};
+    }
+    const ticket=queue.ticket(request.entryId);
+    const configured=(cfg.brands || []).find(brand=>brand.key===ticket.model.brand_key)?.models?.[ticket.model.unit_index-1];
+    if(configured?.label!==ticket.model.full_name)throw Error('Vehicle configuration changed. Wait for Settings synchronization before calling this client.');
+    let result={entry:ticket.entry,model:ticket.model};
+    if(request.action!=='callback')result=queue.commit(request);
+    if(request.action==='ongoing')await applyLocalDisplay(queue);
+    if(['ongoing','callback'].includes(request.action))Object.assign(result,await queueTicketSpeech(request.action,ticket.model,ticket.entry.queue_number));
+    setTimeout(()=>localQueueTick(),0);
+    notifyLocalQueueChanged();
+    return {ok:true,...result,localSaved:request.action!=='callback',localSnapshot:decorateLocalSnapshot(queue.view(),cfg)};
+}
+
 function formatClientLabel(label, config) {
     if(label.kind!=='client_ticket')return label;
     const model=(config.brands||[]).find(brand=>brand.key===label.brandKey)?.models?.[label.unit-1];
@@ -949,7 +1062,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', ...settingsActions];
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         if(request.action==='speech-preview') {
             const preview=await fetch(`http://127.0.0.1:${TTS_PORT}/api/preview-ticket`,{
@@ -967,10 +1080,12 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (request.action === 'configure') {
             request = buildTestDriveSettings(cfg);
         }
-        if (!['snapshot', 'integration-info'].includes(request.action)) {
+        if (!['snapshot', 'integration-info','export-local-queue'].includes(request.action)) {
             const licence = require(path.join(RES_SERVER, 'shared', 'licence.js'));
             if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
         }
+        if(['ongoing','status','callback'].includes(request.action))return await dispatchLocalQueueAction(request,cfg);
+        if(['snapshot','export-local-queue','archive-local-conflicts','retry-local-sync'].includes(request.action))return await localQueueAction(request,cfg);
         let printerName;
         if (request.action === 'print' || (request.action==='reissue' && request.printNow===true)) {
             const printers = await event.sender.getPrintersAsync();
@@ -978,6 +1093,10 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             printerName = request.printerName;
             if(request.action==='print') request = { action: 'claim-print', jobId: request.jobId };
         }
+        const queue=getLocalQueue(cfg);
+        const guarded=['configure','reissue','reset','print-result','claim-print','cancel-print','reprint-se-code','reset-sales-executives'].includes(request.action);
+        if(guarded)await queue.barrier();
+        try {
         const response = await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`, {
             method: 'POST', signal: AbortSignal.timeout(15000),
             headers: { 'Content-Type': 'application/json', 'X-TDQSYS-Instance': cfg.instanceId, 'X-TDQSYS-Writer': cfg.cloudWriterToken },
@@ -995,9 +1114,6 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             result=await claimed.json();
             if(!claimed.ok)throw Error(`Ticket ${issuedTicket.queueNumber} is saved. ${result.error || 'Print claim failed.'} Check Print Queue before retrying.`);
             request={...request,jobId:issuedTicket.jobId};
-        }
-        if (request.action === 'callback') {
-            return {ok:true,...await queueTicketSpeech('callback',result.model,result.ticket)};
         }
         if (printerName) {
             const label = result.label;
@@ -1021,24 +1137,19 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             if (printError) throw new Error(`${printError} Ticket is saved; retry its failed job in Print Queue.`);
             return { ok: true, printed: true, issuedTicket };
         }
-        if (request.action === 'ongoing' || request.action === 'reset') {
+        if (request.action === 'reset') {
             const localResponse = await fetch(`http://localhost:${PORT}/api/data`);
             if (!localResponse.ok) throw new Error('Cannot update the local display.');
             const local = await localResponse.json();
             if (request.action === 'reset') {
                 for (const slots of Object.values(local.queues)) for (const unit of Object.keys(slots)) slots[unit] = 0;
                 local.reannounce = null;
-            } else {
-                const { brand_key: brand, unit_index: unit } = result.model;
-                if (!local.queues[brand] || !(String(unit) in local.queues[brand])) throw new Error('Vehicle display mapping changed. Sync Settings and retry.');
-                local.queues[brand][unit] = result.entry.queue_number;
             }
             const saved = await fetch(`http://localhost:${PORT}/api/save`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(local)
             });
             if (!saved.ok) throw new Error('Queue action saved in the cloud; local display update failed. Retry Ongoing to reconcile it.');
             cloudSyncTick();
-            if(request.action==='ongoing') Object.assign(result,await queueTicketSpeech('ongoing',result.model,result.entry.queue_number));
         }
         if (request.action === 'snapshot') {
             const firstBrandCount = (cfg.brands || []).find(brand => brand.key === 'brand1')?.models?.length || 0;
@@ -1054,6 +1165,9 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             client: `${publicBase.replace(/\/+$/, '')}/test-drive-registration.html?id=${encodeURIComponent(cfg.instanceId)}`,
             se: `${publicBase.replace(/\/+$/, '')}/se-registration.html?id=${encodeURIComponent(cfg.instanceId)}`
         } };
+        } finally {
+            if(guarded) {try {await queue.sync({force:true});}finally{queue.remoteBusy=false;}}
+        }
     } catch (error) {
         return { ok: false, error: error.message || 'Queue service is unavailable.' };
     }
@@ -1158,6 +1272,8 @@ ipcMain.handle('af:backupData', async () => {
             fs.mkdirSync(path.join(stage, 'videos'), { recursive: true });
             const dataFile = path.join(BASE_DIR, 'data.json');
             if (fs.existsSync(dataFile)) { fs.copyFileSync(dataFile, path.join(stage, 'data.json')); items++; }
+            const localQueueFile=getLocalQueue(localConfig()).file;
+            if(fs.existsSync(localQueueFile)){fs.copyFileSync(localQueueFile,path.join(stage,'test-drive-local-recovery.json'));items++;}
             const vdir = path.join(BASE_DIR, 'videos');
             if (fs.existsSync(vdir)) {
                 for (const f of fs.readdirSync(vdir)) {
@@ -1267,6 +1383,11 @@ ipcMain.handle('af:restoreData', async () => {
         const outcome = await response.json();
         fs.rmSync(stage, { recursive:true, force:true });
         if (!response.ok) throw new Error(outcome.error || 'Restore could not be committed.');
+        const recovery=path.join(path.dirname(dataFile),'test-drive-local-recovery.json');
+        if(fs.existsSync(recovery)) {
+            const recoveryDirectory=path.join(BASE_DIR,'local-queue-recovery');fs.mkdirSync(recoveryDirectory,{recursive:true});
+            fs.copyFileSync(recovery,path.join(recoveryDirectory,`backup-${Date.now()}.json`));
+        }
         return { ok:true, videos, reloaded:true, identityPreserved:true, instanceId:outcome.instanceId, safetyBackup:outcome.backupFile };
     } catch (e) {
         return { ok: false, reason: 'error', error: e.message };
