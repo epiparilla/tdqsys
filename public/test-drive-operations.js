@@ -4,6 +4,7 @@
   let snapshot = { entries: [], models: [], printJobs: [] };
   let busy = false;
   let actionGeneration = 0;
+  const selectedModels = new Map();
   let licenceCanWrite = false;
   let licenceStatus = null;
   function applyLicenceLock(st) {
@@ -26,6 +27,19 @@
   }
   function cell(row, value) {
     const td = document.createElement('td'); td.textContent = value ?? ''; row.appendChild(td);
+  }
+  function sortedRows(rows, key, direction, value) {
+    if(!key)return rows;
+    return [...rows].sort((a,b)=>String(value(a,key)??'').localeCompare(String(value(b,key)??''),undefined,{numeric:true,sensitivity:'base'})*(direction==='desc'?-1:1));
+  }
+  function loopPosition(current, delta, maximum) {
+    if(maximum<=0)return 0;
+    if(delta>0 && current>=maximum-1)return 0;
+    if(delta<0 && current<=1)return maximum;
+    return Math.max(0,Math.min(maximum,current+delta));
+  }
+  function scrollBoard(delta) {
+    const board=byId('board');board.scrollLeft=loopPosition(board.scrollLeft,delta,board.scrollWidth-board.clientWidth);
   }
   async function request(body) {
     if (!window.afDesktop?.testDrive) throw new Error('Open this page inside the TDQSYS desktop app.');
@@ -57,6 +71,7 @@
     byId('sheets-status').textContent = snapshot.sheetsStatus?.hasUrl
       ? 'Google Sheets destination saved. Registrations sync automatically while TDQSYS is running.'
       : 'Google Sheets is not connected for this location. Paste its URL in System Settings and save. Already submitted registrations remain queued for delivery.';
+    const boardPosition=byId('board').scrollLeft || 0;
     byId('board').replaceChildren();
     const visibleModels = renderBrand();
     for (const model of visibleModels) {
@@ -80,11 +95,20 @@
       }
       byId('board').appendChild(column);
     }
+    byId('board').scrollLeft=boardPosition;
     renderMaster();
+    renderPrints();
+    renderSales();
+    applyLicenceLock(licenceStatus);
+  }
+  function renderPrints() {
     byId('print-rows').replaceChildren();
+    const query=(byId('print-search')?.value || '').trim().toLocaleLowerCase();
     for (const job of snapshot.printJobs) {
       const entry = snapshot.entries.find(e => e.id === job.test_drive_entry_id);
       const model = snapshot.models.find(m => m.id === entry?.vehicle_model_id);
+      const name=entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name || '';
+      if(!name.toLocaleLowerCase().includes(query))continue;
       const row = document.createElement('tr');
       cell(row, job.kind === 'se_code_slip' ? job.seCode : formatTicket(entry,model)); cell(row, entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name);
       cell(row, model?.full_name || 'Sales Executive code slip'); cell(row, job.status);
@@ -92,6 +116,10 @@
       button.textContent = 'Print'; button.dataset.write = ''; button.hidden = job.status === 'claimed';
       button.onclick = () => mutate({ action: 'print', jobId: job.id, printerName: byId('printer').value });
       action.appendChild(button); row.appendChild(action);
+      if(['pending','failed'].includes(job.status)) {
+        const cancel=document.createElement('button');cancel.textContent='Cancel';cancel.dataset.write='';
+        cancel.onclick=()=>mutate({action:'cancel-print',jobId:job.id});action.appendChild(cancel);
+      }
       if (job.status === 'claimed') {
         for (const [label, status] of [['Confirm printed','printed'],['Retry — no label printed','failed']]) {
           const recovery = document.createElement('button'); recovery.textContent = label;
@@ -101,7 +129,6 @@
       }
       byId('print-rows').appendChild(row);
     }
-    renderSales();
     applyLicenceLock(licenceStatus);
   }
   function renderSales() {
@@ -109,7 +136,8 @@
     const query = byId('sales-search').value.trim().toLocaleLowerCase();
     const checkins = snapshot.seCheckins || [];
     byId('sales-count').textContent = `${checkins.length} Sales Executive check-ins`;
-    for (const checkin of checkins.filter(item => `${item.name} ${item.dealership}`.toLocaleLowerCase().includes(query))) {
+    const sorted=sortedRows(checkins,byId('sales-sort')?.value,byId('sales-direction')?.value,(item,key)=>key==='status' ? item.revokedAt?'Reset':item.code?'Active':'Expired':item[key]);
+    for (const checkin of sorted.filter(item => `${item.name} ${item.dealership}`.toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
       cell(row,checkin.code || 'Expired'); cell(row,checkin.name); cell(row,checkin.dealership);
       cell(row,checkin.operatingDay); cell(row,new Date(checkin.expiresAt).toLocaleString()); cell(row,checkin.revokedAt ? 'Reset' : checkin.code ? 'Active' : 'Expired');
@@ -123,9 +151,11 @@
     }
   }
   function renderMaster() {
+    if(document.activeElement?.matches?.('.master-actions select'))return;
     byId('master-rows').replaceChildren();
     const query = byId('search').value.trim().toLocaleLowerCase();
-    const list = byId('history').checked ? (snapshot.earlierEntries || []) : snapshot.entries;
+    const list = sortedRows(byId('history').checked ? (snapshot.earlierEntries || []) : snapshot.entries,
+      byId('master-sort')?.value,byId('master-direction')?.value,(entry,key)=>key==='name'?entry.registrations?.full_name:key==='agent'?entry.agentName:key==='model'?snapshot.models.find(m=>m.id===entry.vehicle_model_id)?.full_name || entry.vehicle_models?.full_name:entry[key]);
     for (const entry of list.filter(e => (e.registrations?.full_name || '').toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
       cell(row, formatTicket(entry,snapshot.models.find(m => m.id === entry.vehicle_model_id) || entry.vehicle_models)); cell(row, entry.registrations?.full_name);
@@ -133,9 +163,12 @@
       cell(row, snapshot.models.find(m => m.id === entry.vehicle_model_id)?.full_name || entry.vehicle_models?.full_name); cell(row, entry.status);
       const actions = document.createElement('td'); actions.className='master-actions';
       const reissue = document.createElement('button'); reissue.textContent = byId('history').checked ? 'Issue in current run' : 'Reprint / issue new number';
-      reissue.onclick = () => mutate({ action: 'reissue', entryId: entry.id }); actions.appendChild(reissue);
+      reissue.onclick = () => mutate({ action: 'reissue', entryId: entry.id,printNow:true,printerName:byId('master-printer').value }); actions.appendChild(reissue);
       const selection = document.createElement('select'); selection.add(new Option('Select another model', ''));
       snapshot.models.forEach(model => selection.add(new Option(model.full_name, model.id)));
+      selection.value=selectedModels.get(entry.id) || '';
+      selection.onchange=()=>selectedModels.set(entry.id,selection.value);
+      selection.onblur=()=>renderMaster();
       actions.appendChild(selection);
       const add = document.createElement('button'); add.textContent = 'Add model';
       add.onclick = () => { if (selection.value) mutate({ action: 'reissue', entryId: entry.id, modelId: selection.value }); };
@@ -163,7 +196,7 @@
     byId('message').textContent = body.action==='callback' ? 'Queuing announcement...' : body.action==='ongoing' ? 'Updating queue...' : 'Saving...';
     try {
       const result = await request(body);
-      byId('message').textContent = body.action==='reprint-se-code' ? 'SE slip queued in Print Queue.' : body.action === 'reset-sales-executives'
+      byId('message').textContent = result.printed ? result.issuedTicket ? `Ticket ${result.issuedTicket.reprint?'reprinted':'issued and printed'}: ${result.issuedTicket.queueNumber}.` : 'Printed.' : body.action==='cancel-print' ? 'Print job cancelled. Client registration and queue number are retained.' : body.action==='reprint-se-code' ? 'SE slip queued in Print Queue.' : body.action === 'reset-sales-executives'
         ? `${result.deactivated} SE code(s) deactivated. SEs may register again. Client registrations, queues and TV numbers are unchanged.`
         : body.action === 'reset'
         ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and SE history are retained.'
@@ -195,19 +228,38 @@
   async function loadPrinters() {
     try {
       const result = await request({ action: 'printers' });
-      byId('printer').replaceChildren(new Option('Select printer', ''));
-      result.printers.forEach(printer => byId('printer').add(new Option(printer.displayName || printer.name, printer.name)));
-      byId('printer').value = localStorage.getItem('tdqsys-label-printer') || '';
+      for(const id of ['printer','master-printer']) {
+        byId(id).replaceChildren(new Option('Select printer', ''));
+        result.printers.forEach(printer => byId(id).add(new Option(printer.displayName || printer.name, printer.name)));
+        byId(id).value=localStorage.getItem('tdqsys-label-printer') || '';
+      }
     } catch (error) { byId('message').textContent = error.message; }
   }
   byId('load-printers').onclick = loadPrinters;
-  byId('printer').onchange = () => localStorage.setItem('tdqsys-label-printer', byId('printer').value);
+  for(const id of ['printer','master-printer'])byId(id).onchange=()=>{
+    localStorage.setItem('tdqsys-label-printer',byId(id).value);
+    for(const other of ['printer','master-printer'])byId(other).value=byId(id).value;
+  };
   byId('reset-form').onsubmit = event => {
     event.preventDefault();
     if (!byId('reset-form').reportValidity()) return;
     mutate({ action: 'reset', reason: byId('reset-reason').value.trim() }); byId('reset-confirm').checked = false;
   };
   byId('search').oninput = renderMaster;
+  byId('print-search').oninput=renderPrints;
+  for(const id of ['master-sort','master-direction'])byId(id).onchange=renderMaster;
+  for(const id of ['sales-sort','sales-direction'])byId(id).onchange=()=>{renderSales();applyLicenceLock(licenceStatus);};
+  byId('board-previous').onclick=()=>scrollBoard(-byId('board').clientWidth);
+  byId('board-next').onclick=()=>scrollBoard(byId('board').clientWidth);
+  byId('board').onwheel=event=>{
+    const delta=event.deltaX || (event.shiftKey ? event.deltaY : 0);
+    if(!delta || byId('board').scrollWidth<=byId('board').clientWidth)return;
+    event.preventDefault();scrollBoard(delta*(event.deltaMode===1?16:event.deltaMode===2?byId('board').clientWidth:1));
+  };
+  byId('board').onkeydown=event=>{
+    if(event.target!==byId('board') || !['ArrowLeft','ArrowRight'].includes(event.key))return;
+    event.preventDefault();scrollBoard((event.key==='ArrowLeft'?-1:1)*byId('board').clientWidth);
+  };
   byId('sales-search').oninput = renderSales;
   byId('sales-reset-form').onsubmit = event => {
     event.preventDefault();
@@ -219,7 +271,7 @@
   byId('history').onchange = () => refresh().catch(error => { byId('message').textContent = error.message; });
   refreshLicence().then(() => refresh()).catch(error => { byId('message').textContent = error.message; });
   setInterval(refreshLicence, 30000);
-  if (document.body.dataset.view === 'prints') loadPrinters();
+  if (['prints','master'].includes(document.body.dataset.view)) loadPrinters();
   let refreshing = false;
   setInterval(async () => {
     if (busy || refreshing || document.hidden) return;

@@ -25,6 +25,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010002_per_model_ongoing.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020001_sales_executive_reset.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020002_ticket_labels_se_reprint.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020003_direct_reprint_cancel.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_test_drive', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms']);
@@ -72,6 +73,44 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     });
     await check('another location cannot mark this location ticket', async () => {
       await assert.rejects(rpc('tdqsys_mark_entry', [B, first.entries[1].entryId, 'no_show']), /entry not in active run/);
+    });
+    await check('passed 01 with displayed 02 and issued 03/04 creates printable 05; unpassed reprint reuses its exact job', async()=>{
+      await db.exec('begin');
+      try {
+        let second;
+        for(let number=2;number<=4;number++) {
+          const next=args(`direct-print-${number}`);next[1]=`Client ${number}`;next[2]=`client ${number}`;next[12]=[first.entries[0].modelId];
+          const issued=await rpc('tdqsys_submit_registration',next);
+          if(number===2)second=issued.entries[0];
+        }
+        await rpc('tdqsys_set_ongoing',[second.entryId,'facilitator']);
+        const replacement=await rpc('tdqsys_reissue_ticket',[A,first.entries[0].entryId,null,false]);
+        assert.equal(replacement.queueNumber,5);assert.equal(replacement.reprint,false);
+        assert.equal((await rpc('tdqsys_claim_print_job',[A,replacement.jobId])).queueNumber,5);
+        assert.equal((await db.query('select status from print_jobs where test_drive_entry_id=$1',[first.entries[0].entryId])).rows[0].status,'cancelled');
+        const unpassed=await rpc('tdqsys_reissue_ticket',[A,second.entryId,null,false]);assert.equal(unpassed.queueNumber,2);assert.equal(unpassed.reprint,true);
+        assert.equal((await rpc('tdqsys_reissue_ticket',[A,second.entryId,null,false])).jobId,unpassed.jobId);
+        await rpc('tdqsys_claim_print_job',[A,unpassed.jobId]);
+        await assert.rejects(rpc('tdqsys_reissue_ticket',[A,second.entryId,null,false]),/being printed/);
+      } finally {await db.exec('rollback');}
+    });
+    await check('print cancellation is scoped, refuses claimed output, and preserves the ticket and registration',async()=>{
+      await db.exec('begin');
+      try {
+        const job=(await db.query("select id,test_drive_entry_id from print_jobs where kind='client_ticket' limit 1")).rows[0];
+        await db.exec('savepoint foreign_cancel');
+        await assert.rejects(rpc('tdqsys_cancel_print_job',[B,job.id]),/only pending/);
+        await db.exec('rollback to savepoint foreign_cancel');
+        await rpc('tdqsys_cancel_print_job',[A,job.id]);
+        assert.equal((await db.query('select status from print_jobs where id=$1',[job.id])).rows[0].status,'cancelled');
+        assert.equal((await db.query('select count(*)::int n from test_drive_entries where id=$1',[job.test_drive_entry_id])).rows[0].n,1);
+        await db.exec('savepoint cancelled_claim');
+        await assert.rejects(rpc('tdqsys_claim_print_job',[A,job.id]),/not available/);
+        await db.exec('rollback to savepoint cancelled_claim');
+        const replacement=await rpc('tdqsys_reissue_ticket',[A,job.test_drive_entry_id,null,false]);
+        await rpc('tdqsys_claim_print_job',[A,replacement.jobId]);
+        await assert.rejects(rpc('tdqsys_cancel_print_job',[A,replacement.jobId]),/only pending/);
+      } finally {await db.exec('rollback');}
     });
     await check('print claim is exclusive', async () => {
       const job = (await db.query("select id from print_jobs where kind='client_ticket' limit 1")).rows[0].id;

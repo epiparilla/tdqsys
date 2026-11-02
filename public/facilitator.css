@@ -12,3 +12,4 @@ article{background:#080808;border:1px solid #333;border-top:3px solid var(--bran
 .table-scroll{overflow:auto}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid #333}td button,td select{margin:3px}label{display:inline-block;margin:8px 12px 8px 0}[hidden]{display:none!important}
 #message,#sheets-status,#run{min-height:1.5em;line-height:1.5;margin:10px 0}
 #master th,#master td{padding:7px 6px;font-size:12px}.master-actions{max-width:285px}.master-actions button,.master-actions select{font-size:11px;padding:4px;margin:2px}.master-actions select{max-width:150px}
+#prints th,#prints td{padding:7px 6px;font-size:12px}#prints td button{font-size:11px;padding:4px;margin:2px}.board-navigation{display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px}.board-navigation button{font-size:12px;padding:5px 10px}

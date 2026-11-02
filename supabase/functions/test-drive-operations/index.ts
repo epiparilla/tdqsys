@@ -40,6 +40,11 @@ Deno.serve(async (req) => {
       const result = await syncOneRegistration(admin, instanceId, Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON'));
       return Response.json(result, { headers: cors });
     }
+    if (body.action === 'cancel-print' && body.jobId) {
+      const {data,error}=await admin.rpc('tdqsys_cancel_print_job',{p_instance_id:instanceId,p_job_id:body.jobId});
+      if(error)throw error;
+      return Response.json(data,{headers:cors});
+    }
     if (body.action === 'claim-print' && body.jobId) {
       const { data: label, error } = await admin.rpc('tdqsys_claim_print_job', { p_instance_id: instanceId, p_job_id: body.jobId });
       if (error) throw error;

@@ -101,6 +101,25 @@ async function main() {
     console.log('PASS Master Table agent identity/code, SE slip reprint, complete client label metadata and callback mapping.');
     await operation({action:'ongoing',entryId:registration.entries[0].entryId});
     console.log('PASS matching Pages/Edge encryption keys, print claim, and Ongoing operation.');
+    let secondTicket;
+    for(let number=2;number<=4;number++) {
+      const issued=await publicPost('registrations',{...submission,fullName:`Verification Client ${['','','Two','Three','Four'][number]}`},crypto.randomUUID());
+      assert.equal(issued.entries[0].queueNumber,number);
+      if(number===2)secondTicket=issued.entries[0];
+    }
+    await operation({action:'ongoing',entryId:secondTicket.entryId});
+    const fifth=await operation({action:'reissue',entryId:registration.entries[0].entryId});
+    assert.equal(fifth.queueNumber,5);assert.equal(fifth.reprint,false);assert.ok(fifth.jobId);
+    assert.equal((await operation({action:'claim-print',jobId:fifth.jobId})).label.queueNumber,5);
+    await operation({action:'print-result',jobId:fifth.jobId,status:'failed',error:'No physical printing attempted.'});
+    await operation({action:'cancel-print',jobId:fifth.jobId});
+    const afterCancel=await operation({action:'snapshot'});
+    assert.ok(afterCancel.entries.some(entry=>entry.id===fifth.entryId));
+    assert.equal(afterCancel.printJobs.some(job=>job.id===fifth.jobId || job.id===clientJob.id),false);
+    const repeat=await operation({action:'reissue',entryId:secondTicket.entryId});
+    assert.equal(repeat.queueNumber,2);assert.equal(repeat.reprint,true);
+    assert.equal((await operation({action:'reissue',entryId:secondTicket.entryId})).jobId,repeat.jobId);
+    console.log('PASS passed 01 -> 05, exact reprint jobs and cancellation without removing client tickets.');
     // A gid no longer chooses the destination: the worker uses its daily tab.
     // Do not send synthetic registrations to the user's real daily tab.
     const range=`'${connection.tabTitle.replace(/'/g,"''")}'!A:K`;

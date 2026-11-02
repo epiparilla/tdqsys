@@ -16,12 +16,12 @@ function element(tag='div') {
     querySelectorAll(tag){return this.children.flatMap(node=>[...(node.tagName===tag?[node]:[]),...node.querySelectorAll(tag)]);}};
 }
 function board(snapshot,brand) {
-  const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','licence-locked','licence-locked-why','brand-controls-title','brand1-link','brand2-link','sales-rows','sales-search','sales-count'].map(id=>[id,element()]));
-  const context = {snapshot,byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
+  const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','print-search','master-sort','master-direction','sales-sort','sales-direction','licence-locked','licence-locked-why','brand-controls-title','brand1-link','brand2-link','sales-rows','sales-search','sales-count'].map(id=>[id,element()]));
+  const context = {snapshot,selectedModels:new Map(),byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
   vm.createContext(context);
   vm.runInContext(extractFunction(shell,'applyFacilitatorBrand'),context);
-  vm.runInContext(['cell','formatTicket','applyLicenceLock','renderBrand','renderSales','renderMaster','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
-  context.render();return elements;
+  vm.runInContext(['cell','sortedRows','formatTicket','applyLicenceLock','renderBrand','renderSales','renderMaster','renderPrints','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
+  context.render();elements.rerender=context.render;elements.renderPrints=context.renderPrints;elements.context=context;return elements;
 }
 
 test('dashboard is the registration board with separate Master Table and Print Queue routes',()=>{
@@ -48,15 +48,84 @@ test('vehicle board renders full name, unique registrant total, inline prefixed 
   assert.match(rendered['sheets-status'].textContent,/remain queued/);
 });
 
-function bridge(url,config,fetch) {
+function bridge(url,config,fetch,extra={}) {
   let handler;
   const context={ipcMain:{handle:(_name,fn)=>{handler=fn;}},URL,PORT:8081,BASE_DIR:'isolated',RES_SERVER:'server',SUPABASE_URL:'https://cloud.test',path,AbortSignal,
     registrationSyncStatus:{hasUrl:true},queueTicketSpeech:async()=>({speechQueued:true,speechPreparing:false}),cloudSyncTick:()=>{context.pushed=true;},
-    fs:{readFileSync:()=>JSON.stringify({config})},fetch,require:()=>({status:()=>({canWrite:true})})};
+    fs:{readFileSync:()=>JSON.stringify({config})},fetch,require:()=>({status:()=>({canWrite:true})}),...extra};
   vm.runInNewContext(main.slice(main.indexOf("ipcMain.handle('af:testDrive'"),main.indexOf("ipcMain.handle('af:chooseVideos'")),context);
-  return {call:body=>handler({senderFrame:{url}},body),context};
+  return {call:body=>handler({senderFrame:{url},sender:{getPrintersAsync:async()=>[{name:'B1'}]}},body),context};
 }
 const config={instanceId:'isolated',cloudWriterToken:'private',brands:[{key:'toyota',models:[{label:'RAV4',prefix:'AA'},{label:'Camry',prefix:'BB'}]}]};
+test('Master reprint validates the printer before issuing, then claims and spools the exact returned job',async()=>{
+  const calls=[];let printedHtml='',accepted=true;
+  class PrintWindow {
+    constructor(){this.webContents={executeJavaScript:async()=>{},print:(_options,done)=>done(accepted,'Printer unavailable')};}
+    async loadURL(url){printedHtml=decodeURIComponent(url);}
+    destroy(){}
+  }
+  const {call}=bridge('http://localhost:8081/master-table.html',config,async(_url,options)=>{
+    const body=JSON.parse(options.body);calls.push(body);
+    if(body.action==='reissue')return Response.json({jobId:'new-job',entryId:'new-entry',queueNumber:5,reprint:false});
+    if(body.action==='claim-print')return Response.json({label:{kind:'client_ticket',brandKey:'toyota',unit:1,queueNumber:5,header:'RAV4'}});
+    return Response.json({saved:true});
+  },{BrowserWindow:PrintWindow,buildPrintLabelHtml:label=>label.header+' '+label.value,formatClientLabel:vm.runInNewContext('('+extractFunction(main,'formatClientLabel')+')'),fitPrintLabel:()=>{}});
+  const result=await call({action:'reissue',entryId:'old-entry',printNow:true,printerName:'B1'});
+  assert.equal(result.ok,true);assert.equal(result.printed,true);assert.equal(result.issuedTicket.queueNumber,5);
+  assert.deepEqual(calls.map(body=>body.action),['reissue','claim-print','print-result']);
+  assert.equal(calls[1].jobId,'new-job');assert.equal(calls[2].jobId,'new-job');assert.match(printedHtml,/AA05/);
+  accepted=false;calls.length=0;
+  const failed=await call({action:'reissue',entryId:'old-entry',printNow:true,printerName:'B1'});
+  assert.equal(failed.ok,false);assert.match(failed.error,/Ticket is saved/);
+  assert.equal(calls[2].status,'failed');assert.equal(calls[2].jobId,'new-job');
+  calls.length=0;
+  assert.equal((await call({action:'reissue',entryId:'old-entry',printNow:true,printerName:'missing'})).ok,false);
+  assert.equal(calls.length,0);
+});
+
+test('horizontal queue scrolling wraps both ends while preserving ordinary movement',()=>{
+  const loop=vm.runInNewContext('('+extractFunction(source,'loopPosition')+')');
+  assert.equal(loop(1000,120,1000),0);assert.equal(loop(0,-120,1000),1000);
+  assert.equal(loop(300,120,1000),420);assert.equal(loop(300,-120,1000),180);assert.equal(loop(0,120,0),0);
+});
+
+test('table sorting compares names case-insensitively and numbers naturally in either direction',()=>{
+  const sort=vm.runInNewContext('('+extractFunction(source,'sortedRows')+')');
+  const rows=[{name:'Zoe',code:'0010'},{name:'ana',code:'0002'}];
+  assert.equal(sort(rows,'name','asc',(item,key)=>item[key])[0].name,'ana');
+  assert.equal(sort(rows,'code','desc',(item,key)=>item[key])[0].code,'0010');
+  assert.equal(rows[0].name,'Zoe');
+});
+
+test('model selection and board scroll survive snapshot rendering, and a focused model selector is retained',()=>{
+  const rendered=board({models:[{id:'model',full_name:'Model'}],entries:[{id:'entry',vehicle_model_id:'model',queue_number:1,status:'waiting',registrations:{full_name:'Client'}}],printJobs:[]});
+  let selection=rendered['master-rows'].children[0].children[5].children[1];
+  selection.value='model';selection.onchange();rendered.board.scrollLeft=270;rendered.rerender();
+  selection=rendered['master-rows'].children[0].children[5].children[1];assert.equal(selection.value,'model');assert.equal(rendered.board.scrollLeft,270);
+  rendered.context.document.activeElement={matches:()=>true};rendered.rerender();
+  assert.equal(rendered['master-rows'].children[0].children[5].children[1],selection);
+});
+
+test('Print Queue filters client and SE names and cancels only unclaimed jobs',()=>{
+  const rendered=board({models:[],entries:[],printJobs:[
+    {id:'one',kind:'se_code_slip',status:'pending',se_daily_checkins:{sales_executives:{name:'Ana'}}},
+    {id:'two',kind:'se_code_slip',status:'claimed',se_daily_checkins:{sales_executives:{name:'Ben'}}}]});
+  assert.deepEqual(rendered['print-rows'].children[0].children[4].children.map(button=>button.textContent),['Print','Cancel']);
+  assert.equal(rendered['print-rows'].children[1].children[4].children.some(button=>button.textContent==='Cancel'),false);
+  rendered['print-search'].value='aNa';rendered.renderPrints();assert.equal(rendered['print-rows'].children.length,1);
+  assert.equal(rendered['print-rows'].children[0].children[1].textContent,'Ana');
+});
+
+test('Settings sample shows a compact configured ticket and speaks its configured pronunciation',()=>{
+  const speech=fs.readFileSync(path.join(PUBLIC,'settings-speech.js'),'utf8');
+  const sample=extractFunction(speech,'sampleTicket');
+  const fields={'.model-prefix':{value:'CRY'},'.model-pronounce':{value:'Cool ray'},'.model-label':{value:'Geely Coolray'}};
+  const block={classList:{contains:()=>false},querySelectorAll:()=>[{querySelector:selector=>fields[selector]}],querySelector:()=>({value:'GEELY'})};
+  const ctx={document:{querySelectorAll:()=>[block]}};vm.createContext(ctx);vm.runInContext(sample,ctx);
+  assert.equal(ctx.sampleTicket().ticket,'CRY01');assert.equal(ctx.sampleTicket(true).ticket,'Cool ray 0 1');
+  assert.equal(ctx.sampleTicket().counter,'Geely Coolray');assert.equal(ctx.sampleTicket().service,'GEELY');
+  assert.doesNotMatch(speech,/ticket:'A A 0 1'/);
+});
 test('dashboard Ongoing saves the selected model to the TV state and triggers the existing cloud mirror',async()=>{
   let saved;
   const {call,context}=bridge('http://localhost:8081/dashboard.html',config,async(url,options)=>{

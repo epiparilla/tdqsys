@@ -59,11 +59,24 @@ GitHub assets or `public/version.json` before acceptance.
   then ticket prefix/number, client name, status and four actions on one line.
   Master Table also shows the linked agent name and four-digit code, including
   earlier same-day run entries, with compact action controls.
+  Its name/agent/model/status sorter supports both directions. Model selections
+  and focused dropdowns survive background refresh. Choose a printer on Master
+  Table: Reprint / issue new number now prints directly, reusing an unpassed
+  number or allocating after the highest issued number when passed. A passed
+  01 with 02 displayed and 03/04 issued creates 05 and cancels the obsolete 01
+  print request. Print failure preserves the ticket for Print Queue recovery.
+  Add/change model continues to queue its separate new label.
+  Print Queue searches client/SE names, matches Master Table's compact sizing,
+  and permits cancelling pending/failed print requests without cancelling
+  clients or tickets. Claimed jobs retain their physical-output recovery flow.
+  Sales Executives sorts by name, dealership, code or status, both directions.
 - Branded dashboard: the original centered heading/button layout and black
   background are restored. Each brand has its own Controls heading and accent
   line. Brand 2 gets `dashboard-brand2.html` only when enabled in Settings.
   Up to three wide vehicle columns fit across; extra models scroll horizontally.
   Each client's number, name, status and four buttons share one line.
+  Previous/Next, focused-board arrow keys, horizontal wheel and Shift-wheel
+  scrolling wrap at both ends. Background refresh retains horizontal position.
 - First-render branding comes directly from the local engine's saved config
   in the HTML response, before styles and page scripts run. Brand 2 gets its
   own saved accent immediately. The local bootstrap contains only brand names,
@@ -165,6 +178,8 @@ The established public queue display flow remains unchanged.
    and the history-preserving SE reset transaction.
    Apply `202611020002_ticket_labels_se_reprint.sql` for complete client label
    metadata and the location-scoped SE reprint transaction.
+   Apply `202611020003_direct_reprint_cancel.sql` for explicit passed-ticket
+   decisions, exact reprint job IDs and scoped print cancellation.
 3. Deploy `test-drive-operations` with the accompanying `supabase/config.toml`
    JWT-verification setting. Its own authorization checks the installation's
    existing writer token and remote revocation record.
@@ -210,8 +225,8 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 272 passing Node tests, three optional skips,
-16 PostgreSQL integration checks and four Python speech tests. The rebuilt packaged speech engine was
+Latest automated verification: 278 passing Node tests, three optional skips,
+18 PostgreSQL integration checks and four Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
 
@@ -283,6 +298,19 @@ part of the walkthrough below.
 14. Check agent name/code in Master Table. Reprint an active SE from its page,
     then print the queued slip. Print client AA01 and a three-digit ticket;
     verify complete numbers, fitted model headers and physical 50 x 30mm output.
+15. Allocate 01-04 for one model, select Ongoing for 02, then click Master
+    Table's Reprint / issue new number for 01. It must issue and print 05
+    directly. Reprint an unpassed ticket: its number must stay the same and
+    print directly. An invalid printer must prevent allocation; a failed
+    spool must leave the exact issued ticket recoverable in Print Queue.
+16. Choose another model and wait through at least two refreshes, then Add
+    model. The choice must remain. Exercise Master Table and Sales Executive
+    sorters in both directions; search Print Queue by client/SE name. Cancel
+    a pending label and verify its registration/ticket remain in Master Table.
+17. Scroll through every vehicle column using Previous/Next, arrow keys and
+    horizontal/Shift-wheel input. Verify wrapping at either end and retained
+    position on refresh. Change a model prefix/pronunciation in Settings:
+    preview text must show its compact ticket; speech must use its pronunciation.
 
 This installer is a development artifact. Live cloud, physical printer,
 three-location, and manual installation acceptance remain required before a

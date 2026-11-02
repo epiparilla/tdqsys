@@ -363,7 +363,7 @@
             <div class="field"><label for="cfg-speech-prefix">Announcement prefix</label><input id="cfg-speech-prefix" maxlength="200" value="Test driver"></div>
             <div class="field"><label for="cfg-speech-template">Main announcement template</label><input id="cfg-speech-template" maxlength="400" value="{ticket}" required></div>
             <div class="field"><label for="cfg-speech-suffix">Announcement suffix</label><input id="cfg-speech-suffix" maxlength="200" value="you may now approach the registration area for your test drive."></div>
-            <p class="hint">Available placeholders: {ticket}, {counter} (vehicle/counter name), {service} (brand/service name). Include {ticket} in the announcement.</p>
+            <p class="hint">Available placeholders: {ticket} (selected vehicle prefix + queue number, e.g. CRY01), {counter} (vehicle/counter name), {service} (brand/service name). Spoken tickets use that vehicle's configured pronunciation. This preview uses the first configured vehicle and queue number 01. Include {ticket} in the announcement.</p>
             <p id="speech-preview" role="status"></p><button type="button" id="speech-test-announcement" class="btn-ghost settings-btn">Test announcement</button>
             <p id="speech-test-status" class="hint" role="status"></p>
         </div>

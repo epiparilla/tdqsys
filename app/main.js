@@ -948,7 +948,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', ...settingsActions];
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
         const cfg = state.config || {};
@@ -963,19 +963,30 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
         }
         let printerName;
-        if (request.action === 'print') {
+        if (request.action === 'print' || (request.action==='reissue' && request.printNow===true)) {
             const printers = await event.sender.getPrintersAsync();
-            if (!printers.some(printer => printer.name === request.printerName)) throw new Error('Select an installed printer first.');
+            if (!printers.some(printer => printer.name === request.printerName)) throw new Error('Select an installed label printer first.');
             printerName = request.printerName;
-            request = { action: 'claim-print', jobId: request.jobId };
+            if(request.action==='print') request = { action: 'claim-print', jobId: request.jobId };
         }
         const response = await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`, {
             method: 'POST', signal: AbortSignal.timeout(15000),
             headers: { 'Content-Type': 'application/json', 'X-TDQSYS-Instance': cfg.instanceId, 'X-TDQSYS-Writer': cfg.cloudWriterToken },
             body: JSON.stringify(request)
         });
-        const result = await response.json();
+        let result = await response.json();
         if (!response.ok) throw new Error(result.error || `Queue service returned ${response.status}.`);
+        let issuedTicket;
+        if(printerName && request.action==='reissue') {
+            issuedTicket=result;
+            const claimed=await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`,{
+                method:'POST',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json','X-TDQSYS-Instance':cfg.instanceId,'X-TDQSYS-Writer':cfg.cloudWriterToken},
+                body:JSON.stringify({action:'claim-print',jobId:issuedTicket.jobId})
+            });
+            result=await claimed.json();
+            if(!claimed.ok)throw Error(`Ticket ${issuedTicket.queueNumber} is saved. ${result.error || 'Print claim failed.'} Check Print Queue before retrying.`);
+            request={...request,jobId:issuedTicket.jobId};
+        }
         if (request.action === 'callback') {
             return {ok:true,...await queueTicketSpeech('callback',result.model,result.ticket)};
         }
@@ -998,8 +1009,8 @@ ipcMain.handle('af:testDrive', async (event, request) => {
                 body: JSON.stringify({ action:'print-result', jobId:request.jobId, status:printError ? 'failed' : 'printed', error:printError })
             });
             if (!recorded.ok) throw new Error('Printer result could not be saved. Check the physical label before retrying this claimed job.');
-            if (printError) throw new Error(printError);
-            return { ok: true, printed: true };
+            if (printError) throw new Error(`${printError} Ticket is saved; retry its failed job in Print Queue.`);
+            return { ok: true, printed: true, issuedTicket };
         }
         if (request.action === 'ongoing' || request.action === 'reset') {
             const localResponse = await fetch(`http://localhost:${PORT}/api/data`);
