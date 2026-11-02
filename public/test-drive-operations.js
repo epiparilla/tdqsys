@@ -5,6 +5,8 @@
   let busy = false;
   let actionGeneration = 0;
   const selectedModels = new Map();
+  let boardCycleWidth = 0;
+  let boardDrag = null;
   let licenceCanWrite = false;
   let licenceStatus = null;
   function applyLicenceLock(st) {
@@ -32,14 +34,13 @@
     if(!key)return rows;
     return [...rows].sort((a,b)=>String(value(a,key)??'').localeCompare(String(value(b,key)??''),undefined,{numeric:true,sensitivity:'base'})*(direction==='desc'?-1:1));
   }
-  function loopPosition(current, delta, maximum) {
-    if(maximum<=0)return 0;
-    if(delta>0 && current>=maximum-1)return 0;
-    if(delta<0 && current<=1)return maximum;
-    return Math.max(0,Math.min(maximum,current+delta));
+  function loopPosition(position, cycleWidth) {
+    if(cycleWidth<=0)return position;
+    return cycleWidth+((position-cycleWidth)%cycleWidth+cycleWidth)%cycleWidth;
   }
   function scrollBoard(delta) {
-    const board=byId('board');board.scrollLeft=loopPosition(board.scrollLeft,delta,board.scrollWidth-board.clientWidth);
+    if(!boardCycleWidth)return;
+    const board=byId('board');board.scrollLeft=loopPosition(board.scrollLeft+delta,boardCycleWidth);
   }
   async function request(body) {
     if (!window.afDesktop?.testDrive) throw new Error('Open this page inside the TDQSYS desktop app.');
@@ -71,11 +72,15 @@
     byId('sheets-status').textContent = snapshot.sheetsStatus?.hasUrl
       ? 'Google Sheets destination saved. Registrations sync automatically while TDQSYS is running.'
       : 'Google Sheets is not connected for this location. Paste its URL in System Settings and save. Already submitted registrations remain queued for delivery.';
-    const boardPosition=byId('board').scrollLeft || 0;
-    byId('board').replaceChildren();
-    const visibleModels = renderBrand();
-    for (const model of visibleModels) {
+    renderBoard();
+    renderMaster();
+    renderPrints();
+    renderSales();
+    applyLicenceLock(licenceStatus);
+  }
+  function createBoardColumn(model) {
       const column = document.createElement('article');
+      column.dataset.modelId=model.id;
       const title = document.createElement('h2'); title.textContent = model.full_name; column.appendChild(title);
       const entries = snapshot.entries.filter(e => e.vehicle_model_id === model.id);
       const count = document.createElement('p'); count.className = 'registered-count'; count.textContent = `Total registered: ${new Set(entries.map(e => e.registration_id)).size}`; column.appendChild(count);
@@ -93,12 +98,27 @@
         }
         row.appendChild(actions); column.appendChild(row);
       }
-      byId('board').appendChild(column);
-    }
-    byId('board').scrollLeft=boardPosition;
-    renderMaster();
-    renderPrints();
-    renderSales();
+      return column;
+  }
+  function renderBoard() {
+    if(boardDrag)return;
+    const board=byId('board'), oldCycle=boardCycleWidth;
+    const oldPosition=board.scrollLeft || 0;
+    const phase=oldCycle ? (loopPosition(oldPosition,oldCycle)-oldCycle)/oldCycle : 0;
+    board.replaceChildren();
+    const models=renderBrand();
+    const columns=models.map(createBoardColumn);
+    columns.forEach(column=>board.appendChild(column));
+    const columnWidth=columns[0]?.getBoundingClientRect?.().width || columns[0]?.offsetWidth || 0;
+    const stride=columnWidth+12;
+    const cycle=models.length*stride;
+    boardCycleWidth=columnWidth && cycle-12>board.clientWidth+1 ? cycle : 0;
+    if(boardCycleWidth) {
+      // Three identical interactive cycles keep a matching neighbour on both
+      // sides. Recentering by a full cycle changes no visible pixel or ticket.
+      for(let copy=0;copy<2;copy++)for(const model of models)board.appendChild(createBoardColumn(model));
+      board.scrollLeft=boardCycleWidth+(oldCycle ? phase*boardCycleWidth : Math.min(oldPosition,boardCycleWidth-1));
+    } else board.scrollLeft=oldCycle ? 0 : oldPosition;
     applyLicenceLock(licenceStatus);
   }
   function renderPrints() {
@@ -249,17 +269,47 @@
   byId('print-search').oninput=renderPrints;
   for(const id of ['master-sort','master-direction'])byId(id).onchange=renderMaster;
   for(const id of ['sales-sort','sales-direction'])byId(id).onchange=()=>{renderSales();applyLicenceLock(licenceStatus);};
-  byId('board-previous').onclick=()=>scrollBoard(-byId('board').clientWidth);
-  byId('board-next').onclick=()=>scrollBoard(byId('board').clientWidth);
+  byId('board').onscroll=()=>{
+    if(!boardCycleWidth)return;
+    const board=byId('board'), centered=loopPosition(board.scrollLeft,boardCycleWidth);
+    if(Math.abs(centered-board.scrollLeft)>0.5)board.scrollLeft=centered;
+  };
   byId('board').onwheel=event=>{
-    const delta=event.deltaX || (event.shiftKey ? event.deltaY : 0);
-    if(!delta || byId('board').scrollWidth<=byId('board').clientWidth)return;
+    const delta=Math.abs(event.deltaX)>Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if(!delta || !boardCycleWidth)return;
     event.preventDefault();scrollBoard(delta*(event.deltaMode===1?16:event.deltaMode===2?byId('board').clientWidth:1));
   };
+  byId('board').onpointerdown=event=>{
+    if(event.pointerType!=='mouse' || event.button!==0 || !boardCycleWidth || event.target.closest('button,a,input,select,textarea,label'))return;
+    boardDrag={id:event.pointerId,x:event.clientX,position:byId('board').scrollLeft,moved:false};
+  };
+  byId('board').onpointermove=event=>{
+    if(!boardDrag || boardDrag.id!==event.pointerId)return;
+    const delta=boardDrag.x-event.clientX;
+    if(!boardDrag.moved && Math.abs(delta)<5)return;
+    boardDrag.moved=true;event.preventDefault();
+    byId('board').setPointerCapture(event.pointerId);
+    byId('board').scrollLeft=loopPosition(boardDrag.position+delta,boardCycleWidth);
+    byId('board').classList.add('dragging');
+  };
+  function endBoardDrag(event) {
+    if(!boardDrag || boardDrag.id!==event.pointerId)return;
+    boardDrag=null;
+    const board=byId('board');
+    if(board.hasPointerCapture(event.pointerId))board.releasePointerCapture(event.pointerId);
+    board.classList.remove('dragging');renderBoard();
+  }
+  byId('board').onpointerup=endBoardDrag;
+  byId('board').onpointercancel=endBoardDrag;
   byId('board').onkeydown=event=>{
     if(event.target!==byId('board') || !['ArrowLeft','ArrowRight'].includes(event.key))return;
     event.preventDefault();scrollBoard((event.key==='ArrowLeft'?-1:1)*byId('board').clientWidth);
   };
+  let boardResizeFrame;
+  new ResizeObserver(()=>{
+    cancelAnimationFrame(boardResizeFrame);
+    boardResizeFrame=requestAnimationFrame(renderBoard);
+  }).observe(byId('board'));
   byId('sales-search').oninput = renderSales;
   byId('sales-reset-form').onsubmit = event => {
     event.preventDefault();

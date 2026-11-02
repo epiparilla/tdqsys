@@ -17,10 +17,10 @@ function element(tag='div') {
 }
 function board(snapshot,brand) {
   const elements = Object.fromEntries(['registration-links','run','sheets-status','board','master-rows','search','history','print-rows','print-search','master-sort','master-direction','sales-sort','sales-direction','licence-locked','licence-locked-why','brand-controls-title','brand1-link','brand2-link','sales-rows','sales-search','sales-count'].map(id=>[id,element()]));
-  const context = {snapshot,selectedModels:new Map(),byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
+  const context = {snapshot,boardCycleWidth:0,boardDrag:null,selectedModels:new Map(),byId:id=>elements[id],document:{getElementById:id=>elements[id],documentElement:{style:{setProperty(){}}},body:{dataset:{view:'board',brand},style:{setProperty(){}}},createElement:element,querySelectorAll:()=>[]},Set,Option:function(){return element('option');},licenceStatus:{canWrite:true},busy:false,licenceCanWrite:true};
   vm.createContext(context);
   vm.runInContext(extractFunction(shell,'applyFacilitatorBrand'),context);
-  vm.runInContext(['cell','sortedRows','formatTicket','applyLicenceLock','renderBrand','renderSales','renderMaster','renderPrints','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
+  vm.runInContext(['cell','sortedRows','formatTicket','loopPosition','applyLicenceLock','renderBrand','createBoardColumn','renderBoard','renderSales','renderMaster','renderPrints','render'].map(fn=>extractFunction(source,fn)).join('\n'),context);
   context.render();elements.rerender=context.render;elements.renderPrints=context.renderPrints;elements.context=context;return elements;
 }
 
@@ -83,10 +83,30 @@ test('Master reprint validates the printer before issuing, then claims and spool
   assert.equal(calls.length,0);
 });
 
-test('horizontal queue scrolling wraps both ends while preserving ordinary movement',()=>{
+test('infinite queue scrolling preserves its fractional phase across either seam and arbitrarily large movement',()=>{
   const loop=vm.runInNewContext('('+extractFunction(source,'loopPosition')+')');
-  assert.equal(loop(1000,120,1000),0);assert.equal(loop(0,-120,1000),1000);
-  assert.equal(loop(300,120,1000),420);assert.equal(loop(300,-120,1000),180);assert.equal(loop(0,120,0),0);
+  assert.equal(loop(1999.5,1000),1999.5);assert.equal(loop(2000.5,1000),1000.5);
+  assert.equal(loop(999.5,1000),1999.5);assert.equal(loop(-2300,1000),1700);assert.equal(loop(9300,1000),1300);assert.equal(loop(120,0),120);
+});
+
+test('overflowing queue boards repeat live columns on both sides and retain phase through refresh and resize',()=>{
+  const rendered=board({brands:[{key:'brand1',name:'Test'}],models:Array.from({length:4},(_,n)=>({id:String(n),brand_key:'brand1',unit_index:n+1,full_name:`Model ${n}`})),entries:[{id:'client-ticket',vehicle_model_id:'0',status:'waiting',queue_number:1}],printJobs:[]});
+  const ctx=rendered.context;
+  let width=520.25;
+  ctx.document.createElement=tag=>({...element(tag),getBoundingClientRect:()=>({width})});
+  rendered.board.clientWidth=1500;ctx.renderBoard();
+  assert.equal(rendered.board.children.length,12);
+  const cycle=4*(width+12);assert.equal(ctx.boardCycleWidth,cycle);assert.equal(rendered.board.scrollLeft,cycle);
+  assert.deepEqual(rendered.board.children.map(column=>column.dataset.modelId),['0','1','2','3','0','1','2','3','0','1','2','3']);
+  const actions=[];ctx.mutate=body=>actions.push(body);
+  rendered.board.children[8].children[2].children[1].children[0].onclick();
+  assert.equal(actions.length,1);assert.equal(actions[0].action,'ongoing');assert.equal(actions[0].entryId,'client-ticket');
+  rendered.board.scrollLeft=cycle+267.125;ctx.renderBoard();assert.equal(rendered.board.scrollLeft,cycle+267.125);
+  const before=rendered.board.children;ctx.boardDrag={id:1};ctx.renderBoard();assert.equal(rendered.board.children,before);ctx.boardDrag=null;
+  width=600;ctx.renderBoard();assert.ok(Math.abs((rendered.board.scrollLeft-ctx.boardCycleWidth)/ctx.boardCycleWidth-267.125/cycle)<1e-8);
+  rendered.board.clientWidth=3000;ctx.renderBoard();assert.equal(ctx.boardCycleWidth,0);assert.equal(rendered.board.children.length,4);
+  assert.doesNotMatch(shell,/board-previous|board-next|board-navigation/);
+  const css=fs.readFileSync(path.join(PUBLIC,'facilitator.css'),'utf8');assert.match(css,/scrollbar-width:none/);assert.match(css,/#board::-webkit-scrollbar\{display:none\}/);
 });
 
 test('table sorting compares names case-insensitively and numbers naturally in either direction',()=>{

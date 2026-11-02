@@ -75,8 +75,12 @@ GitHub assets or `public/version.json` before acceptance.
   line. Brand 2 gets `dashboard-brand2.html` only when enabled in Settings.
   Up to three wide vehicle columns fit across; extra models scroll horizontally.
   Each client's number, name, status and four buttons share one line.
-  Previous/Next, focused-board arrow keys, horizontal wheel and Shift-wheel
-  scrolling wrap at both ends. Background refresh retains horizontal position.
+  The horizontal track loops seamlessly with no Previous/Next buttons or visible
+  scrollbar. Overflowing models repeat on both sides with identical live actions;
+  whole-cycle recentering preserves the visible content across either seam.
+  Use mouse wheel, trackpad, touch scrolling, mouse drag or focused-board arrow
+  keys. Refresh and resize preserve the position; dragging defers board rebuilds.
+  Models that already fit the available width are not repeated.
 - First-render branding comes directly from the local engine's saved config
   in the HTML response, before styles and page scripts run. Brand 2 gets its
   own saved accent immediately. The local bootstrap contains only brand names,
@@ -225,7 +229,7 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 278 passing Node tests, three optional skips,
+Latest automated verification: 279 passing Node tests, three optional skips,
 18 PostgreSQL integration checks and four Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
@@ -307,9 +311,13 @@ part of the walkthrough below.
     model. The choice must remain. Exercise Master Table and Sales Executive
     sorters in both directions; search Print Queue by client/SE name. Cancel
     a pending label and verify its registration/ticket remain in Master Table.
-17. Scroll through every vehicle column using Previous/Next, arrow keys and
-    horizontal/Shift-wheel input. Verify wrapping at either end and retained
-    position on refresh. Change a model prefix/pronunciation in Settings:
+17. Scroll through every vehicle column using mouse wheel/trackpad, touch,
+    mouse drag and focused-board arrow keys. There must be no navigation buttons
+    or visible scrollbar. The last model must flow directly into the first in
+    either direction without a visible end-to-start jump. Repeat across many
+    cycles and during background refresh/resize. Click actions on repeated
+    columns and confirm they operate on the correct model/client only once.
+    Change a model prefix/pronunciation in Settings:
     preview text must show its compact ticket; speech must use its pronunciation.
 
 This installer is a development artifact. Live cloud, physical printer,
