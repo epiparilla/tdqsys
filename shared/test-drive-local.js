@@ -96,6 +96,23 @@ class LocalTestDrive {
         const ids=new Set(items.map(item=>item.operationId));const next=copy(this.state);
         next.displayPending=next.displayPending.filter(item=>!ids.has(item.operationId));this.save(next);
     }
+    prepareDisplayProjection() {
+        const snapshot=this.state.snapshot;
+        if(!snapshot?.run)return;
+        const day=operatingDay(this.now(),snapshot.timezone);
+        const current=snapshot.run.operating_day===day;
+        const context=current ? `${day}:${snapshot.run.id}` : `${day}:awaiting-run`;
+        if(this.state.displayContext===context)return;
+        const view=this.view(),next=copy(this.state);
+        // The TV state is separate from the table snapshot. Persist the boundary
+        // projection too, so an offline midnight/restart cannot retain old numbers.
+        next.displayContext=context;
+        next.displayPending=(snapshot.models || []).map(model=>({operationId:this.id(),modelId:model.id,
+            brandKey:model.brand_key,unit:model.unit_index,fullName:model.full_name,
+            number:current ? (view.modelDisplays || []).find(item=>item.vehicle_model_id===model.id)?.queue_number || 0 : 0,
+            runId:snapshot.run.id}));
+        this.save(next);
+    }
     acceptSnapshot(snapshot,options={}) {
         if(!snapshot || !Array.isArray(snapshot.entries) || !Array.isArray(snapshot.models))throw Error('Invalid cloud queue snapshot.');
         if(snapshot.entries.some(entry=>entry.instance_id!==this.state.instanceId))throw Error('Cloud snapshot contains another location.');

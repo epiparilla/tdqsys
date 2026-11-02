@@ -273,7 +273,7 @@ The extra integration runner executes the migration and its database functions
 using an isolated PostgreSQL runtime. The normal suite remains dependency-free.
 See [PGlite execution API](https://pglite.dev/docs/api).
 
-Latest automated verification: 302 passing Node tests, three optional skips,
+Latest automated verification: 305 passing Node tests, three optional skips,
 21 PostgreSQL integration checks and nine Python speech tests. The rebuilt packaged speech engine was
 checked with actual synthesis, its 54-voice catalog, saved selection, and
 missing-voice fallback. Desktop/public route boundaries passed on both sites.
@@ -392,6 +392,13 @@ part of the walkthrough below.
     are unsynced, or cross midnight offline. Old-run actions must not affect the
     new run. Export recovery and archive earlier-run actions explicitly; keep
     all registration history. Check licence rejection/reinstatement and Retry.
+24. Cross the location's midnight with nonzero TV numbers, including with the
+    laptop offline. Every configured model must show zero without needing a
+    cloud response; restart must retain zero and history must remain available.
+    Reconnect/load today's run and confirm zero stays until an Ongoing action.
+    A restart during the same current run must preserve that run's displayed
+    numbers rather than resetting them again. The online viewer catches up
+    once connectivity returns.
 
 The local native-helper check measured approximately 80 ms for local save,
 display projection and speech enqueue with zero cloud calls. This excludes

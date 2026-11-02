@@ -5,6 +5,12 @@ not a verbatim transcript. The user is shutting down and will resume later.
 
 ## Resume here
 
+Day-rollover fix, 3 November: the TV projection now resets to zero at local
+midnight even offline, rather than leaving yesterday's numbers while tables
+empty. Its boundary marker/projection survive restart; new-run model displays
+are reconciled without deleting history or pending operations. Node suite now
+passes 305 tests (three optional skips). Rebuilt manual installer remains 1.1.28.
+
 Update, 3 November 2026: local-first queue operations are implemented. Read the
 new Local queue operations section in FUTURE_IMPROVEMENTS.md and manual steps
 21-23 in TEST_DRIVE_TEST_BUILD.md before the earlier speech-only notes below.
@@ -17,9 +23,9 @@ and drain pending statuses first. Conflicts stay retained for review/export;
 older-run actions require explicit archival. No version/manifest bump is allowed.
 The prior implementation commit and installer byte count recorded below are
 historical; use the current Git HEAD and artifact rather than those older values.
-Verification: 302 Node tests passed (three optional skips), 21 database checks,
+Verification: 305 Node tests passed (three optional skips), 21 database checks,
 nine speech checks, and live disposable-location restart/lost-ack replay passed.
-The rebuilt manual installer is 232673492 bytes. Packaged main/preload, local
+The rebuilt manual installer is 232673669 bytes. Packaged main/preload, local
 journal module and changed UI files match source. Main and preview Pages were
 deployed; public registration/display routes work and desktop routes stay blocked.
 

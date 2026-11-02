@@ -65,3 +65,34 @@ test('actual native local action helper persists and projects Ongoing without wa
         release();await syncing;assert.equal(queue.state.outbox.length,0);
     } finally {fs.rmSync(directory,{recursive:true,force:true});}
 });
+
+test('native background worker clears yesterday TV numbers offline before awaiting cloud sync',async()=>{
+    const directory=fs.mkdtempSync(path.join(os.tmpdir(),'tdqsys-midnight-'));
+    try {
+        const instanceId='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+        const config={instanceId,brands:[{key:'brand1',models:[{label:'Car A'},{label:'Car B'}]}]};
+        let clock=new Date('2026-11-03T15:59:59Z'),release,mirrors=0;
+        const queue=new LocalTestDrive({directory,instanceId,now:()=>clock,remote:()=>new Promise(done=>{release=done;})});
+        const snapshot={run:{id:'yesterday',status:'active',operating_day:'2026-11-03'},timezone:'Asia/Manila',entries:[],
+            models:[{id:'a',full_name:'Car A',brand_key:'brand1',unit_index:1},{id:'b',full_name:'Car B',brand_key:'brand1',unit_index:2}],
+            modelDisplays:[{vehicle_model_id:'a',queue_number:7},{vehicle_model_id:'b',queue_number:4}]};
+        queue.acceptSnapshot(snapshot);queue.prepareDisplayProjection();queue.markDisplayApplied(queue.state.displayPending);
+        let state={config,queues:{brand1:{1:7,2:4}}};
+        const context={structuredClone,displayProjection:null,PORT:18081,localConfig:()=>config,getLocalQueue:()=>queue,
+            localQueueOwner:queue,engineDown:()=>false,app:{},RES_SERVER:directory,BASE_DIR:directory,path,
+            require:()=>({status:()=>({canWrite:true})}),notifyLocalQueueChanged:()=>{},cloudSyncTick:()=>{mirrors++;},
+            fetch:async(url,options)=>{
+                assert.ok(url.startsWith('http://localhost:18081/'));
+                if(options?.method==='POST')state=JSON.parse(options.body);
+                return Response.json(state);
+            }};
+        vm.createContext(context);vm.runInContext(['applyLocalDisplay','localQueueTick'].map(name=>extractFunction(source,name)).join('\n'),context);
+        clock=new Date('2026-11-03T16:00:00Z');
+        const ticking=context.localQueueTick();await new Promise(done=>setImmediate(done));
+        assert.deepEqual(state.queues,{brand1:{1:0,2:0}});assert.equal(mirrors,1);
+        assert.equal(queue.state.snapshot.run.id,'yesterday'); // reset did not need a cloud response
+        const today=structuredClone(snapshot);today.run={...today.run,id:'today',operating_day:'2026-11-04'};today.modelDisplays=[];
+        release(today);await ticking;assert.deepEqual(state.queues,{brand1:{1:0,2:0}});
+        assert.equal(queue.state.displayPending.length,0);
+    } finally {fs.rmSync(directory,{recursive:true,force:true});}
+});

@@ -933,6 +933,7 @@ function getLocalQueue(cfg) {
     return localQueueOwner;
 }
 async function applyLocalDisplay(queue) {
+    queue.prepareDisplayProjection();
     while(queue.state.displayPending.length) {
         if(displayProjection){await displayProjection;continue;}
         const items=structuredClone(queue.state.displayPending);
@@ -965,8 +966,9 @@ async function localQueueTick(force=false) {
         const canWrite=require(path.join(RES_SERVER,'shared','licence.js')).status(cfg.instanceId,{dataDir:BASE_DIR}).canWrite;
         if(queue.state.outbox.length && !canWrite)return;
         const before=JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError]);
-        if(canWrite && queue.status().ready)await applyLocalDisplay(queue);
+        if(canWrite)await applyLocalDisplay(queue);
         await queue.sync({force});
+        if(canWrite)await applyLocalDisplay(queue);
         if(before!==JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError]))notifyLocalQueueChanged();
     }catch(error){if(localQueueOwner)localQueueOwner.lastError=error.message;}
 }

@@ -28,6 +28,31 @@ test('failed atomic save does not expose an unrecorded action',()=>using(async d
     assert.throws(()=>queue.commit({action:'ongoing',entryId:'a2'}),/disk unavailable/);
     assert.equal(queue.view().entries[1].status,'waiting');assert.equal(queue.state.outbox.length,0);
 }));
+
+test('midnight queues a durable zero display while preserving history and unsynced actions',()=>using(async directory=>{
+    let clock=NOW;
+    const options={directory,instanceId:INSTANCE,now:()=>clock};
+    const queue=new LocalTestDrive(options);queue.acceptSnapshot(snapshot());queue.commit({action:'ongoing',entryId:'a2'});
+    queue.prepareDisplayProjection();assert.equal(queue.state.displayPending[0].number,2);
+    queue.markDisplayApplied(queue.state.displayPending);
+    clock=new Date('2026-11-03T16:00:00Z'); // midnight in the location, not UTC
+    queue.prepareDisplayProjection();assert.deepEqual(queue.state.displayPending.map(item=>item.number),[0,0]);
+    assert.equal(queue.view().entries.length,0);assert.equal(queue.state.snapshot.entries.length,3);assert.equal(queue.state.outbox.length,1);
+    const restarted=new LocalTestDrive(options);assert.deepEqual(restarted.state.displayPending.map(item=>item.number),[0,0]);
+    restarted.markDisplayApplied(restarted.state.displayPending);restarted.prepareDisplayProjection();assert.equal(restarted.state.displayPending.length,0);
+    const today=snapshot('today');today.run.operating_day='2026-11-04';today.entries=[];
+    restarted.acceptSnapshot(today);restarted.prepareDisplayProjection();assert.deepEqual(restarted.state.displayPending.map(item=>item.number),[0,0]);
+    assert.equal(restarted.state.outbox.length,1);assert.equal(restarted.state.outbox[0].blocked,true);
+}));
+
+test('loading a current run restores its model displays and a same-day reset projects zero',()=>using(async directory=>{
+    const queue=new LocalTestDrive({directory,instanceId:INSTANCE,now:()=>NOW});
+    const current=snapshot();current.modelDisplays=[{vehicle_model_id:'a',queue_number:7},{vehicle_model_id:'b',queue_number:4}];
+    queue.acceptSnapshot(current);queue.prepareDisplayProjection();assert.deepEqual(queue.state.displayPending.map(item=>item.number),[7,4]);
+    queue.markDisplayApplied(queue.state.displayPending);queue.prepareDisplayProjection();assert.equal(queue.state.displayPending.length,0);
+    const reset=snapshot('new-run');reset.entries=[];reset.modelDisplays=[];
+    queue.acceptSnapshot(reset);queue.prepareDisplayProjection();assert.deepEqual(queue.state.displayPending.map(item=>item.number),[0,0]);
+}));
 test('stale cloud snapshots cannot undo pending local changes or drop newly registered clients',()=>using(async directory=>{
     let resolve;const remote=()=>new Promise(done=>{resolve=done;});
     const queue=new LocalTestDrive({directory,instanceId:INSTANCE,now:()=>NOW,remote});queue.acceptSnapshot(snapshot());
