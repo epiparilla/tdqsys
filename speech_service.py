@@ -8,6 +8,21 @@ import uuid
 from speech_segments import ticket_plan
 
 
+def sentence_warmup(config, queues):
+    """Round-robin across vehicles/actions, extending 50 ahead at midpoint."""
+    vehicles = []
+    for brand in config.get('brands', []):
+        for unit, _ in enumerate(brand.get('models', []), 1):
+            current = max(0, min(99999, int((queues.get(brand['key']) or {}).get(str(unit), 0))))
+            last = min(99999, ((current + 25) // 50 + 1) * 50)
+            vehicles.append((brand['key'], unit, max(1, current), last))
+    for offset in range(max([0] + [last - first + 1 for _, _, first, last in vehicles])):
+        for brand, unit, first, last in vehicles:
+            if first + offset <= last:
+                for kind in ('ongoing', 'callback'):
+                    yield ticket_plan(config, brand, unit, first + offset, kind)
+
+
 class DesktopSpeech:
     def __init__(self, cache, get_state, resolve_voice, play, warmup=True):
         self.cache, self.get_state, self.resolve_voice, self.play = cache, get_state, resolve_voice, play
@@ -18,6 +33,8 @@ class DesktopSpeech:
         self.last_error = None
         self.last_compose_ms = None
         self.preparing_previews = 0
+        self.prepared = 0
+        self.prepare_total = 0
         self.preview_lock = threading.Lock()
         threading.Thread(target=self._play_loop, daemon=True).start()
         if warmup:
@@ -48,7 +65,9 @@ class DesktopSpeech:
         return {'queued': self.jobs.qsize(), 'playing': self.busy, 'warming': self.warming,
                 'completed': self.completed, 'lastError': self.last_error,
                 'lastComposeMs': self.last_compose_ms, 'cachedClips': len(self.cache.memory),
-                'preparingPreviews': self.preparing_previews}
+                'preparingPreviews': self.preparing_previews,
+                'mode': getattr(self.cache, 'mode', 'segmented'),
+                'prepared': self.prepared, 'prepareTotal': self.prepare_total}
 
     def _play_loop(self):
         while True:
@@ -68,6 +87,8 @@ class DesktopSpeech:
                 self.jobs.task_done()
 
     def _warm_loop(self):
+        if getattr(self.cache, 'mode', '') == 'whole-sentence':
+            return self._warm_sentences()
         previous = None
         while True:
             try:
@@ -97,3 +118,37 @@ class DesktopSpeech:
                 self.last_error = str(error)
                 self.warming = False
             time.sleep(1)
+
+    def _warm_sentences(self):
+        previous = None
+        while True:
+            try:
+                state = self.get_state()
+                signature = self._sentence_signature(state)
+                if signature != previous:
+                    plans = list(sentence_warmup(state.get('config') or {}, state.get('queues') or {}))
+                    self.warming = True
+                    self.prepared, self.prepare_total = 0, len(plans)
+                    for parts, voice in plans:
+                        while self.busy or not self.jobs.empty() or self.preparing_previews:
+                            time.sleep(.02)
+                        if self._sentence_signature(self.get_state()) != signature:
+                            break  # Never finish an obsolete voice/wording sweep first.
+                        self.cache.compose(parts, self.resolve_voice(voice))
+                        self.prepared += 1
+                    else:
+                        previous = signature
+                    self.warming = False
+            except Exception as error:
+                self.last_error = str(error)
+                self.warming = False
+            time.sleep(1)
+
+    @staticmethod
+    def _sentence_signature(state):
+        config = state.get('config') or {}
+        callback = config.get('testDrive') or {}
+        buckets = {brand:{unit:(int(number) + 25) // 50 for unit, number in slots.items()}
+                   for brand, slots in (state.get('queues') or {}).items()}
+        return hashlib.sha256(json.dumps([config.get('brands'), config.get('announcements'),
+            callback.get('callbackPrefix'), callback.get('callbackSuffix'), buckets], sort_keys=True).encode()).hexdigest()

@@ -9,5 +9,5 @@
   </style>
 </head>
 <body><main class="card"><h1>Sales Executive Registration</h1><p>Register for today&apos;s test-drive event.</p>
-  <form id="form"><label>Name<input name="name" autocomplete="name" required></label><label>Dealership<select name="dealership" required disabled><option value="">Loading dealerships...</option></select></label><button disabled>Get my code</button></form><p id="message" role="status"></p>
+  <form id="form"><label>Name<input name="name" autocomplete="name" required></label><label>Contact No.<input name="contactNumber" type="tel" inputmode="numeric" autocomplete="tel" pattern="[0-9]{11}" minlength="11" maxlength="11" title="Enter exactly 11 digits (numbers only), e.g. 09171234567" required></label><label>Dealership<select name="dealership" required disabled><option value="">Loading dealerships...</option></select></label><button disabled>Get my code</button></form><p id="message" role="status"></p>
 </main><script src="se-registration.js"></script></body></html>

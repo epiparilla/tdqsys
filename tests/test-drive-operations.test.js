@@ -52,6 +52,42 @@ test('private Settings configuration sends dealerships atomically and old client
   const legacy=await runEdge({action:'configure',models:[],waiver:'waiver',terms:'terms'});
   assert.equal(legacy.calls.find(call=>call.rpc)?.rpc,'tdqsys_configure_test_drive');
 });
+
+test('giveaway APIs use authenticated location identity and RPCs; malformed selection is refused',async()=>{
+  const snapshot=await runEdge({action:'giveaway-snapshot',instanceId:'foreign'});
+  assert.equal(snapshot.response.status,200);
+  assert.equal(snapshot.calls.filter(call=>call.rpc).at(-1).rpc,'tdqsys_giveaway_snapshot');
+  assert.equal(snapshot.calls.find(call=>call.rpc).args.p_instance_id,INSTANCE);
+  const claim=await runEdge({action:'set-giveaway',registrationId:WRITER,item:'Cap',expectedItem:null});
+  assert.equal(claim.response.status,200);assert.equal(claim.calls.find(call=>call.rpc).rpc,'tdqsys_set_giveaway');
+  assert.equal(claim.calls.find(call=>call.rpc).args.p_expected_item,null);
+  const invalid=await runEdge({action:'set-giveaway',registrationId:'bad',item:'Cap'});
+  assert.equal(invalid.response.status,400);assert.equal(invalid.calls.some(call=>call.rpc),false);
+  const configured=await runEdge({action:'configure',models:[],waiver:'w',terms:'t',giveawayItems:['Cap']});
+  assert.equal(configured.calls.at(-1).rpc,'tdqsys_configure_giveaways');
+  assert.deepEqual(Array.from(configured.calls.at(-1).args.p_items),['Cap']);
+});
+
+test('stock and analytics endpoints bind ownership, validate quantities and keep opening setup retryable',async()=>{
+  const result=await runEdge({action:'giveaway-stock',item:'Cap',quantity:3,requestId:WRITER,runId:WRITER,instanceId:'foreign'});
+  const call=result.calls.find(call=>call.rpc);assert.equal(call.rpc,'tdqsys_add_giveaway_stock');
+  assert.equal(call.args.p_instance_id,INSTANCE);assert.equal(call.args.p_kind,'replenishment');assert.equal(call.args.p_request_id,WRITER);
+  for(const quantity of [-1,0,1.5,'3',100000001])assert.equal((await runEdge({action:'giveaway-stock',item:'Cap',quantity,requestId:WRITER})).response.status,400);
+  const dashboard=await runEdge({action:'dashboard-snapshot',runId:WRITER});
+  assert.equal(dashboard.calls.find(call=>call.rpc).rpc,'tdqsys_dashboard_snapshot');assert.equal(dashboard.calls.find(call=>call.rpc).args.p_run_id,WRITER);
+  assert.equal((await runEdge({action:'dashboard-snapshot',runId:'bad'})).response.status,400);
+  const inventory=await runEdge({action:'giveaway-inventory'});assert.equal(inventory.calls.filter(call=>call.rpc).at(-1).rpc,'tdqsys_giveaway_stock_history');
+  const configured=await runEdge({action:'configure',models:[],waiver:'w',terms:'t',giveawayItems:['Cap'],giveawayStockOpenings:[{item:'Cap',quantity:10,requestId:WRITER}]});
+  assert.equal(configured.calls.at(-1).rpc,'tdqsys_configure_inventory');assert.equal(configured.calls.at(-1).args.p_openings[0].quantity,10);
+});
+
+test('multi-item API validates distinct items and passes the authenticated owner and stable batch ID',async()=>{
+  const body={action:'issue-giveaways',registrationId:WRITER,requestId:INSTANCE,runId:WRITER,items:['Cap','Tote'],instanceId:'foreign'};
+  const result=await runEdge(body);assert.equal(result.response.status,200);
+  const call=result.calls.find(call=>call.rpc);assert.equal(call.rpc,'tdqsys_issue_giveaways');assert.equal(call.args.p_instance_id,INSTANCE);assert.equal(call.args.p_request_id,INSTANCE);
+  assert.deepEqual(Array.from(call.args.p_items),['Cap','Tote']);
+  for(const items of [[],['Cap',' cap '],[''],[1],null])assert.equal((await runEdge({...body,items})).response.status,400);
+});
 test('offline replay uses authenticated ownership and passes the operation unchanged to its idempotent transaction',async()=>{
   const operation={id:'op',runId:'run',entryId:'entry',action:'ongoing'};
   const {response,calls}=await runEdge({action:'sync-local-operation',instanceId:'foreign',operation});

@@ -60,6 +60,49 @@ function bridge(url,config,fetch,extra={}) {
   return {call:body=>handler({senderFrame:{url},sender:{getPrintersAsync:async()=>[{name:'B1'}]}},body),context};
 }
 const config={instanceId:'isolated',cloudWriterToken:'private',brands:[{key:'toyota',models:[{label:'RAV4',prefix:'AA'},{label:'Camry',prefix:'BB'}]}]};
+
+test('history cleanup is exposed only on licensed Event Setup and cannot bypass native backup handling',async()=>{
+  let handled=0;
+  const extra={getHistoryCleanup:()=>({handle:async()=>{handled++;return {ok:true};}})};
+  assert.equal((await bridge('http://localhost:8081/event-setup.html',config,async()=>Response.json({}),extra).call({action:'history-preview'})).ok,true);
+  for(const page of ['dashboard.html','settings.html'])assert.equal((await bridge(`http://localhost:8081/${page}`,config,async()=>Response.json({}),extra).call({action:'history-delete'})).ok,false);
+  assert.equal((await bridge('http://localhost:8081/event-setup.html',config,async()=>Response.json({}),{...extra,require:()=>({status:()=>({canWrite:false})})}).call({action:'history-delete'})).ok,false);
+  assert.equal((await bridge('http://localhost:8081/event-setup.html',config,async()=>Response.json({}),extra).call({action:'cleanup-apply'})).ok,false);
+  assert.equal(handled,1);
+});
+
+test('Giveaways permits licensed selection writes, but unlicensed access is read only',async()=>{
+  let writes=0;
+  const {call}=bridge('http://localhost:8081/giveaways.html',config,async()=>{writes++;return Response.json({registrations:[]});},
+    {require:()=>({status:()=>({canWrite:false})})});
+  assert.equal((await call({action:'giveaway-snapshot'})).ok,true);
+  assert.equal(writes,1);
+  for(const action of ['set-giveaway','issue-giveaways'])assert.equal((await call({action,registrationId:'client',item:'Cap',expectedItem:null})).ok,false);
+  assert.equal(writes,1);
+});
+
+test('stock Settings and Live Dashboard allow reads but refuse unlicensed stock writes',async()=>{
+  for(const [page,action] of [['settings.html','giveaway-inventory'],['live-dashboard.html','dashboard-snapshot']]) {
+    let calls=0;
+    const {call}=bridge(`http://localhost:8081/${page}`,config,async()=>{calls++;return Response.json({inventory:[]});},{require:()=>({status:()=>({canWrite:false})})});
+    assert.equal((await call({action})).ok,true);assert.equal(calls,1);
+    assert.equal((await call({action:'giveaway-stock',item:'Cap',quantity:1,requestId:'test'})).ok,false);assert.equal(calls,1);
+  }
+});
+
+test('speech preparation status uses authenticated local service from Settings or facilitator pages',async()=>{
+  for(const page of ['settings.html','dashboard.html']) {
+    const calls=[];
+    const {call}=bridge(`http://localhost:8081/${page}`,config,async(url,options)=>{
+      calls.push({url,options});return Response.json({mode:'whole-sentence',warming:true,prepared:2,prepareTotal:100});
+    },{TTS_PORT:8001,TTS_PLAYBACK_TOKEN:'local-only'});
+    const result=await call({action:'speech-status'});
+    assert.equal(result.ok,true);assert.equal(result.prepared,2);
+    assert.equal(calls[0].url,'http://127.0.0.1:8001/api/speech-status');
+    assert.equal(calls[0].options.headers['X-TDQSYS-Playback'],'local-only');
+    assert.equal(JSON.stringify(result).includes('local-only'),false);
+  }
+});
 test('Settings announcement preview stays on authenticated loopback and returns WAV without a cloud action',async()=>{
   const calls=[];
   const {call}=bridge('http://localhost:8081/settings.html',config,async(url,options)=>{

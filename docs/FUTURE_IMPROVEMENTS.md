@@ -1,5 +1,162 @@
 # TDQSYS Future Improvements
 
+## 6 November: required registration contact numbers
+
+SE registration now asks for Contact No. Both SE and client forms require exactly
+11 ASCII digits, numbers only (example: 09171234567). Numeric mobile keyboard,
+required/pattern/min/max constraints and shared server validation enforce the
+same rule; spaces, +63, punctuation, letters and shorter/longer values fail.
+Numbers are stored as text to preserve leading zeroes. No uniqueness restriction
+was added. Existing records are unchanged; legacy SE contacts remain blank.
+
+Migration 202611060006_registration_contacts adds the SE contact field, a private
+contact-aware SE check-in RPC and insert-only client database validation.
+Existing SE registration/code-printing behavior is preserved. Test missing,
+10/12-digit, letters, spaces, +63 and valid 11-digit values in both forms.
+Automated checks: 333 Node passing / 3 skipped and 35 PostgreSQL checks.
+New manual installer path:
+`app/dist-test-drive-20261106-contact-validation/tdqsys-test-drive-1.1.28.exe`.
+Version/updater remain unchanged. No live test registrations were created.
+
+Contact forms/API deployed and verified online. Installer build completed:
+232,692,773 bytes; three packaged registration assets match source exactly.
+
+## 6 November: run-scoped giveaway resets and safe history cleanup
+
+This section supersedes earlier carry-forward and permanent-per-registration claim
+descriptions below. Normal **Reset to Zero / Open run** and daily rollover start
+giveaway opening stock, replenishments, issued totals and remaining stock at zero.
+Same-day registrations become Unclaimed again in the new run; one of each item
+may be given per registration PER RUN. Old claims/stock remain in historical
+views. Enter the new opening balances for each new run; saved old quantities
+are not automatically reapplied. Daily views exclude previous-day submissions.
+
+Existing legacy runs are preserved during the migration, including their stock.
+The next manual reset or daily rollover activates the new zero-start policy.
+No live reset or deletion was performed during implementation.
+
+Desktop **Event Setup / QR Codes** now includes advanced history cleanup:
+- Delete selected CLOSED test runs; the active run cannot be selected.
+- Clean slate deletes this location's visible operating history and opens Run 1.
+- Preview counts, save/verify a private backup, then type DELETE SELECTED RUNS
+  or CLEAN SLATE before deletion is enabled. Changed data requires a fresh backup.
+- Keep Google Sheets completely unchanged, as explicitly requested. Saved
+  settings, vehicles, branding, connections, licensing and audio cache remain.
+- Selected-run deletion preserves registrations referenced by retained runs.
+  Legacy stock-sharing histories must be deleted together or via Clean slate.
+- Retired SE-code hashes and cleanup retry receipts remain private safeguards;
+  previously printed codes cannot become valid for another SE after cleanup.
+- Lost responses retry the same cleanup ID without deleting newly created data.
+  If outcome is unconfirmed, queue writes are protected until reconciliation.
+
+Backups contain personal data and SE records: keep them private. There is no
+one-click restore; recovery requires developer-assisted, location-scoped restore.
+See HISTORY_CLEANUP_RECOVERY.md. Nothing is deleted merely by opening preview.
+
+Backend migrations 202611060004 and 202611060005 plus the private operation
+endpoint are deployed. Read-only live verification confirmed 7 runs,
+73 registrations, 103 tickets, 73 Sheets jobs and 6 stock events unchanged.
+Checks: 330 Node passing / 3 skipped, 34 PostgreSQL checks, 16 speech tests.
+Latest manual installer:
+`app/dist-test-drive-20261106-reset-cleanup/tdqsys-test-drive-1.1.28.exe`
+(232,692,573 bytes). Packaged main and nine changed resources match source.
+Version/updater remain 1.1.28; no automatic installation or Pages deployment.
+Manual/visual acceptance remains pending.
+
+6 November multi-item approval: implemented Manage items checkbox dialog,
+explicit Give selected items, locked issued items, disabled unavailable items,
+and row chips/Unclaimed. No quantity fields. Database unique registration/item
+claims (also case-insensitive), atomic whole-batch stock checks/deductions and
+idempotent request receipts prevent duplicates, partial batches and retry double
+deductions. Uncertain request IDs persist across restart; explicit rejection
+allows reselection. Drafts survive polling and retired claims remain visible.
+Current legacy selections migrate without another stock deduction. The prior
+clear/replace UI is superseded: issued items are now locked. Original Sheet
+payloads, inventory history, timestamp formatting and clipping remain intact.
+Backend/migration deployed, all private browser permissions verified. Live stock
+preserved; no test gifts issued. 324 Node passing / 3 skipped, 28 database checks,
+16 Python speech tests. Built manual installer:
+`app/dist-test-drive-20261106-multi-giveaways/tdqsys-test-drive-1.1.28.exe`.
+Version/updater unchanged; visual/manual acceptance pending.
+
+6 November Giveaways layout: timestamps use dd/mm/yyyy hh:mm:ss in location
+timezone (24-hour), email column narrowed, email and vehicle values clipped
+with ellipsis and full hover text. Raw data stays unchanged. 321 Node passing /
+3 skipped. Built manual installer (packaged JS/CSS verified against source):
+`app/dist-test-drive-20261106-giveaway-layout/tdqsys-test-drive-1.1.28.exe`.
+Multi-item UI proposal ONLY: Manage items opens distinct-item checkboxes;
+already-issued items checked/locked, unavailable items disabled; explicit Give
+selected items, then item chips. Requires backend unique registration/item
+records and atomic batch stock deduction before implementation. No multi-item
+change is enabled yet; existing inventory rules/version/updater are preserved.
+
+6 November stock/dashboard extension: replaced giveaway textarea with three
+Settings columns: Item, Beginning balance / replenish, Total beginning balance.
+Openings save once through configuration sync; + opens inline replenishment
+controls. Third column is total supplied, not remaining. Append-only stock
+history, idempotent retry IDs, retained retired-item history and cross-day/run
+stock carry are implemented. Giveaway choices atomically deduct/restore stock
+and reject exhaustion. Existing selections are preserved without guessed stock.
+
+New desktop Live Dashboard has current/all-historical run selection, summary
+cards, per-model client/ticket/status tables and charts, giveaway item totals,
+stock-at-start/additions/given/restored/remaining tables and charts. Unique new
+registrations are attributed to their first ticket run; queued clients and
+ticket counts remain separate. Closed-run stock excludes future receipts;
+actual run boundary timestamps and shared reset locks prevent overlap errors.
+Old movement history is limited to recoverable saved selections. Backend and
+additive migration deployed; browser roles denied private inventory access.
+No live records/claims/receipts changed. 320 Node passing / 3 skipped, 26 database
+checks, 16 Python speech tests. Built manual installer (packaged UI/native bridge
+verified against final source):
+`app/dist-test-drive-20261106-stock-dashboard/tdqsys-test-drive-1.1.28.exe`.
+Version/updater unchanged; visual/manual acceptance pending.
+
+6 November Giveaways: implemented a desktop-only page with today's original raw
+registration data, matching Google Sheets minus the visible Registration ID,
+and an item dropdown defaulting to Unclaimed. One row per registration, not per
+vehicle/ticket, including earlier runs today. Settings supplies a deduplicated
+one-item-per-line list like dealerships. Selections save automatically, persist
+across navigation/restarts/queue resets, and remain recorded if the item is later
+removed from setup. Raw Sheet data is never edited by giveaway dispensing.
+Connected writes validate location ownership, configured items, licence and
+prior selection; conflicting or uncertain writes require refresh before handing
+over an item. No offline giveaway outbox is claimed. Search and compact table
+styling included. Additive migration/private service deployed; live records and
+claims untouched (12 rows today, all Unclaimed). 316 Node passing / 3 skipped,
+22 PostgreSQL checks and 16 Python speech tests. Built manual installer:
+`app/dist-test-drive-20261106-giveaways/tdqsys-test-drive-1.1.28.exe`.
+Version/updater unchanged; visual/manual acceptance remains pending.
+
+6 November whole-sentence implementation: user approved replacing segmented
+production speech. Kokoro renders one complete Announcement and Call Back clip
+per ticket; no manual joins. Saved voice/wording/pronunciation hints remain.
+Persistent `audio_cache/sentences-v1` is separate from old caches. Prepare 01–50
+per model/action, extending by 50 at each batch midpoint (25, 75, etc.), fairly
+across models and yielding between clips to live jobs/previews. Cached disk/RAM
+playback bypasses warmup rendering; cold clips still need generation. Voice or
+wording changes use new keys and obsolete sweeps stop between renders. Progress
+appears in Settings and facilitator pages. No live data/reset/updater changes.
+310 Node passing / 3 skipped; 16 Python speech tests passing. Packaged verifier
+passed preview/live equality, cache reuse and FIFO with playback suppressed;
+physical listening remains required. Built manual installer:
+`app/dist-test-drive-20261106-sentences/tdqsys-test-drive-1.1.28.exe`; packaged
+speech executable/UI verified against final staging. This supersedes earlier
+segmented plans. Version 1.1.28 and the public updater remain unchanged.
+
+6 November table consistency: Sales Executives shares the Master Table / Print
+Queue compact formatting (12 px cells/headers, 7 px by 6 px cell padding;
+11 px action buttons, 4 px padding, 2 px margins). No behavior/data changes.
+Full Node suite: 309 passing, 3 skipped, 0 failures; visual acceptance pending.
+
+6 November setup relocation: Google Sheets URL, service-account sharing/copy
+and connection/tab-preparation controls moved from Settings to Event Setup /
+QR Codes, with a dedicated Save Google Sheets URL button. Existing destinations
+are retained; the local URL-only save does not replace queues or other settings.
+Background sync/retry behavior is unchanged. Regression suite: 308 passing,
+3 skipped, 0 failures. Manual/visual acceptance pending; desktop version remains
+1.1.28, with no public release/update-manifest changes.
+
 Last reconciled with source and the manual test build: **3 November 2026**.
 
 Canonical planning document: `docs/FUTURE_IMPROVEMENTS.md`. `docs/FUTURE_IMPROVEMENTS.txt` is its synchronized text copy.
@@ -7,6 +164,24 @@ Canonical planning document: `docs/FUTURE_IMPROVEMENTS.md`. `docs/FUTURE_IMPROVE
 This document records approved requirements, their current implementation, and remaining acceptance work. The production desktop release and public update manifest remain **1.1.28**. Development installers are installed manually; release assets and update notifications must stay unchanged until acceptance. The deployment target is **12 November 2026 at three independent locations**.
 
 ## Current implementation and verification
+
+6 November phoneme trial: a user-requested isolated Kokoro audition at `outputs/tdqsys-phoneme-audition-20261106/index.html` compares six segmented Announcement/Call Back pairs with explicit phoneme overrides for only queue prefix and vehicle name. It preserves phrase/number recordings, saved voice, speed and 10 ms joins. Kokoro already phonemizes ordinary text internally; the trial uses different proposed IPA explicitly, not merely the same automatic output. Listening approval is pending. No production fields, cache format, source or installer were changed.
+
+EX listening follow-up: user heard "LI EKS". Focused comparison at `outputs/tdqsys-phoneme-audition-20261106/ex-prefix/index.html` tests original, unstressed, no vowel-length marks and independently rendered E/X letters, alone and in context (12 WAVs). Only the prefix varies; original contexts are byte-identical. Listening selection remains pending; production is unchanged.
+
+5 November presentation evidence: a newly requested simulation completed 10 SEs, 20 clients and 27 tickets. All 20 raw client rows were verified exactly once in the daily Sheet. The client package under `outputs/TDQSYS Client Presentation 2026-11-05/` contains 20 captures and a brief illustrated Word walkthrough. User-approved, separate read-only Electron capture replaced failing Windows capture; production code/settings/audio were unchanged. Keep the package and simulation private/untracked. These demonstration artifacts do not replace final printer, fluency or three-location acceptance.
+
+### Latest listening feedback and pending design (3 November)
+
+5 November segmented follow-up: `outputs/tdqsys-voice-audition-20261105/segmented.html` now provides eight same-voice comparisons of whole-sentence versus independently generated Pocket segments. It reuses TDQSYS's unchanged planner/stitcher, 10 ms joins and matching silence trim. Separate cache only; no application changes. Audio format/cache reuse checks and nine Python speech tests passed. Fluency remains for the user's listening assessment.
+
+5 November update: the user approved an **isolated Pocket TTS audition**, not an engine replacement. The separate loopback tester is on port 8012, with a comparison page and 14 verified WAV files in `outputs/tdqsys-voice-audition-20261105/`. Six full sentences compare Pocket Marius (1.07-1.37 s per clip) with Kokoro am_liam (5.79-7.12 s); two additional Pocket Alba clips are included. Timings include complete HTTP generation, not just the first streamed chunk; different voices and uncontrolled background load prevent treating this as a quality or universal speed verdict. No TDQSYS production source/settings/cache/installer changed. Launch/stop controls passed; fluency and background-load acceptance remain pending. See `SESSION_HANDOFF.md` and the local audition README for pinned assets, the preset-shortcut workaround and voice credits.
+
+The user confirmed that live announcements are now instant after the local-first change. The remaining speech priority is fluent whole-sentence intonation without audible segment boundaries. Full-sentence caching was discussed but is **not implemented or approved for implementation yet**; the current installer still stitches cached segments.
+
+A six-sample full-sentence synthesis benchmark using the laptop's saved `am_liam` voice averaged 7.088 seconds per clip (6.576-7.631 seconds). It did not play audio or change Settings. Proposed recordings would be two per ticket/model (Ongoing and Call Back). About 16 clips fit in two minutes; preparing 50 numbers for seven models would take approximately 83 minutes, or 142 minutes for 12 models. These are extrapolations, not measured bulk-generation guarantees. A small initial buffer and prioritized rolling preparation appear more practical for 20-30 minute drives. Keep old voice/text caches reusable. Before implementation, settle readiness/cold-clip handling and verify background CPU load and cached-playback independence; do not regress instant announcements.
+
+The requested 3 November simulation completed 10 SE registrations, 20 client registrations and 27 tickets. All 20 client rows were verified exactly once in `TDQSYS Reg 11/03/2026`. Preserve the records for testing and do not restart the simulation automatically. Local private output and the full continuation notes are referenced in `SESSION_HANDOFF.md`.
 
 The current manual installer is `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe`. The restorable production checkpoint is commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, with branch `backup/v1.1.28-pre-test-drive`; the released installer remains in `app/dist-installer/`.
 
@@ -310,6 +485,9 @@ Claiming a print entry must be atomic, so an accidental double-click or later mu
 #### Phase 4
 
 ### Lead-data retention, cleanup, and reset safeguards
+
+Implemented 6 November: see the run-scoped giveaway resets and safe history
+cleanup section at the top. It supersedes the earlier carry-forward policy.
 
 Registration records are client marketing leads, not disposable queue numbers. The future implementation must preserve and protect this data accordingly.
 

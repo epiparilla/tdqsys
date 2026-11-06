@@ -75,7 +75,7 @@ export async function onRequest(context) {
         headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           p_instance_id: body.instanceId.trim().toLowerCase(), p_name: checked.value.name,
-          p_dealership: checked.value.dealership, p_operating_day: day,
+          p_dealership: checked.value.dealership, p_contact_number: checked.value.contactNumber, p_operating_day: day,
           p_code_hash: await sha256(code), p_code_ciphertext: await encryptCode(code, codeKey),
           p_expires_at: expiryAtMidnight(zone)
         })

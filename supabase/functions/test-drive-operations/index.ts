@@ -45,6 +45,54 @@ Deno.serve(async (req) => {
       const result = await syncOneRegistration(admin, instanceId, Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON'));
       return Response.json(result, { headers: cors });
     }
+    if(body.action==='issue-giveaways') {
+      if(typeof body.runId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.runId) || typeof body.registrationId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.registrationId) || typeof body.requestId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.requestId)
+        || !Array.isArray(body.items) || body.items.length<1 || body.items.length>200 || body.items.some(item=>typeof item!=='string' || !item.trim() || item.length>160)
+        || new Set(body.items.map(item=>item.trim().toLowerCase())).size!==body.items.length) {
+        return Response.json({error:'Select distinct giveaway items.'},{status:400,headers:cors});
+      }
+      const {data,error}=await admin.rpc('tdqsys_issue_giveaways',{p_instance_id:instanceId,p_registration_id:body.registrationId,p_items:body.items,p_request_id:body.requestId,p_expected_run:body.runId});
+      if(error)return Response.json({error:error.message},{status:error.code==='P0001'?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
+    if (body.action === 'giveaway-snapshot' || body.action === 'set-giveaway') {
+      const snapshot = body.action === 'giveaway-snapshot';
+      if(snapshot){const {error}=await admin.rpc('tdqsys_ensure_daily_run',{p_instance_id:instanceId});if(error)throw error;}
+      if (!snapshot && (typeof body.registrationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.registrationId)
+        || (body.item !== null && (typeof body.item !== 'string' || body.item.length > 160))
+        || (body.expectedItem !== null && (typeof body.expectedItem !== 'string' || body.expectedItem.length > 160)))) {
+        return Response.json({error:'Invalid giveaway selection.'},{status:400,headers:cors});
+      }
+      const {data,error}=await admin.rpc(snapshot ? 'tdqsys_giveaway_snapshot' : 'tdqsys_set_giveaway',snapshot
+        ? {p_instance_id:instanceId}
+        : {p_instance_id:instanceId,p_registration_id:body.registrationId,p_item:body.item,p_expected_item:body.expectedItem});
+      if(error)return Response.json({error:error.message},{status:error.code==='P0001'?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
+    if (['giveaway-inventory','giveaway-stock','dashboard-snapshot'].includes(body.action)) {
+      if(body.action==='giveaway-stock' && (typeof body.item!=='string' || body.item.length>160 || !Number.isInteger(body.quantity)
+        || body.quantity<1 || body.quantity>100000000 || typeof body.runId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.runId) || typeof body.requestId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.requestId))) {
+        return Response.json({error:'Enter a valid stock quantity.'},{status:400,headers:cors});
+      }
+      if(body.action!=='giveaway-stock' && !body.runId){const {error}=await admin.rpc('tdqsys_ensure_daily_run',{p_instance_id:instanceId});if(error)throw error;}
+      if(body.action==='dashboard-snapshot' && body.runId!=null && (typeof body.runId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.runId))) {
+        return Response.json({error:'Invalid queue run.'},{status:400,headers:cors});
+      }
+      const rpc=body.action==='giveaway-stock'?'tdqsys_add_giveaway_stock':body.action==='giveaway-inventory'?'tdqsys_giveaway_stock_history':'tdqsys_dashboard_snapshot';
+      const args=body.action==='giveaway-stock'?{p_instance_id:instanceId,p_item:body.item,p_quantity:body.quantity,p_kind:'replenishment',p_request_id:body.requestId,p_expected_run:body.runId}
+        :body.action==='dashboard-snapshot'?{p_instance_id:instanceId,p_run_id:body.runId || null}:{p_instance_id:instanceId};
+      const {data,error}=await admin.rpc(rpc,args);
+      if(error)return Response.json({error:error.message},{status:error.code==='P0001'?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
+    if(['cleanup-preview','cleanup-apply'].includes(body.action)) {
+      if(!['selected','clean'].includes(body.mode) || !Array.isArray(body.runIds) || body.runIds.length>100 || body.runIds.some(id=>typeof id!=='string' || !/^[0-9a-f-]{36}$/i.test(id)))return Response.json({error:'Invalid cleanup scope.'},{status:400,headers:cors});
+      if(body.action==='cleanup-apply' && (typeof body.fingerprint!=='string' || !/^[a-f0-9]{64}$/.test(body.fingerprint) || typeof body.requestId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.requestId)))return Response.json({error:'A verified backup is required.'},{status:400,headers:cors});
+      const {data,error}=await admin.rpc(body.action==='cleanup-preview'?'tdqsys_cleanup_preview':'tdqsys_cleanup_apply',{
+        p_instance_id:instanceId,p_mode:body.mode,p_run_ids:body.runIds,...(body.action==='cleanup-apply'?{p_fingerprint:body.fingerprint,p_confirmation:body.confirmation,p_request_id:body.requestId}:{})});
+      if(error)return Response.json({error:error.message},{status:['P0001','55P03'].includes(error.code)?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
     if (body.action === 'cancel-print' && body.jobId) {
       const {data,error}=await admin.rpc('tdqsys_cancel_print_job',{p_instance_id:instanceId,p_job_id:body.jobId});
       if(error)throw error;
@@ -76,6 +124,11 @@ Deno.serve(async (req) => {
         ...(body.dealerships===undefined ? {} : {p_dealerships:body.dealerships})
       });
       if (error) throw error;
+      if(body.giveawayItems!==undefined) {
+        const {error:giveawayError}=await admin.rpc(body.giveawayStockOpenings===undefined?'tdqsys_configure_giveaways':'tdqsys_configure_inventory',
+          {p_instance_id:instanceId,p_items:body.giveawayItems,...(body.giveawayStockOpenings===undefined?{}:{p_openings:body.giveawayStockOpenings})});
+        if(giveawayError)throw giveawayError;
+      }
       return Response.json({ configured: true }, { headers: cors });
     }
     if (body.action === 'reset-sales-executives') {

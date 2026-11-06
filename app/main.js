@@ -429,7 +429,9 @@ function buildTestDriveSettings(cfg) {
         fullName:model.label, shortname:model.shortname || model.label.slice(0,36), brandKey:brand.key, unit:index+1
     }))), waiver:cfg.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     terms:cfg.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', sheetsUrl:cfg.testDrive?.sheetsUrl || '',
-    ...(Array.isArray(cfg.testDrive?.dealerships) ? {dealerships:cfg.testDrive.dealerships} : {}) };
+    ...(Array.isArray(cfg.testDrive?.dealerships) ? {dealerships:cfg.testDrive.dealerships} : {}),
+    ...(Array.isArray(cfg.testDrive?.giveawayItems) ? {giveawayItems:cfg.testDrive.giveawayItems} : {}),
+    ...(Array.isArray(cfg.testDrive?.giveawayStockOpenings) ? {giveawayStockOpenings:cfg.testDrive.giveawayStockOpenings} : {}) };
 }
 
 // The app, rather than a particular renderer page, owns durable Sheets retries.
@@ -977,7 +979,7 @@ function notifyLocalQueueChanged() {
         if(win.isDestroyed())continue;
         try {
             const url=new URL(win.webContents.getURL());
-            if(url.origin===`http://localhost:${PORT}` && ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/event-setup.html'].includes(url.pathname))win.webContents.send('af:local-queue-changed');
+            if(url.origin===`http://localhost:${PORT}` && ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/giveaways.html','/event-setup.html'].includes(url.pathname))win.webContents.send('af:local-queue-changed');
         }catch{}
     }
 }
@@ -1054,18 +1056,49 @@ function fitPrintLabel() {
     }
 }
 
+let historyCleanupOwner;
+function getHistoryCleanup(cfg) {
+    if(historyCleanupOwner)return historyCleanupOwner;
+    const {HistoryCleanup}=require(path.join(RES_SERVER,'shared','history-cleanup.js'));
+    const queue=getLocalQueue(cfg);
+    const remote=async body=>{
+        const response=await fetch(`${SUPABASE_URL}/functions/v1/test-drive-operations`,{method:'POST',signal:AbortSignal.timeout(30000),
+            headers:{'Content-Type':'application/json','X-TDQSYS-Instance':cfg.instanceId,'X-TDQSYS-Writer':cfg.cloudWriterToken},body:JSON.stringify(body)});
+        const result=await response.json();if(!response.ok)throw Object.assign(Error(result.error || 'History service unavailable.'),{status:response.status});return result;
+    };
+    historyCleanupOwner=new HistoryCleanup({queue,remote,
+        chooseFile:async()=>{const result=await dialog.showSaveDialog({title:'Save private TDQSYS history backup before cleanup',defaultPath:path.join(app.getPath('documents'),`tdqsys-before-cleanup-${Date.now()}.json`),filters:[{name:'TDQSYS history backup',extensions:['json']}]});return result.canceled?null:result.filePath;},
+        readLocal:()=>JSON.parse(fs.readFileSync(path.join(BASE_DIR,'data.json'),'utf8')),
+        reconcile:async result=>{
+            const fresh=await remote({action:'snapshot',...queue.options});
+            const deleted=new Set(result.deletedRunIds || []),next=structuredClone(queue.state);
+            next.snapshot=null;next.displayPending=[];next.displayContext=null;
+            next.archives=result.mode==='clean'?[]:(next.archives || []).map(archive=>({...archive,operations:archive.operations.filter(operation=>!deleted.has(operation.runId))})).filter(archive=>archive.operations.length);
+            next.outbox=next.outbox.filter(operation=>!deleted.has(operation.runId));queue.save(next);
+            queue.acceptSnapshot(fresh,queue.options);queue.prepareDisplayProjection();await applyLocalDisplay(queue);cloudSyncTick();notifyLocalQueueChanged();
+        }});
+    return historyCleanupOwner;
+}
 // IPC for settings page (native dialogs / file ops live here, not in browser JS).
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
-        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview'];
-        const allowedPage = ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/event-setup.html','/test-drive-operations.html'].includes(sender.pathname)
+        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview', 'speech-status', 'giveaway-inventory', 'giveaway-stock'];
+        const allowedPage = ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/giveaways.html','/live-dashboard.html','/event-setup.html','/test-drive-operations.html'].includes(sender.pathname)
             || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', ...settingsActions];
+        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', 'giveaway-snapshot', 'set-giveaway', 'issue-giveaways', 'dashboard-snapshot', ...settingsActions];
+        if(sender.pathname==='/event-setup.html')actions.push('history-list','history-preview','history-backup','history-delete','history-resume');
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
+        if(request.action==='speech-status') {
+            const response=await fetch(`http://127.0.0.1:${TTS_PORT}/api/speech-status`,{
+                signal:AbortSignal.timeout(2000),headers:{'X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN}
+            });
+            if(!response.ok)throw Error('Local speech preparation status is unavailable.');
+            return {ok:true,...await response.json()};
+        }
         if(request.action==='speech-preview') {
             const preview=await fetch(`http://127.0.0.1:${TTS_PORT}/api/preview-ticket`,{
                 method:'POST',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json','X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN},
@@ -1082,10 +1115,11 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (request.action === 'configure') {
             request = buildTestDriveSettings(cfg);
         }
-        if (!['snapshot', 'integration-info','export-local-queue'].includes(request.action)) {
+        if (!['snapshot', 'integration-info','export-local-queue','giveaway-snapshot','giveaway-inventory','dashboard-snapshot'].includes(request.action)) {
             const licence = require(path.join(RES_SERVER, 'shared', 'licence.js'));
             if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
         }
+        if(request.action.startsWith('history-'))return await getHistoryCleanup(cfg).handle(request);
         if(['ongoing','status','callback'].includes(request.action))return await dispatchLocalQueueAction(request,cfg);
         if(['snapshot','export-local-queue','archive-local-conflicts','retry-local-sync'].includes(request.action))return await localQueueAction(request,cfg);
         let printerName;
@@ -1105,7 +1139,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             body: JSON.stringify(request)
         });
         let result = await response.json();
-        if (!response.ok) throw new Error(result.error || `Queue service returned ${response.status}.`);
+        if (!response.ok) throw Object.assign(new Error(result.error || `Queue service returned ${response.status}.`),{status:response.status});
         let issuedTicket;
         if(printerName && request.action==='reissue') {
             issuedTicket=result;
@@ -1171,7 +1205,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             if(guarded) {try {await queue.sync({force:true});}finally{queue.remoteBusy=false;}}
         }
     } catch (error) {
-        return { ok: false, error: error.message || 'Queue service is unavailable.' };
+        return { ok: false, error: error.message || 'Queue service is unavailable.', ...(error.status?{status:error.status}:{}),...(error.cleanupUnconfirmed?{cleanupUnconfirmed:true}:{}) };
     }
 });
 

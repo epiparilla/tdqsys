@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from kokoro_onnx import Kokoro
-from speech_segments import SegmentCache, preview_plan
+from speech_segments import SentenceCache, preview_plan
 from speech_service import DesktopSpeech
 
 app = FastAPI()
@@ -498,7 +498,7 @@ def _play_desktop_audio(audio):
     winsound.PlaySound(audio, winsound.SND_MEMORY)
 
 
-desktop_cache = SegmentCache(os.path.join(CACHE_DIR, 'segments-v1'), _render_segment, _seed_number)
+desktop_cache = SentenceCache(os.path.join(CACHE_DIR, 'sentences-v1'), _render_segment)
 desktop_speech = DesktopSpeech(desktop_cache, _desktop_state, resolve_voice, _play_desktop_audio,
                               warmup=os.environ.get('AF_TTS_DISABLE_WARMUP') != '1')
 
@@ -538,7 +538,7 @@ async def prepare_ticket(request: Request):
         audio = await asyncio.to_thread(desktop_cache.compose, parts, voice)
         if request.url.path == '/api/ticket-audio':
             return Response(content=audio, media_type='audio/wav', headers={'X-TDQSYS-Voice':voice})
-        return {'ready':True,'clips':len(parts)}
+        return {'ready':True,'clips':1,'mode':'whole-sentence'}
     except (ValueError, TypeError, KeyError) as error:
         return Response(content=str(error), status_code=400)
 

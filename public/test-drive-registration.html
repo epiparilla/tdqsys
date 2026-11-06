@@ -17,7 +17,7 @@
       <label>Email Address<input type="email" name="email" autocomplete="email" maxlength="320" required></label>
       <label>Name (Firstname Lastname)<input name="fullName" autocomplete="name" maxlength="160" required></label>
       <label>City Address<input name="cityAddress" autocomplete="address-level2" maxlength="240" required></label>
-      <label>Contact No.<input name="contactNumber" type="tel" autocomplete="tel" maxlength="40" required></label>
+      <label>Contact No.<input name="contactNumber" type="tel" inputmode="numeric" autocomplete="tel" pattern="[0-9]{11}" minlength="11" maxlength="11" title="Enter exactly 11 digits (numbers only), e.g. 09171234567" required></label>
     </section>
     <section data-step="1" hidden><h2>Unit to Test Drive</h2><p>Select one or more vehicle models.</p><div id="models"></div>
       <label>For Application? (optional)<select name="forApplication"><option value="">Not selected</option><option>Yes</option><option>No</option></select></label>

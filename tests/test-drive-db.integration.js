@@ -28,6 +28,10 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020003_direct_reprint_cancel.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020004_registration_dealerships.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611030001_local_operation_sync.sql'), 'utf8'));
+    // Hosted Supabase can grant browser roles EXECUTE through default privileges.
+    await db.exec('alter default privileges grant execute on functions to anon,authenticated;');
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611060001_giveaways.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611060002_inventory_dashboard.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_registration', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms','',JSON.stringify(['Toyota'])]);
@@ -228,6 +232,244 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       await assert.rejects(rpc('tdqsys_configure_registration',[A,JSON.stringify(models),'Approved waiver','Approved terms','',JSON.stringify([42])]),/invalid dealership/);
       await rpc('tdqsys_configure_registration',[A,JSON.stringify(models),'Approved waiver','Approved terms','',JSON.stringify([])]);
       await assert.rejects(rpc('tdqsys_register_se_checkin',[A,'Paused SE','Toyota North',today,hash('7777'),'cipher','2099-11-02T00:00:00Z']),/configured dealership/);
+    });
+    await check('giveaways preserve raw form snapshots, persist per registration and reject stale or foreign writes',async()=>{
+      for(const role of ['anon','authenticated']) {
+        const privileges=(await db.query("select has_function_privilege($1,'public.tdqsys_giveaway_snapshot(text)','execute') as read,has_function_privilege($1,'public.tdqsys_set_giveaway(text,uuid,text,text)','execute') as write",[role])).rows[0];
+        assert.equal(privileges.read,false);assert.equal(privileges.write,false);
+      }
+      await rpc('tdqsys_configure_giveaways',[A,JSON.stringify([' Cap ','Tote','cap'])]);
+      await rpc('tdqsys_add_giveaway_stock',[A,'Cap',10,'opening',randomUUID()]);
+      await rpc('tdqsys_add_giveaway_stock',[A,'Tote',10,'opening',randomUUID()]);
+      const before=await rpc('tdqsys_giveaway_snapshot',[A]);
+      assert.deepEqual(before.giveawayItems,['Cap','Tote']);
+      const row=before.registrations[0];assert.ok(row,'Expected prior test registration');
+      assert.equal(row.giveawayItem,null);
+      const payload=(await db.query('select payload_snapshot from sheet_sync_jobs where registration_id=$1',[row.registrationId])).rows[0].payload_snapshot;
+      assert.deepEqual(row.models,payload.models);
+      const countBefore=before.registrations.length;
+      const selected=await rpc('tdqsys_set_giveaway',[A,row.registrationId,'Cap',null]);assert.equal(selected.giveawayItem,'Cap');
+      await assert.rejects(rpc('tdqsys_set_giveaway',[B,row.registrationId,'Cap',null]),/registration not found/);
+      await assert.rejects(rpc('tdqsys_set_giveaway',[A,row.registrationId,'Tote',null]),/selection changed/);
+      await assert.rejects(rpc('tdqsys_set_giveaway',[A,row.registrationId,'Unknown','Cap']),/configured giveaway/);
+      const saved=await rpc('tdqsys_giveaway_snapshot',[A]);
+      assert.equal(saved.registrations.length,countBefore);
+      assert.equal(saved.registrations.find(r=>r.registrationId===row.registrationId).giveawayItem,'Cap');
+      assert.deepEqual((await db.query('select payload_snapshot from sheet_sync_jobs where registration_id=$1',[row.registrationId])).rows[0].payload_snapshot,payload);
+      await rpc('tdqsys_configure_giveaways',[A,JSON.stringify(['Tote'])]);
+      assert.equal((await rpc('tdqsys_giveaway_snapshot',[A])).registrations.find(r=>r.registrationId===row.registrationId).giveawayItem,'Cap','Retired items must remain recorded');
+      await rpc('tdqsys_set_giveaway',[A,row.registrationId,null,'Cap']);
+      assert.equal((await rpc('tdqsys_giveaway_snapshot',[A])).registrations.find(r=>r.registrationId===row.registrationId).giveawayItem,null);
+      for(const bad of [['Unclaimed'],[42],['x'.repeat(161)]])await assert.rejects(rpc('tdqsys_configure_giveaways',[A,JSON.stringify(bad)]),/invalid giveaway/);
+      const yesterday=(await db.query("select now()-interval '1 day' as value")).rows[0].value;
+      await db.query('update registrations set submitted_at=$1 where id=$2',[yesterday,row.registrationId]);
+      assert.equal((await rpc('tdqsys_giveaway_snapshot',[A])).registrations.some(r=>r.registrationId===row.registrationId),false);
+    });
+    await check('stock opening/replenishments are immutable, idempotent, private and location scoped',async()=>{
+      const request=randomUUID();
+      await rpc('tdqsys_configure_inventory',[A,JSON.stringify(['Bottle','Sticker','Single']),JSON.stringify([
+        {item:'Bottle',quantity:2,requestId:randomUUID()},{item:'Sticker',quantity:0,requestId:randomUUID()},{item:'Single',quantity:1,requestId:randomUUID()}])]);
+      await rpc('tdqsys_add_giveaway_stock',[A,'Bottle',3,'replenishment',request]);
+      assert.equal((await rpc('tdqsys_add_giveaway_stock',[A,'Bottle',3,'replenishment',request])).replayed,true);
+      await assert.rejects(rpc('tdqsys_add_giveaway_stock',[A,'Bottle',4,'replenishment',request]),/different values/);
+      await assert.rejects(rpc('tdqsys_add_giveaway_stock',[A,'Bottle',4,'opening',randomUUID()]),/already recorded/);
+      await assert.rejects(rpc('tdqsys_add_giveaway_stock',[B,'Bottle',3,'replenishment',randomUUID()]),/Settings first/);
+      await assert.rejects(rpc('tdqsys_add_giveaway_stock',[A,'Bottle',0,'replenishment',randomUUID()]),/valid stock quantity/);
+      const snapshot=await rpc('tdqsys_giveaway_stock_history',[A]);
+      assert.equal(snapshot.inventory.find(item=>item.item==='Bottle').supplied,5);
+      assert.equal(snapshot.inventory.find(item=>item.item==='Bottle').opening,2);
+      assert.equal(snapshot.history.filter(event=>event.item==='Bottle').length,2);
+      for(const role of ['anon','authenticated'])for(const fn of ['tdqsys_giveaway_stock_history(text)','tdqsys_dashboard_snapshot(text,uuid)','tdqsys_add_giveaway_stock(text,text,integer,text,uuid)']) {
+        assert.equal((await db.query('select has_function_privilege($1,$2,$3) as allowed',[role,'public.'+fn,'execute'])).rows[0].allowed,false);
+      }
+    });
+    await check('giveaway deductions, corrections and stock exhaustion are atomic and never oversell',async()=>{
+      const ids=(await db.query('select id from registrations where instance_id=$1 and giveaway_item is null order by submitted_at limit 2',[A])).rows.map(row=>row.id);
+      assert.equal(ids.length,2);
+      await rpc('tdqsys_set_giveaway',[A,ids[0],'Bottle',null]);
+      await rpc('tdqsys_set_giveaway',[A,ids[1],'Bottle',null]);
+      let stock=await rpc('tdqsys_inventory_snapshot',[A,null]);assert.equal(stock.find(item=>item.item==='Bottle').remaining,3);
+      await assert.rejects(rpc('tdqsys_set_giveaway',[A,ids[1],'Sticker','Bottle']),/out of stock/);
+      assert.equal((await db.query('select giveaway_item from registrations where id=$1',[ids[1]])).rows[0].giveaway_item,'Bottle');
+      await rpc('tdqsys_set_giveaway',[A,ids[0],null,'Bottle']);
+      await rpc('tdqsys_set_giveaway',[A,ids[1],'Single','Bottle']);
+      await assert.rejects(rpc('tdqsys_set_giveaway',[A,ids[0],'Single',null]),/out of stock/);
+      stock=await rpc('tdqsys_inventory_snapshot',[A,null]);
+      assert.equal(stock.find(item=>item.item==='Single').remaining,0);assert.equal(stock.find(item=>item.item==='Bottle').remaining,5);
+    });
+    await check('dashboard run history freezes stock at close and separates registrations, model clients and tickets',async()=>{
+      const before=await rpc('tdqsys_dashboard_snapshot',[A,null]);assert.ok(before.run);
+      const closedId=before.run.id;
+      await assert.rejects(rpc('tdqsys_dashboard_snapshot',[B,closedId]),/not found for this location/);
+      await rpc('tdqsys_open_queue_run',[A,today,'Inventory history test','tester']);
+      const historical=await rpc('tdqsys_dashboard_snapshot',[A,closedId]);
+      const closingBottle=historical.inventory.find(item=>item.item==='Bottle').remaining;
+      await rpc('tdqsys_add_giveaway_stock',[A,'Bottle',10,'replenishment',randomUUID()]);
+      assert.equal((await rpc('tdqsys_dashboard_snapshot',[A,closedId])).inventory.find(item=>item.item==='Bottle').remaining,closingBottle);
+      const submitted=args('inventory-dashboard-registration');submitted[8]=hash('4567');
+      const fresh=await rpc('tdqsys_submit_registration',submitted);assert.equal(fresh.entries.length,2);
+      const live=await rpc('tdqsys_dashboard_snapshot',[A,null]);
+      assert.equal(live.registered,1);assert.equal(live.queuedClients,1);assert.equal(live.tickets,2);
+      assert.ok(live.models.every(model=>model.registered===1));
+      assert.equal(live.inventory.find(item=>item.item==='Bottle').beginning,closingBottle);
+      assert.equal(live.inventory.find(item=>item.item==='Bottle').added,10);
+      assert.equal(live.inventory.find(item=>item.item==='Bottle').remaining,closingBottle+10);
+      assert.ok(live.runs.some(run=>run.id===closedId && run.status==='closed'));
+    });
+    await check('stock near a reset uses actual run boundary time rather than the transaction start clock',async()=>{
+      const before=await rpc('tdqsys_dashboard_snapshot',[A,null]),old=before.run.id;
+      await db.exec('begin');
+      try {
+        await db.query('select pg_sleep(0.01)');
+        await rpc('tdqsys_add_giveaway_stock',[A,'Bottle',1,'replenishment',randomUUID()]);
+        await db.query('select pg_sleep(0.01)');
+        const opened=await rpc('tdqsys_open_queue_run',[A,today,'Boundary test','tester']);
+        const historical=await rpc('tdqsys_dashboard_snapshot',[A,old]);
+        assert.equal(historical.inventory.find(item=>item.item==='Bottle').remaining,before.inventory.find(item=>item.item==='Bottle').remaining+1);
+        const closing=(await db.query('select closed_at from queue_runs where id=$1',[old])).rows[0].closed_at;
+        assert.ok(new Date(opened.opened_at).getTime()>=new Date(closing).getTime());
+      } finally {await db.exec('rollback');}
+    });
+    await check('multi-item upgrade retains legacy selections without deducting their stock again',async()=>{
+      const before=await rpc('tdqsys_inventory_snapshot',[A,null]);
+      await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611060003_multi_item_giveaways.sql'),'utf8'));
+      assert.deepEqual(await rpc('tdqsys_inventory_snapshot',[A,null]),before);
+      const legacy=(await db.query('select id,giveaway_item from registrations where instance_id=$1 and giveaway_item is not null',[A])).rows;
+      for(const row of legacy)assert.equal((await db.query('select item from registration_giveaways where registration_id=$1',[row.id])).rows[0].item,row.giveaway_item);
+      for(const role of ['anon','authenticated']) {
+        assert.equal((await db.query("select has_function_privilege($1,'public.tdqsys_issue_giveaways(text,uuid,jsonb,uuid)','execute') as allowed",[role])).rows[0].allowed,false);
+        assert.equal((await db.query("select has_table_privilege($1,'public.registration_giveaways','select') as allowed",[role])).rows[0].allowed,false);
+      }
+    });
+    await check('multi-item issuance is one-per-item, batch atomic, location scoped and replay safe',async()=>{
+      await rpc('tdqsys_configure_inventory',[A,JSON.stringify(['Bottle','Sticker','Single','Ribbon']),JSON.stringify([{item:'Ribbon',quantity:1,requestId:randomUUID()}])]);
+      await rpc('tdqsys_add_giveaway_stock',[A,'Sticker',2,'replenishment',randomUUID()]);
+      const id=(await db.query("select id from registrations where instance_id=$1 and idempotency_key='inventory-dashboard-registration'",[A])).rows[0].id;
+      const raw=(await db.query('select payload_snapshot from sheet_sync_jobs where registration_id=$1',[id])).rows[0].payload_snapshot;
+      const request=randomUUID(),before=await rpc('tdqsys_inventory_snapshot',[A,null]);
+      const issued=await rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Sticker','Bottle']),request]);
+      assert.deepEqual(issued.giveawayClaims,['Bottle','Sticker']);
+      const after=await rpc('tdqsys_inventory_snapshot',[A,null]);
+      for(const name of ['Bottle','Sticker'])assert.equal(after.find(row=>row.item===name).remaining,before.find(row=>row.item===name).remaining-1);
+      assert.equal((await rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Bottle','Sticker']),request])).replayed,true);
+      assert.deepEqual(await rpc('tdqsys_inventory_snapshot',[A,null]),after);
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Bottle','Ribbon']),randomUUID()]),/already issued/);
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Ribbon','ribbon']),randomUUID()]),/only once/);
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[B,id,JSON.stringify(['Ribbon']),randomUUID()]),/not found for this location/);
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Ribbon']),request]),/different values/);
+      assert.equal((await rpc('tdqsys_inventory_snapshot',[A,null])).find(row=>row.item==='Ribbon').remaining,1);
+      const other=(await db.query('select id from registrations where instance_id=$1 and giveaway_item is null and id<>$2 limit 1',[A,id])).rows[0].id;
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[A,other,JSON.stringify(['Bottle','Single']),randomUUID()]),/out of stock/);
+      assert.equal((await db.query('select count(*)::int n from registration_giveaways where registration_id=$1',[other])).rows[0].n,0);
+      assert.deepEqual(await rpc('tdqsys_inventory_snapshot',[A,null]),after);
+      await assert.rejects(rpc('tdqsys_set_giveaway',[A,id,null,'Bottle']),/locked/);
+      await rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Ribbon']),randomUUID()]);
+      const snapshot=await rpc('tdqsys_giveaway_snapshot',[A]);assert.equal(snapshot.registrations.find(row=>row.registrationId===id).giveawayClaims.length,3);
+      assert.equal(snapshot.inventory.find(row=>row.item==='Ribbon').remaining,0);
+      assert.deepEqual((await db.query('select payload_snapshot from sheet_sync_jobs where registration_id=$1',[id])).rows[0].payload_snapshot,raw);
+      const closed=(await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id;
+      const given=(await rpc('tdqsys_dashboard_snapshot',[A,closed])).given;
+      await rpc('tdqsys_open_queue_run',[A,today,'Multi item history test','tester']);
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Bottle']),randomUUID()]),/already issued/);
+      assert.equal((await rpc('tdqsys_dashboard_snapshot',[A,closed])).given,given);
+    });
+    await check('new-run giveaway reset preserves old history but starts stock, claims and eligibility at zero',async()=>{
+      const stockBefore=await rpc('tdqsys_inventory_snapshot',[A,null]);
+      await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611060004_run_scoped_giveaways.sql'),'utf8'));
+      assert.deepEqual(await rpc('tdqsys_inventory_snapshot',[A,null]),stockBefore,'Migration must not itself reset live stock');
+      const old=(await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id;
+      const id=(await db.query("select id from registrations where instance_id=$1 and idempotency_key='inventory-dashboard-registration'",[A])).rows[0].id;
+      const next=await rpc('tdqsys_open_queue_run',[A,today,'Giveaway reset test','tester']);assert.equal(next.giveaway_reset,true);
+      const inventory=await rpc('tdqsys_inventory_snapshot',[A,null]);assert.ok(inventory.every(item=>item.remaining===0 && item.supplied===0 && item.initialized===false));
+      const page=await rpc('tdqsys_giveaway_snapshot',[A]);assert.equal(page.runId,next.id);assert.deepEqual(page.registrations.find(row=>row.registrationId===id).giveawayClaims,[]);
+      const historical=await rpc('tdqsys_dashboard_snapshot',[A,old]);assert.ok(historical.inventory.some(item=>item.supplied>0));
+      await rpc('tdqsys_configure_inventory',[A,JSON.stringify(['Bottle','Sticker']),JSON.stringify([{item:'Bottle',quantity:999,requestId:randomUUID(),runId:old}])]);
+      assert.equal((await rpc('tdqsys_inventory_snapshot',[A,null])).find(item=>item.item==='Bottle').supplied,0,'Old saved Settings cannot refill a reset run');
+      await rpc('tdqsys_configure_inventory',[A,JSON.stringify(['Bottle','Sticker']),JSON.stringify([{item:'Bottle',quantity:2,requestId:randomUUID(),runId:next.id}])]);
+      await assert.rejects(rpc('tdqsys_add_giveaway_stock',[A,'Bottle',1,'replenishment',randomUUID(),old]),/queue run changed/);
+      await assert.rejects(rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Bottle']),randomUUID(),old]),/queue run changed/);
+      const issued=await rpc('tdqsys_issue_giveaways',[A,id,JSON.stringify(['Bottle']),randomUUID(),next.id]);assert.deepEqual(issued.giveawayClaims,['Bottle']);
+      assert.equal((await rpc('tdqsys_inventory_snapshot',[A,null])).find(item=>item.item==='Bottle').remaining,1);
+      assert.equal((await rpc('tdqsys_dashboard_snapshot',[A,null])).inventory.find(item=>item.item==='Bottle').beginning,0);
+    });
+    await check('daily rollover opens a zero-stock giveaway scope and keeps all prior runs',async()=>{
+      const previous=(await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id;
+      await db.query("update queue_runs set operating_day=(now() at time zone 'Asia/Manila')::date-1 where id=$1",[previous]);
+      const next=await rpc('tdqsys_ensure_daily_run',[A]);assert.notEqual(next,previous);
+      const inventory=await rpc('tdqsys_inventory_snapshot',[A,null]);assert.ok(inventory.every(item=>item.supplied===0 && item.remaining===0));
+      const snapshot=await rpc('tdqsys_giveaway_snapshot',[A]);assert.ok(snapshot.registrations.every(row=>row.giveawayClaims.length===0));
+      assert.ok((await rpc('tdqsys_dashboard_snapshot',[A,null])).runs.some(run=>run.id===previous));
+    });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611060005_history_cleanup.sql'),'utf8'));
+    await check('cleanup preview rejects foreign/active runs and deletion refuses missing confirmation or stale backup',async()=>{
+      for(const role of ['anon','authenticated'])for(const fn of ['tdqsys_event_backup(text)','tdqsys_cleanup_preview(text,text,uuid[])','tdqsys_cleanup_apply(text,text,uuid[],text,text,uuid)'])assert.equal((await db.query('select has_function_privilege($1,$2,$3) as allowed',[role,'public.'+fn,'execute'])).rows[0].allowed,false);
+      const current=(await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id;
+      await assert.rejects(rpc('tdqsys_cleanup_preview',[A,'selected',[current]]),/only closed runs/);
+      await assert.rejects(rpc('tdqsys_cleanup_preview',[B,'selected',[current]]),/only closed runs/);
+      const p=await rpc('tdqsys_cleanup_preview',[A,'clean',[]]);assert.ok(p.backup.tables.registrations.length>0);
+      await assert.rejects(rpc('tdqsys_cleanup_apply',[A,'clean',[],p.fingerprint,'wrong',randomUUID()]),/exact cleanup confirmation/);
+      await assert.rejects(rpc('tdqsys_cleanup_apply',[A,'clean',[],'0'.repeat(64),'CLEAN SLATE',randomUUID()]),/data changed since backup/);
+      await db.query('update test_drive_settings set updated_at=clock_timestamp() where instance_id=$1',[A]);
+      await assert.rejects(rpc('tdqsys_cleanup_apply',[A,'clean',[],p.fingerprint,'CLEAN SLATE',randomUUID()]),/data changed since backup/);
+      assert.equal((await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id,current);
+    });
+    await check('selected test-run deletion removes only its orphan data, preserves active run and replays safely',async()=>{
+      const otherBefore=await rpc('tdqsys_event_backup',[B]);
+      const current=(await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id;
+      const submit=args('cleanup-selected-client');submit[8]=hash('4567');const registration=await rpc('tdqsys_submit_registration',submit);
+      await rpc('tdqsys_configure_inventory',[A,JSON.stringify(['Bottle']),JSON.stringify([{item:'Bottle',quantity:2,requestId:randomUUID(),runId:current}])]);
+      await rpc('tdqsys_issue_giveaways',[A,registration.registrationId,JSON.stringify(['Bottle']),randomUUID(),current]);
+      const fresh=await rpc('tdqsys_open_queue_run',[A,today,'After selected test','tester']);
+      const p=await rpc('tdqsys_cleanup_preview',[A,'selected',[current]]);assert.equal(p.summary.registrations,1);assert.equal(p.summary.tickets,2);
+      const request=randomUUID();const result=await rpc('tdqsys_cleanup_apply',[A,'selected',[current],p.fingerprint,p.confirmation,request]);assert.equal(result.deleted,true);
+      assert.equal((await db.query('select count(*)::int n from registrations where id=$1',[registration.registrationId])).rows[0].n,0);
+      assert.equal((await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id,fresh.id);
+      assert.deepEqual(await rpc('tdqsys_event_backup',[B]),otherBefore);
+      assert.equal((await rpc('tdqsys_cleanup_apply',[A,'selected',[current],p.fingerprint,p.confirmation,request])).replayed,true);
+    });
+    await check('cleanup preserves a shared registration and its new-run ticket while removing old test tickets',async()=>{
+      const run=(await rpc('tdqsys_dashboard_snapshot',[A,null])).run.id;
+      const submit=args('cleanup-shared-client');submit[8]=hash('4567');const original=await rpc('tdqsys_submit_registration',submit);
+      await rpc('tdqsys_open_queue_run',[A,today,'Keep shared client','tester']);
+      const reissued=await rpc('tdqsys_reissue_ticket',[A,original.entries[0].entryId,null,false]);assert.ok(reissued.entryId);
+      const p=await rpc('tdqsys_cleanup_preview',[A,'selected',[run]]);assert.equal(p.summary.registrations,0);
+      await rpc('tdqsys_cleanup_apply',[A,'selected',[run],p.fingerprint,p.confirmation,randomUUID()]);
+      assert.equal((await db.query('select count(*)::int n from registrations where id=$1',[original.registrationId])).rows[0].n,1);
+      assert.equal((await db.query('select replaced_entry_id from test_drive_entries where id=$1',[reissued.entryId])).rows[0].replaced_entry_id,null);
+    });
+    await check('clean slate clears operating history, keeps configuration/other locations and reserves old codes',async()=>{
+      await db.query('update test_drive_settings set dealerships=$2 where instance_id=$1',[A,JSON.stringify(['Toyota'])]);
+      const p=await rpc('tdqsys_cleanup_preview',[A,'clean',[]]),other=await rpc('tdqsys_event_backup',[B]);
+      const oldHash=(await db.query('select code_hash from se_daily_checkins where instance_id=$1 limit 1',[A])).rows[0].code_hash;
+      await db.exec('begin');
+      try {
+        const result=await rpc('tdqsys_cleanup_apply',[A,'clean',[],p.fingerprint,p.confirmation,randomUUID()]);assert.ok(result.newRunId);
+        const after=await rpc('tdqsys_event_backup',[A]);
+        for(const table of ['registrations','test_drive_entries','sales_executives','se_daily_checkins','print_jobs','sheet_sync_jobs','giveaway_stock_events','giveaway_claim_events','registration_giveaways','giveaway_issue_requests'])assert.equal(after.tables[table].length,0,table);
+        assert.equal(after.tables.queue_runs.length,1);assert.equal(after.tables.queue_runs[0].run_number,1);assert.equal(after.tables.queue_runs[0].giveaway_reset,true);
+        assert.deepEqual(after.tables.vehicle_models,p.backup.tables.vehicle_models);assert.deepEqual(after.tables.test_drive_settings,p.backup.tables.test_drive_settings);
+        assert.deepEqual(await rpc('tdqsys_event_backup',[B]),other);
+        await db.exec('savepoint reserved_code');
+        await assert.rejects(rpc('tdqsys_register_se_checkin',[A,'Fresh','Toyota',today,oldHash,'cipher','2099-11-02T00:00:00Z']),/reserved/);
+        await db.exec('rollback to savepoint reserved_code');
+      } finally {await db.exec('rollback');}
+      assert.deepEqual((await rpc('tdqsys_cleanup_preview',[A,'clean',[]])).backup,p.backup,'Rollback restores the exported dataset exactly');
+    });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611060006_registration_contacts.sql'),'utf8'));
+    await check('SE contacts persist as eleven-digit strings; invalid SE/client submissions are atomic and legacy data stays intact',async()=>{
+      const before=await rpc('tdqsys_event_backup',[A]);
+      await db.query('update test_drive_settings set dealerships=$2 where instance_id=$1',[A,JSON.stringify(['Toyota'])]);
+      const seArgs=[A,'Contact Test','Toyota',today,hash('8765'),'cipher','2099-11-02T00:00:00Z'];
+      const id=await rpc('tdqsys_register_se_checkin',[...seArgs,'00171234567']);
+      for(const value of [null,'','0917123456','091712345678','0917-1234567','+639171234567','09171234567\n']) {
+        await assert.rejects(rpc('tdqsys_register_se_checkin',[...seArgs,value]),/exactly 11 digits/);
+        const bad=args('invalid-contact-'+String(value));bad[5]=value;bad[8]=hash('8765');
+        await assert.rejects(rpc('tdqsys_submit_registration',bad),/exactly 11 digits/);
+      }
+      assert.equal((await db.query('select contact_number from sales_executives where id=(select sales_executive_id from se_daily_checkins where id=$1)',[id])).rows[0].contact_number,'00171234567');
+      const after=await rpc('tdqsys_event_backup',[A]);assert.deepEqual(after.tables.registrations,before.tables.registrations);
+      const privileges=(await db.query("select has_function_privilege('anon','tdqsys_register_se_checkin(text,text,text,date,text,text,timestamptz,text)','execute') a,has_function_privilege('authenticated','tdqsys_register_se_checkin(text,text,text,date,text,text,timestamptz,text)','execute') b")).rows[0];
+      assert.equal(privileges.a,false);assert.equal(privileges.b,false);
     });
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }

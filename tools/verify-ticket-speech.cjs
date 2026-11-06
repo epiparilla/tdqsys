@@ -19,6 +19,7 @@ const root=path.resolve(__dirname,'..');
   assert.ok(ready,'Speech service did not start.');assert.equal((await post('/api/play-ticket',body,{'Content-Type':'application/json'})).status,403);
   for(const kind of ['ongoing','callback']){const response=await post('/api/prepare-ticket',{...body,kind});assert.equal(response.status,200,await response.text());}
   const status=async()=>(await fetch(url+'/api/speech-status',{headers})).json();const before=await status();const timings=[];
+  assert.equal(before.mode,'whole-sentence');assert.equal(before.cachedClips,2,'Exactly one complete clip per action');
   const savedConfig=JSON.parse(fs.readFileSync(path.join(data,'data.json'))).config;
   const draft={...savedConfig.announcements,brandName:'Test',model:savedConfig.brands[0].models[0],...savedConfig.testDrive,number:1};
   assert.equal((await post('/api/preview-ticket',{...draft,kind:'ongoing'},{'Content-Type':'application/json'})).status,403);
@@ -37,7 +38,7 @@ const root=path.resolve(__dirname,'..');
   const finish=Date.now()+5000;let after;
   do{after=await status();if(after.completed===2)break;await new Promise(resolve=>setTimeout(resolve,100));}while(Date.now()<finish);
   assert.equal(after.completed,2);assert.equal(after.lastError,null);
-  console.log(JSON.stringify({privatePlaybackGuard:true,previewMatchesLiveBytes:true,unsavedSettingsPreserved:true,clipsReused:true,cachedAssemblyMedianMs:Math.round(median*100)/100,completedFIFOJobs:after.completed,physicalPlaybackSuppressed:true}));
+  console.log(JSON.stringify({mode:before.mode,privatePlaybackGuard:true,previewMatchesLiveBytes:true,unsavedSettingsPreserved:true,clipsReused:true,cachedRequestMedianMs:Math.round(median*100)/100,completedFIFOJobs:after.completed,physicalPlaybackSuppressed:true}));
  }finally{
   if(!exited){if(process.platform==='win32'){const stopped=spawnSync('taskkill',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});if(stopped.status!==0)throw Error('Could not stop disposable speech process.');}else child.kill();}
   child.stdout.destroy();child.stderr.destroy();

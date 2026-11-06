@@ -1,4 +1,6 @@
 'use strict';
+// Read-only audio preparation status, independent of queue mutations.
+{ const statusScript=document.createElement('script'); statusScript.src='speech-cache-status.js'; document.head.appendChild(statusScript); }
 (() => {
   const byId = id => document.getElementById(id);
   let snapshot = { entries: [], models: [], printJobs: [] };
@@ -93,7 +95,7 @@
     byId('run').textContent = snapshot.run ? `${snapshot.run.operating_day} · Run ${snapshot.run.run_number} · ${snapshot.entries.length} tickets` : 'No active queue run. Configure models and open a run before accepting registrations.';
     byId('sheets-status').textContent = snapshot.sheetsStatus?.hasUrl
       ? 'Google Sheets destination saved. Registrations sync automatically while TDQSYS is running.'
-      : 'Google Sheets is not connected for this location. Paste its URL in System Settings and save. Already submitted registrations remain queued for delivery.';
+      : 'Google Sheets is not connected for this location. Paste its URL in Event Setup / QR Codes and save. Already submitted registrations remain queued for delivery.';
     const local=snapshot.localSync;
     if(byId('local-sync-status'))byId('local-sync-status').textContent=!local ? '' : local.blocked
       ? `Queue actions are saved locally and need review: ${local.lastError}`
@@ -263,6 +265,7 @@
     finally { busy = false; applyLicenceLock(licenceStatus); }
   }
   byId('refresh').onclick = () => refresh(true).catch(error => { byId('message').textContent = error.message; });
+  window.addEventListener('tdqsys-history-cleaned',()=>refresh(true).catch(error=>{byId('message').textContent=error.message;}));
   byId('configure').onclick = () => mutate({ action: 'configure' });
   byId('retry-local-sync').onclick=()=>mutate({action:'retry-local-sync'});
   byId('export-local-queue').onclick=async()=>{

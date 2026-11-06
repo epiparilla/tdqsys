@@ -22,25 +22,42 @@ async function invoke(file, payload, fetcher, key='request-00001') {
     env:{SUPABASE_URL:'https://database.example',SUPABASE_SECRET_KEY:'server-only-test-key',TEST_DRIVE_CODE_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')} });
 }
 
+test('both registration endpoints reject invalid contact numbers before database access',async()=>{
+  for(const contactNumber of [undefined,'','0917123456','091712345678','0917-1234567','+639171234567','0917123456a']) {
+    for(const [file,payload] of [['se-checkins.js',{instanceId,name:'Ana Cruz',dealership:'Toyota North'}],['registrations.js',body]]) {
+      const response=await invoke(file,{...payload,contactNumber},()=>{throw Error('must not fetch');});
+      assert.equal(response.status,400);assert.match((await response.json()).fields.contactNumber,/11 digits/);
+    }
+  }
+});
+
+test('both forms require the same 11-digit numeric contact field',()=>{
+  for(const file of ['se-registration.html','test-drive-registration.html']) {
+    const html=fs.readFileSync(path.join(__dirname,'../public',file),'utf8');
+    const input=html.match(/<input name="contactNumber"[^>]+>/)[0];
+    for(const attr of ['type="tel"','inputmode="numeric"','pattern="[0-9]{11}"','minlength="11"','maxlength="11"','required']) assert.ok(input.includes(attr),file+' '+attr);
+  }
+});
+
 test('SE endpoint refuses an unlisted dealership before issuing any code',async()=>{
   let calls=0;
-  const response=await invoke('se-checkins.js',{instanceId,name:'Ana Cruz',dealership:'Other location'},async()=>{calls++;return Response.json([{timezone:'Asia/Manila',dealerships:['Toyota North']}]);});
+  const response=await invoke('se-checkins.js',{instanceId,name:'Ana Cruz',contactNumber:'09171234567',dealership:'Other location'},async()=>{calls++;return Response.json([{timezone:'Asia/Manila',dealerships:['Toyota North']}]);});
   assert.equal(response.status,400);assert.equal(calls,1);assert.match((await response.json()).error,/configured list/);
 });
 test('SE endpoint accepts a configured dealership and retains encrypted code printing',async()=>{
   let submitted;
-  const response=await invoke('se-checkins.js',{instanceId,name:'Ana Cruz',dealership:'Toyota North'},async(url,options)=>{
+  const response=await invoke('se-checkins.js',{instanceId,name:'Ana Cruz',contactNumber:'09171234567',dealership:'Toyota North'},async(url,options)=>{
     if(url.includes('test_drive_settings'))return Response.json([{timezone:'Asia/Manila',dealerships:['Toyota North']}]);
     submitted=JSON.parse(options.body);return Response.json('checkin');
   });
-  assert.equal(response.status,201);assert.match((await response.json()).code,/^\d{4}$/);assert.equal(submitted.p_dealership,'Toyota North');assert.ok(submitted.p_code_ciphertext);
+  assert.equal(response.status,201);assert.match((await response.json()).code,/^\d{4}$/);assert.equal(submitted.p_dealership,'Toyota North');assert.equal(submitted.p_contact_number,'09171234567');assert.ok(submitted.p_code_ciphertext);
 });
 
 test('SE form loads location options, submits the selected dealership and blocks an empty list',async()=>{
   const source=fs.readFileSync(path.join(__dirname,'../public/se-registration.js'),'utf8');
   async function formWith(dealerships) {
     let submit,posted;const button={disabled:true},message={},select={value:'',replaceChildren(...options){this.options=options;}};
-    const form={elements:{namedItem:key=>key==='dealership'?select:{value:'Ana Cruz'}},querySelector:()=>button,reportValidity:()=>true,addEventListener:(_event,handler)=>{submit=handler;}};
+    const form={elements:{namedItem:key=>key==='dealership'?select:{value:key==='contactNumber'?'09171234567':'Ana Cruz'}},querySelector:()=>button,reportValidity:()=>true,addEventListener:(_event,handler)=>{submit=handler;}};
     const ctx={URL,location:{href:`https://test.example/se-registration.html?id=${instanceId}`},encodeURIComponent,Option:function(text,value){return {text,value};},document:{getElementById:id=>id==='form'?form:message},fetch:async(_url,options)=>options?.method==='POST'?(posted=JSON.parse(options.body),Response.json({code:'0012',message:'Collect slip'})):Response.json({dealerships})};
     vm.runInNewContext(source,ctx);await new Promise(resolve=>setImmediate(resolve));
     if(dealerships.length){select.value=dealerships[0];await submit({preventDefault(){}});assert.equal(posted.dealership,dealerships[0]);assert.equal(form.hidden,true);assert.match(message.textContent,/0012/);}

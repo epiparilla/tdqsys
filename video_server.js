@@ -309,6 +309,12 @@ const server = http.createServer((req, res) => {
                     // able to delete a brand or a car the operator configured.
                     localData.queues = mergeQueues(
                         (previous && previous.queues) || {}, localData.queues, localData.config);
+                } else if (incoming && Object.prototype.hasOwnProperty.call(incoming, 'sheetsUrl')) {
+                    // Change only the destination, never a stale renderer's queue/config snapshot.
+                    if (typeof incoming.sheetsUrl !== 'string') throw new Error('Invalid Sheets URL');
+                    const sheetsUrl = incoming.sheetsUrl.trim();
+                    if (sheetsUrl && !/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+(?:\/|$)/.test(sheetsUrl)) throw new Error('Invalid Sheets URL');
+                    localData.config.testDrive = { ...(localData.config.testDrive || {}), sheetsUrl };
                 } else if (incoming && incoming.queues) {
                     // Queue-only save from dashboard: preserve local config + reannounce marker
                     localData.queues = mergeQueues(localData.queues, incoming.queues, localData.config);

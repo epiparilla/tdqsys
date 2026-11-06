@@ -29,6 +29,7 @@ Thumbs.db
 # Desktop app build outputs (electron-builder)
 app/dist-installer/
 app/dist-test-drive/
+app/dist-test-drive-*/
 app/server/
 app/release/
 app/out/

@@ -1,5 +1,5 @@
 'use strict';
-const FACILITATOR_PAGES = new Set(['dashboard.html','dashboard-brand2.html','master-table.html','print-queue.html','sales-executives.html','event-setup.html']);
+const FACILITATOR_PAGES = new Set(['dashboard.html','dashboard-brand2.html','master-table.html','print-queue.html','sales-executives.html','giveaways.html','live-dashboard.html','event-setup.html']);
 
 function facilitatorBootstrap(config) {
     const firstCount = (config.brands || []).find(brand => brand.key === 'brand1')?.models?.length || 0;

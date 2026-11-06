@@ -128,3 +128,42 @@ class SegmentCache:
             combined.setframerate(24000)
             combined.writeframes(b"".join(frames))
         return output.getvalue()
+
+
+class SentenceCache(SegmentCache):
+    """One synthesis per complete utterance; no inter-segment stitching."""
+    mode = 'whole-sentence'
+
+    def filename(self, text, voice, speed=1.0):
+        digest = hashlib.sha256(json.dumps([text, voice, speed, 'sentence-v1'], ensure_ascii=False).encode()).hexdigest()
+        return os.path.join(self.directory, digest + '.wav')
+
+    @staticmethod
+    def sentence(parts):
+        return ' '.join(part.strip() for part in parts if part.strip())
+
+    def ready(self, parts, voice, speed=1.0):
+        return super().ready([self.sentence(parts)], voice, speed)
+
+    def ensure(self, text, voice, speed=1.0):
+        # A warmup render must not block playback of an existing disk clip.
+        filename = self.filename(text, voice, speed)
+        cached = self.memory.get(filename)
+        if cached is not None:
+            return cached
+        if os.path.exists(filename):
+            with open(filename, 'rb') as stream:
+                audio = stream.read()
+            with wave.open(io.BytesIO(audio), 'rb') as clip:
+                if (clip.getnchannels(), clip.getsampwidth(), clip.getframerate()) != (1, 2, 24000):
+                    raise ValueError('Speech clips must be mono PCM16 at 24kHz.')
+            return audio
+        with self.lock:
+            audio = super().ensure(text, voice, speed)
+            # Complete utterances are larger than segments; bound the RAM cache.
+            while len(self.memory) > 32:
+                self.memory.pop(next(iter(self.memory)))
+        return audio
+
+    def compose(self, parts, voice, speed=1.0):
+        return self.ensure(self.sentence(parts), voice, speed)

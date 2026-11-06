@@ -20,8 +20,8 @@
     if(!dealerships.includes(dealership.value)){message.className='error';message.textContent='Select a dealership from the list.';return;}
     message.textContent='';button.disabled=true;
     try {
-      const response=await fetch('/api/test-drive/se-checkins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instanceId,name:form.elements.namedItem('name').value,dealership:dealership.value})});
-      const result=await response.json();if(!response.ok)throw Error(result.error || 'Registration failed.');
+      const response=await fetch('/api/test-drive/se-checkins',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instanceId,name:form.elements.namedItem('name').value,contactNumber:form.elements.namedItem('contactNumber').value,dealership:dealership.value})});
+      const result=await response.json();if(!response.ok)throw Error(result.fields ? Object.values(result.fields).join('\n') : result.error || 'Registration failed.');
       message.className='success';message.textContent=`Your code is ${result.code}\n${result.message}`;form.hidden=true;
     }catch(error){message.className='error';message.textContent=error.message;}
     finally{button.disabled=false;}

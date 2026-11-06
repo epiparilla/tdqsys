@@ -51,14 +51,14 @@
             callbackPrefix:$('cfg-callback-prefix').value.trim(),callbackSuffix:$('cfg-callback-suffix').value.trim()};
     }
     async function playAnnouncement(kind) {
-        $('speech-test-status').textContent='Preparing the same audio clips used by live announcements...';
+        $('speech-test-status').textContent='Preparing the same whole-sentence clip used by live announcements...';
         try {
             if(!window.afDesktop?.testDrive)throw Error('Open Settings inside the TDQSYS desktop app.');
             const result=await window.afDesktop.testDrive({action:'speech-preview',preview:announcementPreview(kind)});
             if(!result.ok)throw Error(result.error || 'Local speech preview is unavailable.');
             if(audio)audio.pause();
             audio=new Audio(`data:audio/wav;base64,${result.audioBase64}`);
-            await audio.play();$('speech-test-status').textContent='Playing live-style preview (sample queue number 01).';
+            await audio.play();$('speech-test-status').textContent='Playing whole-sentence preview (sample queue number 01).';
         }catch(error){$('speech-test-status').textContent=error.message;}
     }
     $('speech-test-voice').onclick = () => play('This is a test of the selected announcement voice.');
