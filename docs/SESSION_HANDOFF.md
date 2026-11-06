@@ -5,6 +5,35 @@ not a verbatim transcript.
 
 ## Resume here
 
+## 7 November: v1/v2 separation implemented
+
+V1 remains 1.1.28 with its existing identity, data folder and live update feed.
+V2 now has its own 2.0.0 manual bootstrap, com.tdqsys.queue.v2 installer identity,
+TDQSYS v2 data/profile folder, distinct executable/speech names, ports 8082/8002
+and fixed tdqsys-v2.pages.dev update feed. The separate v2 Pages site is deployed;
+its manifest is explicitly DISABLED, so no OTA update is being offered.
+
+All 38 private TDQSYS RPC overloads now deny direct browser execution. The
+permission-only migration preserves records and queue_state viewing. Tests
+reproduce hosted default grants from the first migration onward.
+
+Source working folders: ../TDQSYS v1 (legacy-v1 checkpoint) and ../TDQSYS v2
+(release/v2). Canonical tdqsys is retained; installed folders and existing test
+data were not renamed/copied. V2 creates a new instance needing licence and
+configuration. Do not blindly clone old data.json/writer credentials.
+Printing-only v1 enhancement remains future work, not part of this separation.
+
+Manual installer: app/dist-test-drive-v2-bootstrap/tdqsys-v2-setup-2.0.0.exe
+(232,693,291 bytes). Portable: tdqsys-v2-portable-2.0.0.exe (232,412,571 bytes).
+338 Node passing / 3 skipped; 36 database checks; 16 speech tests.
+Both sites' public configuration endpoints and invalid-input rejection verified;
+packaged native/engine/restore/product files match source. No new registrations,
+live reset, cleanup, installer execution or actual OTA application performed.
+
+See V1_V2_SEPARATION.md for boundaries, safe deployment and manual OTA acceptance.
+This supersedes earlier advice that both apps must remain version 1.1.28: only
+v1 stays frozen. V2's new major version is a separate manually installed product.
+
 ## 6 November: required registration contact numbers
 
 SE registration now asks for Contact No. Both SE and client forms require exactly

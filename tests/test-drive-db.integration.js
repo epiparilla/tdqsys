@@ -21,6 +21,8 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
   }
   try {
     await db.exec('create role anon; create role authenticated; create role service_role bypassrls;');
+    // Reproduce hosted defaults BEFORE all platform migrations, not only newer ones.
+    await db.exec('alter default privileges grant execute on functions to anon,authenticated;');
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010001_test_drive_platform.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611010002_per_model_ongoing.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020001_sales_executive_reset.sql'), 'utf8'));
@@ -470,6 +472,18 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       const after=await rpc('tdqsys_event_backup',[A]);assert.deepEqual(after.tables.registrations,before.tables.registrations);
       const privileges=(await db.query("select has_function_privilege('anon','tdqsys_register_se_checkin(text,text,text,date,text,text,timestamptz,text)','execute') a,has_function_privilege('authenticated','tdqsys_register_se_checkin(text,text,text,date,text,text,timestamptz,text)','execute') b")).rows[0];
       assert.equal(privileges.a,false);assert.equal(privileges.b,false);
+    });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611070001_private_rpc_permissions.sql'),'utf8'));
+    await check('all TDQSYS RPC overloads deny browser execution while retaining service access',async()=>{
+      const functions=(await db.query("select p.oid::regprocedure::text name,has_function_privilege('anon',p.oid,'execute') a,has_function_privilege('authenticated',p.oid,'execute') b,has_function_privilege('service_role',p.oid,'execute') s from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tdqsys_%'")).rows;
+      assert.ok(functions.length>25);
+      for(const fn of functions){assert.equal(fn.a,false,fn.name);assert.equal(fn.b,false,fn.name);assert.equal(fn.s,true,fn.name);}
+      await db.exec('set role anon');
+      await assert.rejects(rpc('tdqsys_open_queue_run',[A,today,'forbidden','browser']),/permission denied/);
+      await db.exec('reset role');
+      await db.exec('create function public.tdqsys_future_permission_probe() returns integer language sql as $$select 1$$');
+      assert.equal((await db.query("select has_function_privilege('anon','tdqsys_future_permission_probe()','execute') a")).rows[0].a,false);
+      assert.ok((await rpc('tdqsys_public_registration_config',[A])).models.length>0);
     });
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }

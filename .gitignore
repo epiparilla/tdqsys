@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 .dev-db/
+.runtime-v2/
+.v2-pages/
 supabase/.temp/
 
 # Cloudflare local state

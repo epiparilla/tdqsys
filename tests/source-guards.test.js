@@ -40,8 +40,8 @@ test('Windows still gets a null menu (adding a real menu would change the UI)', 
 test('Windows process-killing paths are preserved', () => {
   assert.ok(main.includes('taskkill'),
     'taskkill handling is gone; killPortHolders/cleanup on Windows would silently no-op');
-  assert.ok(main.includes('netstat'),
-    'netstat -ano port reclamation is gone; a stale port would block engine start');
+  assert.ok(!main.includes('netstat -ano'),
+    'v2 must not terminate unrelated port owners, including v1');
 });
 
 test('Windows firewall automation is preserved', () => {
@@ -61,8 +61,8 @@ test('the NSIS uninstaller is located for installed Windows builds', () => {
 
 test('the updater downloads the installer from the manifest', () => {
   assert.ok(main.includes('installUpdate'), 'the in-app update path is gone');
-  assert.ok(/UPDATE_MANIFEST\s*=\s*'version\.json'/.test(main),
-    'the updater must keep reading version.json from the site');
+  assert.ok(/UPDATE_MANIFEST\s*=\s*PRODUCT.updateUrl/.test(main),
+    'v2 must use its fixed isolated update feed');
 });
 
 test('the updater relaunch cannot inherit Electron Node mode or change install folder', () => {

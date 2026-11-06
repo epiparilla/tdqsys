@@ -9,7 +9,7 @@ const root=path.resolve(__dirname,'..');
 
 test('installer bundles the vendor setup and runs its skip-aware bootstrap after installation',()=>{
   const pkg=JSON.parse(fs.readFileSync(path.join(root,'app/package.json'),'utf8'));
-  assert.equal(pkg.version,'1.1.28');
+  assert.equal(pkg.version,'2.0.0');
   assert.ok(pkg.build.extraResources.some(item=>item.to==='drivers/NiimbotPrinterDriverInstaller-3.0.2.1.exe'));
   assert.ok(pkg.build.extraResources.some(item=>item.to==='drivers/install-niimbot-driver.ps1'));
   const hook=fs.readFileSync(path.join(root,'app',pkg.build.nsis.include),'utf8');

@@ -53,10 +53,10 @@ function defaultConfig() {
         instanceId: newInstanceId(),
         site: randomSite(),
         hostname: "tdqsys.local",
-        cloudBase: "https://tdqsys.pages.dev",
+        cloudBase: "https://tdqsys-v2.pages.dev",
         wizardDone: false,
         ads: { enabled: true, minSec: 120, maxSec: 180 },
-        ttsPort: (typeof process !== "undefined" && process.env && parseInt(process.env.AF_TTS_PORT, 10)) || 8001,
+        ttsPort: (typeof process !== "undefined" && process.env && parseInt(process.env.AF_TTS_PORT, 10)) || 8002,
         brands: [
             { key: "brand1", name: "Brand 1", color: "#EB0A1E", models: models.brand1 }
         ]

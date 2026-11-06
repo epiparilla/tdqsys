@@ -24,7 +24,7 @@ Remove-Item (Join-Path $stage 'public\.wrangler') -Recurse -Force -ErrorAction S
 # downloads/ = installer/portable binaries for the update-check page; they are
 # deployed to the Cloudflare site but must NOT ship inside the desktop app.
 Remove-Item (Join-Path $stage 'public\downloads') -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item (Join-Path $root 'dist\tts_server.exe')  $stage
+Copy-Item (Join-Path $root 'dist\tts_server.exe') (Join-Path $stage 'tdqsys-v2-speech.exe')
 Copy-Item (Join-Path $root 'kokoro-v1.0.int8.onnx') $stage
 Copy-Item (Join-Path $root 'voices-v1.0.bin')      $stage
 if (Test-Path (Join-Path $root 'audio_cache_seed')) {

@@ -1,0 +1,10 @@
+name = "tdqsys-v2"
+compatibility_date = "2024-04-21"
+pages_build_output_dir = ".v2-pages"
+
+[vars]
+SUPABASE_URL = "https://pnyptdyfkftrcgjlaqnr.supabase.co"
+
+[[kv_namespaces]]
+binding = "TDQSYS_QUEUE_DATA"
+id = "6193bc4c56714e72b5d1b58637e8a4b2"

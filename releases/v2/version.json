@@ -1,0 +1,7 @@
+{
+  "productId": "com.tdqsys.queue.v2",
+  "channel": "v2",
+  "version": "2.0.0",
+  "enabled": false,
+  "notes": "V2 bootstrap testing only. No OTA installer has been published."
+}

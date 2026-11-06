@@ -13,6 +13,13 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const {PRODUCT,validateManifest,findOwnUninstaller}=require('./product');
+// Set Chromium profile and lock identity before any windows or single-instance lock.
+app.setName(PRODUCT.name);
+const PROFILE_DIR=path.join(app.getPath('appData'),PRODUCT.name,'electron-profile');
+fs.mkdirSync(PROFILE_DIR,{recursive:true});
+app.setPath('userData',PROFILE_DIR);
+if(process.platform==='win32')app.setAppUserModelId(PRODUCT.id);
 const TTS_PLAYBACK_TOKEN = crypto.randomBytes(32).toString('hex');
 
 const IS_PACKAGED = app.isPackaged;
@@ -26,16 +33,16 @@ const APP_DIR = __dirname;
 const IS_INSTALLED = app.isPackaged;
 const RES_SERVER = IS_INSTALLED ? path.join(process.resourcesPath, 'server') : path.join(APP_DIR, '..');
 const BASE_DIR = IS_INSTALLED
-    ? (process.env.AF_DATA_DIR || path.join(app.getPath('appData'), 'TDQSYS'))
-    : (process.env.AF_DATA_DIR || path.join(APP_DIR, '..'));
+    ? (process.env.AF_DATA_DIR || path.join(app.getPath('appData'), PRODUCT.name))
+    : (process.env.AF_DATA_DIR || path.join(APP_DIR, '..','.runtime-v2'));
 const ENGINE_PATH = IS_INSTALLED
     ? path.join(RES_SERVER, 'video_server.js')
     : path.join(APP_DIR, '..', 'video_server.js');
 const TTS_PATH = IS_INSTALLED
-    ? path.join(RES_SERVER, 'tts_server.exe')
+    ? path.join(RES_SERVER, PRODUCT.speechExecutable)
     : path.join(APP_DIR, '..', 'tts_server.py');
-const PORT = parseInt(process.env.AF_PORT, 10) || 8081;
-const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8001;
+const PORT = parseInt(process.env.AF_PORT, 10) || PRODUCT.enginePort;
+const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || PRODUCT.speechPort;
 
 // ---- Uninstall (installed NSIS builds) ----
 // The NSIS uninstaller lands in different spots depending on how the installer
@@ -43,18 +50,9 @@ const TTS_PORT = parseInt(process.env.AF_TTS_PORT, 10) || 8001;
 // users" -> Program Files (or Program Files (x86)). Its presence also tells
 // "installed" apart from "portable", which extracts to a temp dir and has no
 // uninstaller at all.
-const PRODUCT_NAME = 'TDQSYS';
+const PRODUCT_NAME = PRODUCT.name;
 function findUninstaller() {
-    const dirs = [
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', PRODUCT_NAME),
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', PRODUCT_NAME),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', PRODUCT_NAME)
-    ];
-    for (const dir of dirs) {
-        const exe = path.join(dir, `Uninstall ${PRODUCT_NAME}.exe`);
-        if (fs.existsSync(exe)) return exe;
-    }
-    return null;
+    return app.isPackaged ? findOwnUninstaller(process.execPath,fs.existsSync) : null;
 }
 const UNINSTALLER_EXE = findUninstaller();
 
@@ -173,6 +171,7 @@ function startEngine() {
             AF_DATA_DIR: BASE_DIR,
             AF_OWNER_SYNC: '1',
             AF_PORT: String(PORT),
+            AF_TTS_PORT:String(TTS_PORT),
             ELECTRON_RUN_AS_NODE: '1'   // use Electron's embedded Node to run the engine
         },
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -348,10 +347,10 @@ async function cloudSyncTick() {
 // background check shortly after boot that pushes af:update-available to the
 // open windows. Offline / missing manifest degrades to "up to date", never to
 // an error dialog.
-const UPDATE_MANIFEST = 'version.json';
+const UPDATE_MANIFEST = PRODUCT.updateUrl;
 
 function expectedInstallerName(version) {
-    return `tdqsys-setup-${version}.exe`;
+    return `tdqsys-v2-setup-${version}.exe`;
 }
 
 function assertUpdateArtifactMatchesManifest(info) {
@@ -363,33 +362,10 @@ function assertUpdateArtifactMatchesManifest(info) {
     }
 }
 
-function compareVersions(a, b) {
-    const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
-    const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
-    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-        const da = pa[i] || 0, db = pb[i] || 0;
-        if (da !== db) return da > db ? 1 : -1;
-    }
-    return 0;
-}
-
-async function currentCloudBase() {
-    try {
-        const cfgRes = await fetch(`http://localhost:${PORT}/api/config`);
-        const cfg = await cfgRes.json();
-        if (cfg && cfg.cloudBase) return cfg.cloudBase;
-    } catch { /* engine not ready yet */ }
-    return null;
-}
-
 async function checkForUpdates() {
     const current = app.getVersion();
-    let manifestUrl = null;
-    const base = await currentCloudBase();
-    if (base) manifestUrl = `${base.replace(/\/+$/, '')}/${UPDATE_MANIFEST}`;
-    if (!manifestUrl) {
-        return { ok: false, reason: 'no-cloud-base', current, latest: null, url: null, notes: null };
-    }
+    // Not operator-configurable and never restored from another product's backup.
+    const manifestUrl = UPDATE_MANIFEST;
     try {
         const res = await fetch(manifestUrl, {
             signal: AbortSignal.timeout(10000),
@@ -399,16 +375,7 @@ async function checkForUpdates() {
             return { ok: true, current, latest: null, url: null, notes: null }; // 404 => no published manifest yet
         }
         const m = await res.json();
-        const latest = m && m.version ? String(m.version) : null;
-        return {
-            ok: true,
-            current,
-            latest,
-            url: (m && m.url) || null,
-            notes: (m && m.notes) || null,
-            size: (m && m.size) || null,
-            updateAvailable: latest ? compareVersions(latest, current) > 0 : false
-        };
+        return {ok:true,current,...validateManifest(m,current)};
     } catch {
         return { ok: false, reason: 'network', current, latest: null, url: null, notes: null };
     }
@@ -485,14 +452,15 @@ function sendUpdateProgress(win, payload) {
     if (win && !win.isDestroyed()) win.webContents.send('af:update-progress', payload);
 }
 
-function downloadToFile(url, dest, onProgress) {
+function downloadToFile(url, dest, onProgress, redirects=0) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
+        if(u.protocol!=='https:' || redirects>5)return reject(Error('Invalid update download redirect.'));
         const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET' }, (res) => {
             // GitHub release assets 302 to the CDN; follow redirects.
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                 res.resume();
-                downloadToFile(res.headers.location, dest, onProgress).then(resolve, reject);
+                downloadToFile(new URL(res.headers.location,url).href, dest, onProgress,redirects+1).then(resolve, reject);
                 return;
             }
             if (res.statusCode !== 200) {
@@ -510,6 +478,7 @@ function downloadToFile(url, dest, onProgress) {
             out.on('close', () => resolve({ path: dest, size: received }));
         });
         req.on('error', reject);
+        req.setTimeout(30000,()=>req.destroy(Error('Update download stalled. Please retry.')));
         req.end();
     });
 }
@@ -524,27 +493,26 @@ async function applyUpdate(info, win) {
     assertUpdateArtifactMatchesManifest(info);
     sendUpdateProgress(win, { state: 'download', percent: 0 });
 
-    const dest = path.join(app.getPath('temp'), `TDQSYS-setup-${info.latest}.exe`);
+    const dest = path.join(app.getPath('temp'), `tdqsys-v2-setup-${info.latest}.exe`);
     try { fs.unlinkSync(dest); } catch { /* first download */ }
     const result = await downloadToFile(info.url, dest, (received, total) => {
         const percent = total ? Math.min(99, Math.round(received / total * 100)) : 0;
         sendUpdateProgress(win, { state: 'download', percent, received, total });
     });
     const expected = parseInt(info.size || '0', 10);
-    if (expected && result.size !== expected) {
+    if (!expected || result.size !== expected || crypto.createHash('sha256').update(fs.readFileSync(dest)).digest('hex')!==info.sha256) {
         try { fs.unlinkSync(dest); } catch {}
-        throw new Error(`downloaded file is corrupt (${result.size} bytes, expected ${expected})`);
+        throw new Error('Update checksum or byte-size verification failed. Nothing was installed.');
     }
     log(`download complete: ${result.size} bytes`);
 
     // The new exe lands in the same install folder the uninstaller lives in.
     const installDir = path.dirname(UNINSTALLER_EXE);
-    const newExe = path.join(installDir, `${PRODUCT_NAME}.exe`);
+    const newExe = path.join(installDir, PRODUCT.executable);
 
     // Stop every child so the installer can replace files without a struggle.
     app.isQuitting = true;
     cleanup();
-    killPortHolders([PORT, TTS_PORT]);
 
     sendUpdateProgress(win, { state: 'installing', percent: 100 });
 
@@ -557,7 +525,7 @@ async function applyUpdate(info, win) {
     // box a detached PowerShell child exits immediately without executing. So
     // we write a .ps1 + a one-line .cmd and fire it via `cmd /c start`, which
     // orphans the PowerShell process so it survives our own exit.
-    const tag = `TDQSYS-update-${info.latest}`;
+    const tag = `TDQSYS-v2-update-${info.latest}`;
     const ps1 = path.join(app.getPath('temp'), `${tag}.ps1`);
     const cmdFile = path.join(app.getPath('temp'), `${tag}.cmd`);
     const updateLog = path.join(app.getPath('temp'), `${tag}.log`);
@@ -570,11 +538,12 @@ async function applyUpdate(info, win) {
         `"start $(Get-Date -Format o)" | Set-Content $log; ` +
         `$deadline = (Get-Date).AddSeconds(180); $ready = $false; ` +
         `while ((Get-Date) -lt $deadline) { ` +
-        `  $running = @(Get-Process -Name 'TDQSYS','tts_server' -ErrorAction SilentlyContinue); ` +
+        `  $running = @(Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue); ` +
         `  if ($running.Count -eq 0) { $ready = $true; break }; ` +
         `  Start-Sleep -Milliseconds 400; ` +
         `}; ` +
         `"app exited: $ready" | Add-Content $log; ` +
+        `if (-not $ready) { throw 'The v2 process did not exit. Update cancelled.' }; ` +
         // The app may have been launched from a terminal or a tool that set
         // this Electron-only switch. If inherited, TDQSYS.exe runs as Node
         // and exits without ever creating a window.
@@ -583,6 +552,9 @@ async function applyUpdate(info, win) {
         `"installer exit: $($ins.ExitCode)" | Add-Content $log; ` +
         `if ($ins.ExitCode -ne 0) { throw "installer failed with exit code $($ins.ExitCode)" }; ` +
         `if (-not (Test-Path -LiteralPath '${newExe}')) { throw 'updated TDQSYS.exe was not found' }; ` +
+        `$installed = (Get-Item -LiteralPath '${newExe}').VersionInfo.ProductVersion; ` +
+        `if ((Get-Item -LiteralPath '${newExe}').VersionInfo.ProductName -ne '${PRODUCT_NAME}') { throw 'Installed product does not match v2' }; ` +
+        `if ($installed -notin @('${info.latest}','${info.latest}.0')) { throw 'Installed version does not match the update' }; ` +
         `$launched = Start-Process -FilePath '${newExe}' -PassThru -ErrorAction Stop; ` +
         `"relaunched pid: $($launched.Id)" | Add-Content $log; ` +
         `Start-Sleep -Seconds 5; ` +
@@ -862,9 +834,7 @@ function cleanup() {
         if (!p) return;
         try { execSync(`taskkill /PID ${p.pid} /T /F`, { stdio: 'ignore', windowsHide: true }); } catch { /* already dead */ }
     });
-    // 3) Net-sweep: anything still bound to our ports (e.g. a first-run engine
-    //    crashed mid-restart of a.k.a. this app) is reaped too.
-    killPortHolders([PORT, TTS_PORT]);
+    // Never kill a port owner: it may belong to v1 or another application.
 
     // Item 5 — "auto clear rendered audio clips": wipe the generated cache on
     // every program shutdown (packaged only; dev keeps its cache warm). The
@@ -877,26 +847,6 @@ function cleanup() {
                 log('cleared rendered audio cache.');
             }
         } catch (e) { log(`audio cache clear skipped: ${e.message}`); }
-    }
-}
-
-// Kill any process (ours or a leftover from a previous session) currently
-// bound to a given set of local TCP ports. netstat -ano prints the owning PID
-// in the last column, which we taskkill with its whole tree.
-function killPortHolders(ports) {
-    if (!Array.isArray(ports)) ports = [ports];
-    let out = '';
-    try { out = execSync('netstat -ano', { encoding: 'utf8', windowsHide: true }); }
-    catch { return; }
-    const pids = new Set();
-    for (const line of out.split(/\r?\n/)) {
-        const m = line.match(/^\s*TCP\s+[0-9.:*\[\]]+:(\d+)\s+.*LISTENING\s+(\d+)\s*$/);
-        if (m && ports.includes(parseInt(m[1], 10)) && m[2] !== '0' && m[2] !== String(process.pid)) {
-            pids.add(m[2]);
-        }
-    }
-    for (const pid of pids) {
-        try { execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', windowsHide: true }); } catch { /* gone */ }
     }
 }
 

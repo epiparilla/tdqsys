@@ -15,12 +15,13 @@ const { PUBLIC, read, readPublic, appVersion } = require('./helpers');
 const manifest = JSON.parse(readPublic('version.json'));
 const pkgVersion = appVersion();
 
-test('manifest.version matches app/package.json version', () => {
+test('legacy manifest stays frozen while v2 has its own bootstrap manifest', () => {
   assert.equal(
-    manifest.version, pkgVersion,
+    manifest.version, '1.1.28',
     `version.json says ${manifest.version} but app/package.json says ${pkgVersion}. ` +
     'The app compares these and will offer an update to its own version.'
   );
+  assert.equal(JSON.parse(read('releases/v2/version.json')).version,pkgVersion);
 });
 
 test('manifest.url is a well-formed https download URL', () => {

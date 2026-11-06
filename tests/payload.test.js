@@ -39,7 +39,7 @@ test('the compiled TTS binary is staged', (t) => {
   if (!stageExists) { t.skip('not staged'); return; }
   // macOS PyInstaller emits no extension, Windows emits .exe. The main process
   // resolves per platform; the payload must carry whichever was built.
-  const candidates = ['tts_server.exe', 'tts_server'];
+  const candidates = ['tdqsys-v2-speech.exe'];
   const found = candidates.filter((f) => fs.existsSync(path.join(STAGE, f)));
   assert.ok(found.length > 0,
     `no TTS binary staged. Looked for: ${candidates.join(', ')}. ` +
@@ -103,5 +103,5 @@ test('the root tests directory is outside every packaging path', () => {
   // (asar whitelist) nor extraResources (server only) can reach.
   assert.ok(fs.existsSync(path.join(ROOT, 'tests')));
   const pkg = JSON.parse(fs.readFileSync(path.join(APP, 'package.json'), 'utf8'));
-  assert.deepEqual(pkg.build.files.slice().sort(), ['!node_modules/**/*', 'icon.png', 'main.js', 'preload.js']);
+  assert.deepEqual(pkg.build.files.slice().sort(), ['!node_modules/**/*', 'icon.png', 'main.js', 'preload.js','product.js'].sort());
 });

@@ -8,7 +8,7 @@ const speech = require('./public/announcements');
 const { prepareRestoredState } = require('./shared/restore');
 const { FACILITATOR_PAGES, injectFacilitatorBootstrap } = require('./shared/facilitator-theme');
 
-const PORT = parseInt(process.env.AF_PORT, 10) || 80;
+const PORT = parseInt(process.env.AF_PORT, 10) || 8082;
 // Data location: override from Electron (portable -> beside exe; installed -> %APPDATA%).
 const DATA_DIR = process.env.AF_DATA_DIR || __dirname;
 const VIDEOS_DIR = path.join(DATA_DIR, 'videos');

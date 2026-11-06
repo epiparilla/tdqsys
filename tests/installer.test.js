@@ -14,7 +14,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { APP, appVersion } = require('./helpers');
 
-const DIST = path.join(APP, 'dist-installer');
+const DIST = path.join(APP,require('../app/package.json').build.directories.output);
 const VERSION = appVersion();
 const MANIFEST_PATH = path.join(APP, '..', 'public', 'version.json');
 
@@ -32,7 +32,7 @@ test('a locally built installer exists for the current version', (t) => {
     t.skip('dist-installer not present - run a build first');
     return;
   }
-  const setup = path.join(DIST, `tdqsys-setup-${VERSION}.exe`);
+  const setup = path.join(DIST, `tdqsys-v2-setup-${VERSION}.exe`);
   assert.ok(fs.existsSync(setup),
     `missing "${path.basename(setup)}". Dist holds: ` +
     fs.readdirSync(DIST).filter((f) => f.endsWith('.exe')).join(', '));
@@ -40,13 +40,13 @@ test('a locally built installer exists for the current version', (t) => {
 
 test('the portable build exists for the current version', (t) => {
   if (!fs.existsSync(DIST)) { t.skip('dist-installer not present'); return; }
-  const portable = path.join(DIST, `tdqsys-portable-${VERSION}.exe`);
+  const portable = path.join(DIST, `tdqsys-v2-portable-${VERSION}.exe`);
   assert.ok(fs.existsSync(portable), `missing "${path.basename(portable)}"`);
 });
 
 test('the NSIS block map was produced alongside the installer', (t) => {
   if (!fs.existsSync(DIST)) { t.skip('dist-installer not present'); return; }
-  assert.ok(fs.existsSync(path.join(DIST, `TDQSYS Setup ${VERSION}.exe.blockmap`)),
+  assert.ok(fs.existsSync(path.join(DIST, `tdqsys-v2-setup-${VERSION}.exe.blockmap`)),
     'no blockmap - electron-builder did not finish the NSIS build');
 });
 
@@ -74,6 +74,7 @@ test('the update manifest version, URL and asset name describe one installer', (
 });
 
 test('the published GitHub release assets match the manifest', (t) => {
+  const VERSION=JSON.parse(fs.readFileSync(MANIFEST_PATH,'utf8')).version;
   if (!ghAvailable()) { t.skip('gh CLI not available'); return; }
   let release;
   try {
