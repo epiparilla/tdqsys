@@ -598,7 +598,7 @@ function firewallMarkerOk() {
 }
 
 function writeFirewallScript() {
-    const script = path.join(app.getPath('temp'), 'TDQSYS-firewall.ps1');
+    const script = path.join(app.getPath('temp'), 'TDQSYS-v2-firewall.ps1');
     const esc = (s) => String(s).replace(/'/g, "''");
     const lines = [
         'function Add-Rule($name,$port) {',

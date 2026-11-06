@@ -19,7 +19,9 @@ configuration. Do not blindly clone old data.json/writer credentials.
 Printing-only v1 enhancement remains future work, not part of this separation.
 
 Manual installer: app/dist-test-drive-v2-bootstrap/tdqsys-v2-setup-2.0.0.exe
-(232,693,291 bytes). Portable: tdqsys-v2-portable-2.0.0.exe (232,412,571 bytes).
+(232,693,303 bytes). Portable: tdqsys-v2-portable-2.0.0.exe (232,412,585 bytes).
+Verified installer copies also reside in the same relative TDQSYS v2 worktree path.
+Preserved v1 worktree suite: 206 passing / 12 optional/build-artifact skips.
 338 Node passing / 3 skipped; 36 database checks; 16 speech tests.
 Both sites' public configuration endpoints and invalid-input rejection verified;
 packaged native/engine/restore/product files match source. No new registrations,

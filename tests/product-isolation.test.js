@@ -13,6 +13,7 @@ test('v2 installer, profile, processes and ports have separate identities',()=>{
  assert.doesNotMatch(source,/Get-Process -Name 'TDQSYS','tts_server'/);
  assert.doesNotMatch(source,/killPortHolders\(/);
  assert.match(source,/PRODUCT\.speechExecutable/);
+  assert.match(source,/TDQSYS-v2-firewall\.ps1/);
 });
 test('v2 OTA rejects v1, missing identity, wrong channel and untrusted installer',()=>{
  assert.equal(validateManifest(valid,'2.0.0').updateAvailable,true);

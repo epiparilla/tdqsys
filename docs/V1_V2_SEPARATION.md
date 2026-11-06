@@ -29,8 +29,9 @@ cloud print-job, Sheets or giveaway workflows. That update is not implemented he
 ## V2 installation and test data
 
 Manual bootstrap installer:
-app/dist-test-drive-v2-bootstrap/tdqsys-v2-setup-2.0.0.exe (232,693,291 bytes).
-Portable: tdqsys-v2-portable-2.0.0.exe (232,412,571 bytes).
+app/dist-test-drive-v2-bootstrap/tdqsys-v2-setup-2.0.0.exe (232,693,303 bytes).
+Portable: tdqsys-v2-portable-2.0.0.exe (232,412,585 bytes).
+Verified copies are also placed in the TDQSYS v2 worktree's same relative folder.
 
 V2 starts with its own profile and installation identity. Existing pre-separation
 test data remains in the old TDQSYS profile and shared backend; it is NOT silently
@@ -86,7 +87,9 @@ Existing cache-clear-on-quit behavior remains: check speech warm-up after restar
 
 ## Verified / remaining acceptance
 
-338 Node checks passed, 3 optional skips; 36 PostgreSQL checks and 16 speech tests
+The preserved v1 worktree suite passed 206 checks / 12 skips (build artifacts and
+optional checks are not present in the fresh source worktree).
+338 v2 Node checks passed, 3 optional skips; 36 PostgreSQL checks and 16 speech tests
 passed. Licensing release gate passed. Live both-site config endpoints and
 invalid-contact rejection verified with zero new registrations. V1 manifest still
 1.1.28; v2 manifest 2.0.0 and disabled. Packaged native/product/engine/restore files
