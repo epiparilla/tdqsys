@@ -1,6 +1,19 @@
 # TDQSYS Future Improvements
 
 
+## 8 November frozen-header underlayer fix
+
+Fixed scrolled content peeking around the frozen desktop header. The sticky
+header now has an opaque, isolated backing extending over the top and side
+page padding, including fractional-pixel edges at Windows display scaling.
+Header controls remain clickable; the accent divider stays visible. Applies
+to the common desktop shell and Settings, without restyling forms or TV.
+343 Node checks pass / 3 skipped. Manual installer remains v2.0.0:
+app/dist-test-drive-v2-headerfix-20261108/tdqsys-v2-setup-2.0.0.exe
+Earlier installers and live data are preserved; v1 and OTA settings unchanged.
+
+
+
 ## 8 November compact desktop layout and frozen controls
 
 V2 staff pages now use smaller titles, navigation, buttons and tighter spacing.

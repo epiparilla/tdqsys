@@ -21,3 +21,8 @@ test('staff chrome and controls stay outside the independently scrolling rows',(
  assert.match(css,/\.desktop-table-page\{height:100dvh;overflow:hidden/);
  assert.doesNotMatch(css,/#board\{[^}]*overflow-x:hidden/);
 });
+test('frozen chrome has an opaque full-bleed backing over the page gutters',()=>{
+ const css=read('desktop-layout.css');
+ assert.match(css,/\.desktop-top\{isolation:isolate\}/);
+ assert.match(css,/\.desktop-top::before\{content:"";position:absolute;inset:-12px -14px 2px;background:#000;z-index:-1;pointer-events:none\}/);
+});

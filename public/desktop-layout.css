@@ -1,6 +1,10 @@
 /* Shared compact desktop layout. Intentionally not loaded by public forms/TV. */
 body[data-view],body.settings{font-size:13px;line-height:1.35;padding:10px 14px}
 .desktop-top{position:sticky;top:0;z-index:20;background:#000;padding:6px 0 8px;border-bottom:2px solid var(--brand-accent);margin-bottom:8px}
+/* Cover the page padding too: scrolled text must not peek above or beside
+   the sticky box, including fractional pixels at Windows display scaling. */
+.desktop-top{isolation:isolate}
+.desktop-top::before{content:"";position:absolute;inset:-12px -14px 2px;background:#000;z-index:-1;pointer-events:none}
 .desktop-top .dashboard-header,.desktop-top .settings-header{margin:0 0 6px}
 .desktop-top h1,.desktop-top .settings-header h1{font-size:23px;line-height:1.2;margin:0 0 7px}
 .desktop-top .header-links{gap:6px}
