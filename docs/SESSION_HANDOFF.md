@@ -6,6 +6,31 @@ not a verbatim transcript.
 ## Resume here
 
 
+## 8 November speech process shutdown fix
+
+Root cause: cleanup killed the PyInstaller speech launcher before requesting
+Windows taskkill /T, so the detached worker could survive and lock its EXE.
+Quit and Restart now stop each owned process tree synchronously by PID before
+its root disappears; no executable-name or port-owner sweeps are used.
+Queued engine/TTS restart callbacks also refuse to spawn while quitting.
+Window close still keeps the app in its tray by design; use Quit TDQSYS for
+full shutdown. The fix does not alter voices, cache policy, queue data or v1.
+
+347 Node checks pass / 3 skipped, including four shutdown regression tests.
+Two isolated real Windows launcher/worker trees were terminated successfully.
+This verifies process-tree termination, not a full installed-app exit cycle;
+manual acceptance: quit from tray, check no v2 speech worker remains, then
+install this build. No live app was started or stopped for these checks.
+No v2 speech worker was present during the diagnostic process inventory.
+
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-shutdownfix-20261108/tdqsys-v2-setup-2.0.0.exe
+Earlier installers are preserved; no OTA activation or web deployment needed
+for this desktop-only fix. If an earlier build leaves its worker behind,
+end only that TDQSYS v2 speech process before this first corrective install.
+
+
+
 ## 8 November frozen-header underlayer fix
 
 Fixed scrolled content peeking around the frozen desktop header. The sticky

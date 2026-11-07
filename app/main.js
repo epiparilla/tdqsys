@@ -8,7 +8,7 @@
 // Installed mode: AF_DATA_DIR = %APPDATA%/TDQSYS (set by the desktop app).
 
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, dialog, shell } = require('electron');
-const { spawn, execSync } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
@@ -163,6 +163,7 @@ async function pollLicence() {
 
 // ---- Engine & TTS process management ----
 function startEngine() {
+    if (app.isQuitting) return;
     log(`starting engine ${ENGINE_PATH} (port ${PORT}) dataDir=${BASE_DIR}`);
     engineProcess = spawn(process.execPath, [ENGINE_PATH], {
         cwd: path.dirname(ENGINE_PATH),
@@ -197,6 +198,7 @@ function startEngine() {
 }
 
 function startTTS() {
+    if (app.isQuitting) return;
     if (!fs.existsSync(TTS_PATH)) { log('TTS server missing, skipping.'); return; }
     log(`starting TTS server (${TTS_PATH}) on port ${TTS_PORT}`);
     if (IS_INSTALLED) {
@@ -808,8 +810,8 @@ app.whenReady().then(() => {
 function restartSystem() {
     log('restarting engine + TTS + windows...');
     if (cloudTimer) clearInterval(cloudTimer);
-    if (engineProcess) engineProcess.kill();   // exit handler auto-restarts in 2s
-    if (ttsProcess) ttsProcess.kill();         // exit handler auto-restarts in 3s
+    stopOwnedProcessTree(engineProcess); // exit handler auto-restarts in 2s
+    stopOwnedProcessTree(ttsProcess);    // exit handler auto-restarts in 3s
     startCloudSync();
     // Reload open windows so they reconnect once the engine is back up.
     setTimeout(() => {
@@ -819,21 +821,29 @@ function restartSystem() {
     }, 6000);
 }
 
+function stopOwnedProcessTree(child) {
+    if (!child || !Number.isInteger(child.pid) || child.pid <= 0 || child.exitCode !== null) return;
+    if (process.platform === 'win32') {
+        // PyInstaller --onefile has a launcher AND a worker. Terminating the
+        // launcher first orphans its worker before taskkill can discover it.
+        // Keep the root alive until Windows has enumerated/killed the tree.
+        try {
+            execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+                stdio:'ignore', windowsHide:true, timeout:10000
+            });
+        } catch (error) { log(`process tree ${child.pid} stop failed: ${error.message}`); }
+    } else {
+        try { child.kill(); } catch (error) { log(`process ${child.pid} stop failed: ${error.message}`); }
+    }
+}
+
 function cleanup() {
     if (cloudTimer) clearInterval(cloudTimer);
     if (registrationTimer) clearInterval(registrationTimer);
     if (updatePollTimer) clearInterval(updatePollTimer);
 
-    // Item 6 — "absolute shutdown": layered kills so nothing survives a quit.
-    // 1) Graceful SIGTERM to both children.
-    if (engineProcess) engineProcess.kill();
-    if (ttsProcess) ttsProcess.kill();
-    // 2) Force-kill each process tree (Windows: /T /F), covering any stragglers
-    //    the graceful signal missed before the app fully exits.
-    [engineProcess, ttsProcess].forEach(p => {
-        if (!p) return;
-        try { execSync(`taskkill /PID ${p.pid} /T /F`, { stdio: 'ignore', windowsHide: true }); } catch { /* already dead */ }
-    });
+    // Stop whole owned trees synchronously BEFORE exiting or clearing cache.
+    [engineProcess, ttsProcess].forEach(stopOwnedProcessTree);
     // Never kill a port owner: it may belong to v1 or another application.
 
     // Item 5 — "auto clear rendered audio clips": wipe the generated cache on
