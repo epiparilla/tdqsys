@@ -1,5 +1,30 @@
 # TDQSYS Future Improvements
 
+## 8 November Agent terminology
+
+V2 now uses Agent and Agents throughout visible forms, navigation, page titles,
+settings, QR captions, tables, reset/help text, print-job descriptions and
+validation/error messages. Registered Agents replaces the Sales Executive list.
+Printed code labels already contain only a name and four-digit code; their
+layout and payload stay unchanged.
+
+Legacy URLs, action names, seCode payload fields and database identifiers remain
+compatible. Migration 202611080001 updates human-readable RPC messages only;
+permissions remain private (zero browser-executable functions verified live).
+New empty Google Sheets tabs use Agent name; existing headers and raw records
+are not rewritten. No registration, queue, code or giveaway data was changed.
+
+V2 site and private endpoint deployed. Live form/invalid-input checks passed
+without creating registrations. V1 feed remains 1.1.28 and v2 OTA remains disabled.
+340 Node checks passing / 3 skipped; 37 database checks; 16 speech tests.
+Seven packaged UI files verified byte-identical to tested source.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-agents-20261108/tdqsys-v2-setup-2.0.0.exe
+(232,693,305 bytes), also copied into the TDQSYS v2 working folder.
+The earlier bootstrap installer is preserved. No automatic installation.
+The 8 November presentation was generated before this terminology change and
+has not been regenerated as part of this app-wide wording task.
+
 ## 7 November: v1/v2 separation implemented
 
 V1 remains 1.1.28 with its existing identity, data folder and live update feed.

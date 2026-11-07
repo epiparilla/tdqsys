@@ -7,7 +7,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('Giveaways keeps raw Sheet columns without a visible registration ID and has a multi-item dialog',()=>{
   const html=readPublic('giveaways.html');
-  for(const label of ['Submitted at','Email Address','Name','City Address','Contact No.','Unit to Test Drive','For Application?','For Reservation?','Name of SE','Dealership','Giveaway item'])assert.ok(html.includes(`<th>${label}</th>`));
+  for(const label of ['Submitted at','Email Address','Name','City Address','Contact No.','Unit to Test Drive','For Application?','For Reservation?','Agent name','Dealership','Giveaway item'])assert.ok(html.includes(`<th>${label}</th>`));
   assert.doesNotMatch(html,/<th>Registration ID<\/th>/);assert.match(html,/<dialog id="giveaway-dialog"/);
   assert.match(readPublic('settings.html'),/id="cfg-giveaway-items"/);assert.match(readPublic('facilitator-shell.js'),/href="giveaways.html"/);
 });

@@ -8,7 +8,7 @@ export async function onRequest(context) {
   if (context.request.method !== 'POST') return reply({ error: 'Method Not Allowed' }, 405);
   try {
     const body = await context.request.json();
-    if (!body || !validInstanceId(body.instanceId) || !validSeCode(body.code)) return reply({ error: 'Enter a valid four-digit SE code.' }, 400);
+    if (!body || !validInstanceId(body.instanceId) || !validSeCode(body.code)) return reply({ error: 'Enter a valid four-digit Agent code.' }, 400);
     const key = context.env.SUPABASE_SECRET_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!key || !context.env.SUPABASE_URL) return reply({ error: 'Registration is temporarily unavailable.' }, 503);
     const instance = body.instanceId.trim().toLowerCase();

@@ -1,7 +1,7 @@
 // Server-only Google adapter. Credentials never travel to a browser/desktop.
 const b64 = bytes => btoa(String.fromCharCode(...bytes)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 const encode = value => b64(new TextEncoder().encode(JSON.stringify(value)));
-const COLUMN_NAMES = ['Registration ID','Submitted at','Email Address','Name','City Address','Contact No.','Unit to Test Drive','For Application?','For Reservation?','Name of SE','Dealership'];
+const COLUMN_NAMES = ['Registration ID','Submitted at','Email Address','Name','City Address','Contact No.','Unit to Test Drive','For Application?','For Reservation?','Agent name','Dealership'];
 
 export function registrationTabName(instant = new Date(), timeZone = 'Asia/Manila') {
   const date = new Date(instant);

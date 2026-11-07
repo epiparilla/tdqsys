@@ -80,7 +80,7 @@
     byId('registration-links').replaceChildren();
     for (const [kind, link] of Object.entries(snapshot.registrationLinks || {})) {
       const card = document.createElement('div'); const title = document.createElement('p');
-      title.textContent = kind === 'se' ? 'SE registration' : 'Client registration'; card.appendChild(title);
+      title.textContent = kind === 'se' ? 'Agent registration' : 'Client registration'; card.appendChild(title);
       const canvas = document.createElement('canvas'); canvas.style.width = '160px'; canvas.style.height = '160px';
       const qr = qrcode(0, 'M'); qr.addData(link); qr.make();
       const count = qr.getModuleCount(), scale = 8, size = (count + 8) * scale;
@@ -167,7 +167,7 @@
       if(!name.toLocaleLowerCase().includes(query))continue;
       const row = document.createElement('tr');
       cell(row, job.kind === 'se_code_slip' ? job.seCode : formatTicket(entry,model)); cell(row, entry?.registrations?.full_name || job.se_daily_checkins?.sales_executives?.name);
-      cell(row, model?.full_name || 'Sales Executive code slip'); cell(row, job.status);
+      cell(row, model?.full_name || 'Agent code slip'); cell(row, job.status);
       const action = document.createElement('td'), button = document.createElement('button');
       button.textContent = 'Print'; button.dataset.write = ''; button.hidden = job.status === 'claimed';
       button.onclick = () => mutate({ action: 'print', jobId: job.id, printerName: byId('printer').value });
@@ -191,7 +191,7 @@
     byId('sales-rows').replaceChildren();
     const query = byId('sales-search').value.trim().toLocaleLowerCase();
     const checkins = snapshot.seCheckins || [];
-    byId('sales-count').textContent = `${checkins.length} Sales Executive check-ins`;
+    byId('sales-count').textContent = `${checkins.length} Agent check-ins`;
     const sorted=sortedRows(checkins,byId('sales-sort')?.value,byId('sales-direction')?.value,(item,key)=>key==='status' ? item.revokedAt?'Reset':item.code?'Active':'Expired':item[key]);
     for (const checkin of sorted.filter(item => `${item.name} ${item.dealership}`.toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
@@ -253,10 +253,10 @@
     try {
       const result = await request(body);
       if(result.localSnapshot){snapshot=result.localSnapshot;render();}
-      byId('message').textContent = result.printed ? result.issuedTicket ? `Ticket ${result.issuedTicket.reprint?'reprinted':'issued and printed'}: ${result.issuedTicket.queueNumber}.` : 'Printed.' : body.action==='cancel-print' ? 'Print job cancelled. Client registration and queue number are retained.' : body.action==='reprint-se-code' ? 'SE slip queued in Print Queue.' : body.action === 'reset-sales-executives'
-        ? `${result.deactivated} SE code(s) deactivated. SEs may register again. Client registrations, queues and TV numbers are unchanged.`
+      byId('message').textContent = result.printed ? result.issuedTicket ? `Ticket ${result.issuedTicket.reprint?'reprinted':'issued and printed'}: ${result.issuedTicket.queueNumber}.` : 'Printed.' : body.action==='cancel-print' ? 'Print job cancelled. Client registration and queue number are retained.' : body.action==='reprint-se-code' ? 'Agent slip queued in Print Queue.' : body.action === 'reset-sales-executives'
+        ? `${result.deactivated} Agent code(s) deactivated. Agents may register again. Client registrations, queues and TV numbers are unchanged.`
         : body.action === 'reset'
-        ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and SE history are retained.'
+        ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and Agent history are retained.'
         : result.speechError ? `Queue action completed. ${result.speechError}`
         : result.speechQueued ? result.speechPreparing ? 'Announcement queued; preparing missing audio clips.' : 'Announcement queued locally.' : result.localSaved ? 'Saved locally; cloud synchronization runs in the background.' : 'Saved.';
       refresh().catch(error=>{byId('message').textContent=`Action completed. Refresh failed: ${error.message}`;});

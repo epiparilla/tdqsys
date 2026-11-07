@@ -485,6 +485,13 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       assert.equal((await db.query("select has_function_privilege('anon','tdqsys_future_permission_probe()','execute') a")).rows[0].a,false);
       assert.ok((await rpc('tdqsys_public_registration_config',[A])).models.length>0);
     });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611080001_agent_ui_wording.sql'),'utf8'));
+    await check('Agent wording updates database messages without restoring public RPC access',async()=>{
+      const result=await rpc('tdqsys_validate_se_code',[A,hash('not-issued'),'copy-check']);
+      assert.match(result.error,/Agent code/);assert.doesNotMatch(result.error,/Sales Executive|\bSE\b/);
+      const exposed=(await db.query("select count(*)::int n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tdqsys_%' and (has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute'))")).rows[0].n;
+      assert.equal(exposed,0);
+    });
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

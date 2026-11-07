@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
     }
     if (body.action === 'reset-sales-executives') {
       if (body.confirm !== true || typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > 240) {
-        return Response.json({error:'Confirm the SE reset and provide a reason.'},{status:400,headers:cors});
+        return Response.json({error:'Confirm the Agent reset and provide a reason.'},{status:400,headers:cors});
       }
       const {data,error} = await admin.rpc('tdqsys_reset_sales_executives',{p_instance_id:instanceId,p_reason:body.reason.trim()});
       if (error) throw error;

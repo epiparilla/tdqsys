@@ -32,7 +32,7 @@ function validateSeCheckin(body = {}) {
   const contactNumber = typeof body.contactNumber === 'string' ? body.contactNumber : '';
   const errors = {};
   if (!validInstanceId(body.instanceId)) errors.instanceId = 'Invalid registration location.';
-  if (!name || !NAME_RE.test(name)) errors.name = 'Enter the Sales Executive name using letters.';
+  if (!name || !NAME_RE.test(name)) errors.name = 'Enter the Agent name using letters.';
   if (!dealership) errors.dealership = 'Enter the dealership.';
   if (!validContactNumber(contactNumber)) errors.contactNumber = CONTACT_ERROR;
   return { ok: Object.keys(errors).length === 0, errors, value: { name, dealership, contactNumber } };
@@ -55,7 +55,7 @@ function validateRegistration(body = {}) {
   if (!cityAddress || !ADDRESS_RE.test(cityAddress)) errors.cityAddress = 'Enter a valid city address.';
   if (!validContactNumber(contactNumber)) errors.contactNumber = CONTACT_ERROR;
   if (!modelIds.length) errors.modelIds = 'Select at least one vehicle model.';
-  if (!validSeCode(body.seCode)) errors.seCode = 'Enter the four-digit Sales Executive code.';
+  if (!validSeCode(body.seCode)) errors.seCode = 'Enter the four-digit Agent code.';
   if (body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
   if (body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
   return {
