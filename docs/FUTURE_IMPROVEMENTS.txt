@@ -1,5 +1,33 @@
 # TDQSYS Future Improvements
 
+
+## 8 November compact desktop layout and frozen controls
+
+V2 staff pages now use smaller titles, navigation, buttons and tighter spacing.
+Master Table, Print Queue, Agents and Giveaways keep the entire top shell and
+search/sort/printer controls visible while rows scroll inside their own pane;
+column headings remain frozen, including during horizontal table scrolling.
+Event Setup, Settings and Live Dashboard retain a pinned compact header during
+vertical scrolling. Settings and analytics tables have bounded scrolling panes
+with frozen column headings. Vehicle columns retain the continuous horizontal
+loop and now scroll long queues vertically beneath their model heading.
+Public registration forms and TV/remote displays are not restyled. No live
+registrations, queue numbers, settings, giveaway stock or printed jobs changed.
+
+Verified with an isolated read-only Electron fixture across 24 page/window
+combinations (1600x1000, 1200x800 and 800x600 requested windows; Windows scaling
+can constrain the first viewport). Scroll checks confirm no document overflow
+on table pages and headings stay aligned with their panes after scrolling.
+Screenshots inspected; existing client presentation files were not overwritten.
+342 Node tests pass / 3 skipped; 37 PostgreSQL checks and 16 speech tests pass.
+V2 Pages assets deployed. V1 remains unchanged and v2 OTA remains disabled.
+Latest manual installer, still 2.0.0:
+app/dist-test-drive-v2-compact-20261108/tdqsys-v2-setup-2.0.0.exe
+Install this build manually to see the layout changes in the desktop app;
+a website deployment cannot update pages served by an older installed build.
+The earlier Agents and bootstrap installers are preserved.
+
+
 ## 8 November Agent terminology
 
 V2 now uses Agent and Agents throughout visible forms, navigation, page titles,

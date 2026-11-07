@@ -1,0 +1,62 @@
+/* Shared compact desktop layout. Intentionally not loaded by public forms/TV. */
+body[data-view],body.settings{font-size:13px;line-height:1.35;padding:10px 14px}
+.desktop-top{position:sticky;top:0;z-index:20;background:#000;padding:6px 0 8px;border-bottom:2px solid var(--brand-accent);margin-bottom:8px}
+.desktop-top .dashboard-header,.desktop-top .settings-header{margin:0 0 6px}
+.desktop-top h1,.desktop-top .settings-header h1{font-size:23px;line-height:1.2;margin:0 0 7px}
+.desktop-top .header-links{gap:6px}
+.desktop-top .link-button,.desktop-top nav a{font-size:12px;padding:7px 11px;border-radius:6px;line-height:1.25}
+.desktop-top nav{margin:7px 0}
+.desktop-top p#message,.desktop-top p#speech-cache-status,.desktop-top p#local-sync-status,.desktop-top p#sheets-status,.desktop-top p#run{font-size:11px;min-height:0;line-height:1.35;margin:2px 0}
+.desktop-top :is(#speech-cache-status,#local-sync-status,#sheets-status){display:inline-block;padding-right:12px}
+.desktop-top p:empty{display:none}
+body[data-view] button,body[data-view] input,body[data-view] select{padding:5px;font-size:12px}
+body[data-view] label{margin:4px 9px 4px 0}
+body[data-view] p{margin:6px 0}
+body[data-view] h2{font-size:17px}
+body[data-view] h3{font-size:14px}
+#event-setup{padding:12px;margin:8px 0;border-radius:8px}
+#google-sheets-setup{padding:10px;margin:10px 0}
+#registration-links{gap:14px}
+#brand-controls{padding:10px;border-radius:8px}
+#brand-controls-title{font-size:18px;padding-bottom:8px;margin-bottom:8px;border-bottom-width:3px;position:sticky;top:var(--desktop-top-height);background:#000;z-index:3}
+#board article{padding:8px}
+#board article h2{font-size:16px}
+#board article{max-height:calc(100dvh - var(--desktop-top-height) - 95px);overflow-y:auto}
+#board article h2{position:sticky;top:-8px;z-index:2;background:#080808;padding:4px 0}
+#board .registered-count{margin:3px 0 7px}
+#board .entry{padding:8px 0;gap:6px}
+#board .entry-summary strong{font-size:15px}
+#board .actions button{font-size:11px;padding:5px 4px}
+body[data-view] table{margin-top:0;font-variant-numeric:tabular-nums}
+body[data-view] th,body[data-view] td{padding:6px;font-size:12px}
+body[data-view] .table-scroll,body.settings table{isolation:isolate}
+body[data-view] thead th,body.settings thead th{position:sticky;top:0;z-index:2;background:#171717;box-shadow:0 1px #555}
+.desktop-table-page{height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+.desktop-table-page > .desktop-top{flex:none}
+.desktop-table-page > main:not([hidden]){flex:1;min-height:0;display:flex;flex-direction:column}
+.desktop-table-panel{flex:1;min-height:0;display:flex;flex-direction:column}
+.desktop-table-tools{flex:none}
+.desktop-table-panel > .table-scroll{flex:1;min-height:60px;overflow:auto;overscroll-behavior:contain}
+.desktop-table-panel > details{flex:none;max-height:30vh;overflow:auto;padding-top:6px}
+.desktop-table-tools > p{font-size:11px;line-height:1.35;margin:3px 0 5px}
+#live-dashboard .table-scroll{max-height:45vh;overflow:auto}
+.analytics-cards{gap:8px;margin:10px 0}
+.analytics-cards strong{font-size:26px;margin-top:6px}
+.analytics-grid{gap:12px}.analytics-grid>section{padding:10px}
+.analytics-chart{margin:12px 0}
+body.settings{height:auto;min-height:100dvh;overflow-y:auto;scroll-padding-top:var(--desktop-top-height)}
+.settings .desktop-top .lock-banner{font-size:11px;padding:5px;margin:5px 0}
+.settings .desktop-top .action-bar{margin:5px 0}
+.settings .settings-btn{font-size:12px;padding:7px 12px}
+.settings .settings-card{max-width:1100px;padding:12px 16px;margin-bottom:12px}
+.settings .settings-card h2{margin-bottom:10px}
+.settings .field{margin-bottom:10px}
+.settings .field input[type=text],.settings .field input[type=number],.settings .field input[type=url]{font-size:13px;padding:6px 8px}
+.settings .settings-card div:has(>table){max-height:45vh;overflow:auto}
+.settings td,.settings th{font-size:12px;padding:6px}
+html{scroll-padding-top:calc(var(--desktop-top-height,0px) + 12px)}
+@media(max-height:600px){
+ .desktop-top h1,.desktop-top .settings-header h1{font-size:19px;margin-bottom:4px}
+ .desktop-top .link-button,.desktop-top nav a{padding:5px 8px;font-size:11px}
+ .desktop-top{padding:3px 0 5px}.desktop-top nav{margin:4px 0}
+}
