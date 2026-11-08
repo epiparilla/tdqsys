@@ -16,7 +16,7 @@ test('registration requires all client fields, consent, code and a model', () =>
   const valid = {
     instanceId: ID, fullName: 'Ana Cruz', email: 'ana@example.com', cityAddress: 'Quezon City',
     contactNumber: '09171234567', seCode: '0123', modelIds: [MODEL],
-    waiverAccepted: true, termsAccepted: true
+    privacyAccepted: true, waiverAccepted: true, termsAccepted: true
   };
   assert.equal(validateRegistration(valid).ok, true);
   assert.equal(validateRegistration({ ...valid, modelIds: [], waiverAccepted: false }).ok, false);
@@ -25,7 +25,7 @@ test('registration requires all client fields, consent, code and a model', () =>
 test('registration normalises name and deduplicates selected model ids', () => {
   const r = validateRegistration({
     instanceId: ID, fullName: '  Ana   Cruz ', email: 'ANA@EXAMPLE.COM', cityAddress: 'Quezon City',
-    contactNumber: '09171234567', seCode: '0123', modelIds: [MODEL, MODEL], waiverAccepted: true, termsAccepted: true
+    contactNumber: '09171234567', seCode: '0123', modelIds: [MODEL, MODEL], privacyAccepted: true, waiverAccepted: true, termsAccepted: true
   });
   assert.equal(r.value.nameSearch, 'ana cruz');
   assert.equal(r.value.email, 'ana@example.com');

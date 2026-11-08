@@ -9,7 +9,7 @@ const helpers = require('../shared/test-drive');
 const instanceId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const modelId = '11111111-2222-4333-8444-555555555555';
 const body = { instanceId, fullName:'Ana Cruz',email:'ana@example.com',cityAddress:'Manila',contactNumber:'09170000000',
-  modelIds:[modelId],seCode:'0123',waiverAccepted:true,termsAccepted:true,waiverVersion:'a'.repeat(64),termsVersion:'b'.repeat(64) };
+  modelIds:[modelId],seCode:'0123',privacyAccepted:true,waiverAccepted:true,termsAccepted:true,waiverVersion:'a'.repeat(64),termsVersion:'b'.repeat(64) };
 
 async function invoke(file, payload, fetcher, key='request-00001') {
   const source=fs.readFileSync(path.join(__dirname,'../functions/api/test-drive',file),'utf8')
@@ -29,6 +29,25 @@ test('both registration endpoints reject invalid contact numbers before database
       assert.equal(response.status,400);assert.match((await response.json()).fields.contactNumber,/11 digits/);
     }
   }
+});
+test('client endpoint requires explicit Data Privacy Consent before any database access',async()=>{
+  for(const privacyAccepted of [undefined,false,null,'true',1]) {
+    let calls=0;
+    const response=await invoke('registrations.js',{...body,privacyAccepted},()=>{calls++;throw Error('must not fetch');});
+    assert.equal(response.status,400);assert.equal(calls,0);
+    assert.match((await response.json()).fields.privacyAccepted,/Data Privacy Consent/);
+  }
+});
+test('first registration step contains the exact required unchecked privacy consent before client fields',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../public/test-drive-registration.html'),'utf8');
+  const first=html.split('<section data-step="0">')[1].split('</section>')[0];
+  assert.match(first,/DATA PRIVACY CONSENT/);
+  assert.match(first,/<input type="checkbox" name="privacyAccepted" required>/);
+  assert.match(first,/I agree to the collection and use of my information in accordance with the Data Privacy Act of 2012\./);
+  assert.ok(first.indexOf('privacyAccepted')<first.indexOf('name="email"'));
+  const js=fs.readFileSync(path.join(__dirname,'../public/test-drive-registration.js'),'utf8');
+  assert.match(js,/privacyAccepted: field\('privacyAccepted'\).checked/);
+  assert.match(js,/if \(!field\('privacyAccepted'\).checked\) \{ step = 0; show\(\); field\('privacyAccepted'\).reportValidity\(\); return; \}/);
 });
 
 test('both forms require the same 11-digit numeric contact field',()=>{

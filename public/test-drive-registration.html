@@ -9,11 +9,15 @@
     button{background:#d71920;color:white;border:0;cursor:pointer}button:disabled{opacity:.5}
     [hidden]{display:none!important}.consent{white-space:pre-wrap;max-height:320px;overflow:auto;padding:12px;background:#0b1220}
     #message{color:#ffcf7d;white-space:pre-line}nav{display:flex;gap:12px}#back{background:#46536c}
+    .privacy-consent{border:0;padding:0;margin:20px 0 24px}.privacy-consent legend{font-weight:700;font-size:18px}.privacy-consent .required-mark{color:#ff6b6b}.privacy-consent label{display:flex;align-items:flex-start;gap:12px;line-height:1.5}.privacy-consent input{width:20px;height:20px;flex-shrink:0;margin:3px 0 0;accent-color:#d71920}
   </style>
 </head><body><main>
   <h1>Test Drive Registration</h1><p id="progress"></p><p id="message" role="status">Loading registration…</p>
   <form id="registration" hidden novalidate>
     <section data-step="0"><h2>Client details</h2>
+      <fieldset class="privacy-consent"><legend>DATA PRIVACY CONSENT <span class="required-mark" aria-hidden="true">*</span></legend>
+        <label><input type="checkbox" name="privacyAccepted" required><span>I agree to the collection and use of my information in accordance with the Data Privacy Act of 2012.</span></label>
+      </fieldset>
       <label>Email Address<input type="email" name="email" autocomplete="email" maxlength="320" required></label>
       <label>Name (Firstname Lastname)<input name="fullName" autocomplete="name" maxlength="160" required></label>
       <label>City Address<input name="cityAddress" autocomplete="address-level2" maxlength="240" required></label>

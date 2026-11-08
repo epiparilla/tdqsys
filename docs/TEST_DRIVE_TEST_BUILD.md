@@ -1,6 +1,30 @@
 # Test-drive manual-test build
 
 
+## 8 November required client Data Privacy Consent
+
+The first client-registration step now starts with an unchecked required
+Data Privacy Consent checkbox using the user's exact statement:
+I agree to the collection and use of my information in accordance with the
+Data Privacy Act of 2012.
+
+Native first-step validation blocks Next until accepted. The final submit
+handler rechecks consent and sends privacyAccepted as a boolean; the public
+v2 registration API rejects anything other than explicit true before accessing
+the database. Existing waiver, Terms and Agent-code requirements remain.
+This is an additional consent gate; no dedicated privacy audit column or new
+Google Sheets/table column was added, and historical records are unchanged.
+
+361 Node checks pass / 3 skipped. The isolated Electron form check confirmed
+unchecked blocks Next and checked allows vehicle selection. No registration
+was submitted and no live records were modified. V2 form/API deployed; users
+with an already-open older form should reload. No new desktop installer is
+needed for the online form; local staged server resources were updated too.
+The latest desktop installer remains the queuefix build. V1 and OTA are
+unchanged. The client presentation R2 predates this checkbox addition.
+
+
+
 ## 8 November Queue Board vehicle mapping recovery
 
 Fixed the board remaining on the default Car 1 while Settings and the TV show

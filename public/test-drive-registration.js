@@ -34,6 +34,7 @@
   $('next').onclick = () => { if (validStep()) { step++; show(); } };
   $('back').onclick = () => { step--; show(); };
   field('seCode').oninput = () => { verifiedCode = ''; $('submit').disabled = true; $('se-details').textContent = ''; };
+  field('privacyAccepted').onchange = () => { $('submit').disabled = busy || !verifiedCode || verifiedCode !== field('seCode').value || !field('privacyAccepted').checked; };
   $('validate-code').onclick = async () => {
     if (!field('seCode').reportValidity()) return;
     $('validate-code').disabled = true;
@@ -43,15 +44,16 @@
       if (code !== field('seCode').value) return;
       verifiedCode = code;
       $('se-details').textContent = `${result.name} · ${result.dealership}`;
-      $('submit').disabled = false;
+      $('submit').disabled = !field('privacyAccepted').checked;
     } catch (error) { $('message').textContent = error.message; }
     finally { $('validate-code').disabled = false; }
   };
   form.onsubmit = async event => {
     event.preventDefault(); if (busy || verifiedCode !== field('seCode').value || !verifiedCode) return;
+    if (!field('privacyAccepted').checked) { step = 0; show(); field('privacyAccepted').reportValidity(); return; }
     busy = true; $('submit').disabled = true; $('message').textContent = 'Submitting…';
     const body = { instanceId, modelIds: [...form.querySelectorAll('[name=modelIds]:checked')].map(input => input.value),
-      waiverAccepted: field('waiverAccepted').checked, termsAccepted: field('termsAccepted').checked,
+      privacyAccepted: field('privacyAccepted').checked, waiverAccepted: field('waiverAccepted').checked, termsAccepted: field('termsAccepted').checked,
       waiverVersion: config.waiverVersion, termsVersion: config.termsVersion };
     for (const key of ['fullName','email','cityAddress','contactNumber','forApplication','forReservation','seCode']) body[key] = field(key).value;
     try {
@@ -73,7 +75,7 @@
       form.hidden = true; $('message').textContent = ''; $('progress').textContent = 'Registration received';
       try { sessionStorage.removeItem(storageKey); sessionStorage.removeItem(storageKey + ':fingerprint'); } catch { /* optional */ }
     } catch (error) { $('message').textContent = `${error.message} Your details are still here. Retry to check the same submission.`; }
-    finally { busy = false; $('submit').disabled = verifiedCode !== field('seCode').value; }
+    finally { busy = false; $('submit').disabled = verifiedCode !== field('seCode').value || !field('privacyAccepted').checked; }
   };
   (async () => {
     try {

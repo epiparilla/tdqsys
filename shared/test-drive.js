@@ -56,6 +56,7 @@ function validateRegistration(body = {}) {
   if (!validContactNumber(contactNumber)) errors.contactNumber = CONTACT_ERROR;
   if (!modelIds.length) errors.modelIds = 'Select at least one vehicle model.';
   if (!validSeCode(body.seCode)) errors.seCode = 'Enter the four-digit Agent code.';
+  if (body.privacyAccepted !== true) errors.privacyAccepted = 'Please review and agree to Data Privacy Consent on the first page of the registration form.';
   if (body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
   if (body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
   return {
