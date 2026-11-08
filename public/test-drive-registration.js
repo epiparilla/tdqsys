@@ -53,7 +53,7 @@
     if (!field('privacyAccepted').checked) { step = 0; show(); field('privacyAccepted').reportValidity(); return; }
     busy = true; $('submit').disabled = true; $('message').textContent = 'Submitting…';
     const body = { instanceId, modelIds: [...form.querySelectorAll('[name=modelIds]:checked')].map(input => input.value),
-      privacyAccepted: field('privacyAccepted').checked, waiverAccepted: field('waiverAccepted').checked, termsAccepted: field('termsAccepted').checked,
+      privacyAccepted: field('privacyAccepted').checked, waiverAccepted: field('waiverAccepted').checked, printedWaiverAccepted: field('printedWaiverAccepted').checked, termsAccepted: field('termsAccepted').checked,
       waiverVersion: config.waiverVersion, termsVersion: config.termsVersion };
     for (const key of ['fullName','email','cityAddress','contactNumber','forApplication','forReservation','seCode']) body[key] = field(key).value;
     try {
@@ -93,6 +93,8 @@
         field(name+'Accepted').required = required;
         field(name+'Accepted').disabled = !required;
       }
+      field('printedWaiverAccepted').required = !!config.waiverStatement.trim();
+      field('printedWaiverAccepted').disabled = !config.waiverStatement.trim();
       if (!config.waiverStatement.trim() && !config.termsAndConditions.trim()) steps = [0,1,3];
       form.hidden = false; show();
     } catch (error) { $('message').textContent = error.message; }

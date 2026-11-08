@@ -1,6 +1,32 @@
 # Test-drive manual-test build
 
 
+## 9 November printed waiver agreement
+
+Added a second, separate required checkbox beneath waiver acceptance:
+"I agree to sign a printed copy of this waiver."
+It starts unchecked and appears only when the saved waiver contains text.
+Clearing the waiver hides and disables both waiver checkboxes, preserving the
+optional-statements workflow and three-step flow when both texts are blank.
+Terms acceptance and first-page Data Privacy Consent remain unchanged.
+
+The browser sends printedWaiverAccepted, and server validation requires the
+literal boolean true for populated waivers before ticket allocation. When it
+is missing/false, the server reads the location's text rather than trusting
+client flags. Older already-open forms may need reloading to see the new box.
+This is agreement to sign later, not confirmation of an actual signature.
+No new database/Google Sheets column or historical consent backfill added.
+
+377 Node checks pass / 3 skipped, including unchecked/default visibility,
+browser step blocking and server bypass checks. Packaged files verified;
+physical/browser visual acceptance is pending.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-printedwaiver-20261109/tdqsys-v2-setup-2.0.0.exe
+Install manually for the local form; reload the v2 online client form after
+deployment. Local guides synchronized; no live statements, registrations,
+v1 assets or OTA settings changed. No database migration required.
+
+
 ## 8 November optional Waiver and Terms questions
 
 Desktop Settings now permits empty Waiver and Terms & Conditions text.
