@@ -927,11 +927,13 @@ async function localQueueTick(force=false) {
         if(queue.remoteBusy)return;
         const canWrite=require(path.join(RES_SERVER,'shared','licence.js')).status(cfg.instanceId,{dataDir:BASE_DIR}).canWrite;
         if(queue.state.outbox.length && !canWrite)return;
-        const before=JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError]);
-        if(canWrite)await applyLocalDisplay(queue);
+        const before=JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError,queue.state.snapshot?.models]);
+        // Project midnight/local actions first, even offline. A stale vehicle
+        // mapping must not prevent fetching the snapshot that can repair it.
+        if(canWrite)try {await applyLocalDisplay(queue);} catch { /* Retry after synchronization; retain the durable projection. */ }
         await queue.sync({force});
-        if(canWrite)await applyLocalDisplay(queue);
-        if(before!==JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError]))notifyLocalQueueChanged();
+        if(canWrite)try {await applyLocalDisplay(queue);} catch(error) {queue.lastError=error.message;}
+        if(before!==JSON.stringify([queue.state.lastSyncedAt,queue.state.outbox,queue.lastError,queue.state.snapshot?.models]))notifyLocalQueueChanged();
     }catch(error){if(localQueueOwner)localQueueOwner.lastError=error.message;}
 }
 function notifyLocalQueueChanged() {

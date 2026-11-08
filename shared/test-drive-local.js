@@ -134,6 +134,17 @@ class LocalTestDrive {
             operation.blocked=true;operation.error='The cloud queue run changed. Export/review and archive earlier-run actions in Event Setup.';
         }
         next.displayPending=next.displayPending.filter(item=>item.runId===snapshot.run?.id);
+        const mapping=models=>JSON.stringify((models || []).map(model=>[model.id,model.brand_key,model.unit_index,model.full_name]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
+        const staleProjection=next.displayPending.some(item=>{
+            const model=snapshot.models.find(model=>model.id===item.modelId);
+            return !model || model.brand_key!==item.brandKey || model.unit_index!==item.unit || model.full_name!==item.fullName;
+        });
+        if(mapping(previous?.models)!==mapping(snapshot.models) || staleProjection) {
+            // Rebuild derived TV work from the fresh snapshot plus the durable
+            // local outbox, even when vehicle configuration changes mid-run.
+            // Never drop/acknowledge registration records or unsynced actions.
+            next.displayContext=null;
+        }
         this.save(next);
     }
     async flush() {

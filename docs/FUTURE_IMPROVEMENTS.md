@@ -1,6 +1,58 @@
 # TDQSYS Future Improvements
 
 
+## 8 November Queue Board vehicle mapping recovery
+
+Fixed the board remaining on the default Car 1 while Settings and the TV show
+the configured vehicle list. A stale cached display projection failed its
+mapping guard before the background worker could fetch a fresh snapshot.
+The worker now continues synchronization after a projection failure and retries
+display application afterward. Fresh model IDs/names/brand/slot changes, or
+orphaned pending projection metadata, invalidate only the derived projection
+context. The next projection uses fresh model displays plus any durable local
+outbox overlay. Safety guards still refuse to write a number to the wrong car.
+
+No run reset, queue-file deletion, registration cleanup or manual live-data
+repair was performed. Unsynced actions, history and registrations remain
+intact; offline mismatches stay pending for recovery. Model list ordering alone
+does not trigger a rebuild. Staff windows are notified of model-list changes.
+359 Node checks pass / 3 skipped, including five new recovery regressions;
+the tests reproduced both failures before the fix and passed afterward.
+Existing instant local-announcement and offline-midnight-reset tests pass.
+
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-queuefix-20261108/tdqsys-v2-setup-2.0.0.exe
+Includes all earlier font-preview, header and shutdown fixes. Quit from the
+system tray, install manually, reopen and allow connected background sync to
+refresh the vehicle list. No Reset to Zero is required. Actual installed-app
+recovery awaits the user's acceptance check. Earlier installers, v1 and OTA
+remain unchanged; no cloud schema or Pages deployment is required.
+
+
+
+## 8 November client presentation revision 2
+
+Updated local presentation package:
+outputs/TDQSYS Client Presentation 2026-11-08 R2/
+Shareable archive:
+outputs/TDQSYS v2 Client Presentation 2026-11-08 R2.zip
+
+Six-page Word walkthrough and 30 regenerated PNG screenshots now show Agent
+terminology, compact frozen headers/table controls, and the fixed 50 x 30 mm
+ticket font controls with live Client/Agent print previews. Offline Screenshot
+Index.html and Read Me.txt are included. Earlier presentation files remain
+unchanged. All people, contacts, dealership examples, codes and QR links in
+these captures are fictional. No live registration, printer job, giveaway,
+Google Sheet, installed-app setting or queue record was changed.
+
+All six document pages and all screenshot contact sheets were inspected.
+Native LibreOffice rendering was attempted but soffice.exe is unavailable;
+visual QA used the existing isolated Electron docx-preview renderer. This is
+not native Word/PDF, physical printer, speaker or OTA acceptance. Presentation
+outputs remain local/untracked and are not intended for the public repository.
+
+
+
 ## 8 November ticket font settings and live preview
 
 Desktop Settings now includes Ticket printing, with separate Client queue ticket
