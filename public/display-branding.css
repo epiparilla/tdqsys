@@ -1,10 +1,11 @@
 @font-face{font-family:'GEELY Bold';src:url('fonts/GEELY-Bold.ttf') format('truetype');font-weight:100 900;font-style:normal;font-display:swap}
 @font-face{font-family:'Inter Variable';src:url('fonts/Inter-Variable.ttf') format('truetype');font-weight:100 900;font-style:normal;font-display:swap}
 @font-face{font-family:'Lynkco Type Medium';src:url('fonts/LynkcoType-Medium.ttf') format('truetype');font-weight:100 900;font-style:normal;font-display:swap}
+.brand-section{--display-label-scale:2;--display-queue-scale:0.5}
 .brand-section .brand-header h1{font-family:var(--display-brand-font,'Syncopate',sans-serif)}
 .brand-section .unit-label{font-family:var(--display-label-font,'Inter',sans-serif)}
 .brand-section .unit-number,.brand-section .unit-number .prefix{font-family:var(--display-queue-font,'Inter',sans-serif)}
-.brand-header .brand-logo{display:block;height:1em;max-height:1em;max-width:min(80vw,480px);width:auto;object-fit:contain;margin:auto}
+.brand-header .brand-logo{display:block;height:2em;max-height:2em;max-width:min(80vw,960px);width:auto;object-fit:contain;margin:auto}
 .display-branding-settings{border:1px solid #444;border-radius:8px;padding:12px;margin:12px 0}
 .display-branding-settings h3{font-size:14px;margin-bottom:8px}
 .display-branding-settings .field-row{gap:12px}

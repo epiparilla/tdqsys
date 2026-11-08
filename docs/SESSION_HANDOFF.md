@@ -6,6 +6,26 @@ not a verbatim transcript.
 ## Resume here
 
 
+## 8 November display scale adjustment
+
+TV and remote viewer now use twice the previous logo height (2em), twice
+the car-label font size and half the complete prefixed queue-number font
+size. Desktop, portrait-phone and landscape-phone rules share the same
+multipliers. The prefix retains its existing proportion within the number.
+Automatic viewport/row sizing and custom queue-font fit remain active.
+Logo width limit doubles to 960px, still constrained to 80vw on small screens.
+The full image, its supplied padding and aspect ratio remain untouched.
+Brand text size, font choices, print labels and saved settings are unchanged.
+
+371 Node checks pass / 3 skipped. Source regression checks cover every size
+breakpoint and padding preservation; physical display acceptance is pending.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-displayscale-20261108/tdqsys-v2-setup-2.0.0.exe
+Install manually for local TV changes; reload the v2 remote viewer after
+deployment. No version bump, OTA notification, v1 change or live data reset.
+This supersedes the original-size restoration below; cropping stays disabled.
+
+
 ## 8 November client logo padding restored
 
 Client-supplied logo padding must be preserved. Reverted the automatic

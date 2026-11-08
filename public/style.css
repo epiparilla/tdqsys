@@ -127,7 +127,7 @@ body {
 }
 
 .unit-label {
-    font-size: clamp(1.2rem, 1.6vw, 2rem);
+    font-size: calc(clamp(1.2rem, 1.6vw, 2rem) * var(--display-label-scale, 1));
     font-weight: 500;
     letter-spacing: 1px;
     color: var(--text-muted);
@@ -149,7 +149,7 @@ body {
 }
 
 .unit-number {
-    font-size: clamp(4rem, 6.5vw, 8rem);
+    font-size: calc(clamp(4rem, 6.5vw, 8rem) * var(--display-queue-scale, 1));
     font-weight: 900;
     line-height: 1;
     z-index: 2;
@@ -465,7 +465,7 @@ input[type=number] {
 
     /* Long model names wrap to two lines instead of truncating to nothing. */
     .unit-label {
-        font-size: calc(clamp(0.55rem, 2.5vw, 0.8rem) * var(--rows-scale, 1));
+        font-size: calc(clamp(0.55rem, 2.5vw, 0.8rem) * var(--rows-scale, 1) * var(--display-label-scale, 1));
         letter-spacing: 0.5px;
         line-height: 1.15;
         white-space: normal;
@@ -477,7 +477,7 @@ input[type=number] {
     }
 
     .unit-number {
-        font-size: calc(clamp(1.7rem, 8.5vw, 3rem) * var(--rows-scale, 1));
+        font-size: calc(clamp(1.7rem, 8.5vw, 3rem) * var(--rows-scale, 1) * var(--display-queue-scale, 1));
         text-shadow: 0 0 12px var(--brand-accent);
     }
 
@@ -553,11 +553,11 @@ input[type=number] {
     }
 
     .unit-label {
-        font-size: 0.7rem;
+        font-size: calc(0.7rem * var(--display-label-scale, 1));
     }
 
     .unit-number {
-        font-size: 2rem;
+        font-size: calc(2rem * var(--display-queue-scale, 1));
     }
 }
 /* -------------------------------------

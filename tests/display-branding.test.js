@@ -43,13 +43,26 @@ test('logo uses safe DOM attributes with brand-name fallback on load error',()=>
  assert.equal(heading.image.src,logo);assert.equal(heading.image.alt,'Brand <name>');assert.match(properties['--display-queue-font'],/Lynkco Type Medium/);
  heading.image.onerror();assert.equal(heading.textContent,'Brand <name>');
 });
-test('client-supplied logo padding and original screen sizing are preserved',()=>{
+test('client-supplied logo padding is preserved while display scale changes',()=>{
  const renderer=read('public/display-branding.js'),upload=read('public/settings-display-branding.js'),css=read('public/display-branding.css');
  assert.doesNotMatch(renderer,/cropLogo|alphaBounds|getImageData|toDataURL|image.onload/);
  assert.doesNotMatch(upload,/cropLogo|alphaBounds|getImageData/);
  assert.match(upload,/width\/image.naturalWidth,128\/image.naturalHeight/);
  assert.match(upload,/drawImage\(image,0,0,canvas.width,canvas.height\)/);
- assert.match(css,/\.brand-logo\{[^}]*height:1em;max-height:1em/);
+ assert.match(css,/\.brand-logo\{[^}]*height:2em;max-height:2em/);
+ assert.match(css,/max-width:min\(80vw,960px\)/);
+});
+
+test('TV and remote display double labels and halve whole prefixed numbers at every breakpoint',()=>{
+ const css=read('public/display-branding.css'),layout=read('public/style.css');
+ assert.match(css,/\.brand-section\{--display-label-scale:2;--display-queue-scale:0\.5\}/);
+ for(const [selector,variable] of [['unit-label','label'],['unit-number','queue']]){
+  const rules=[...layout.matchAll(new RegExp('\\.'+selector+'\\s*\\{([^}]+)\\}','g'))];
+  assert.equal(rules.length,3);
+  for(const rule of rules)assert.ok(rule[1].includes('var(--display-'+variable+'-scale, 1)'));
+ }
+ assert.match(layout,/\.prefix\s*\{\s*font-size: 0\.75em/);
+ assert.match(layout,/\.prefix\s*\{\s*font-size: 0\.62em/);
 });
 test('appearance changes are detected but do not trigger a vehicle queue reset prompt',()=>{
  const af=loadAfJs(),base={brands:[{key:'brand1',name:'Brand',models:[{label:'Car',prefix:'AA'}]}]},changed=structuredClone(base);
