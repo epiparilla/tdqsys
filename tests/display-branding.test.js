@@ -43,6 +43,16 @@ test('logo uses safe DOM attributes with brand-name fallback on load error',()=>
  assert.equal(heading.image.src,logo);assert.equal(heading.image.alt,'Brand <name>');assert.match(properties['--display-queue-font'],/Lynkco Type Medium/);
  heading.image.onerror();assert.equal(heading.textContent,'Brand <name>');
 });
+test('transparent logo bounds use artwork rather than square image padding',()=>{
+ const pixels=new Uint8ClampedArray(128*128*4);
+ for(let y=56;y<72;y++)for(let x=7;x<121;x++)pixels[(y*128+x)*4+3]=255;
+ assert.deepEqual(api.alphaBounds(pixels,128,128),{x:7,y:56,width:114,height:16});
+ assert.equal(api.alphaBounds(new Uint8ClampedArray(128*128*4),128,128),null);
+ const full=new Uint8ClampedArray(3*2*4).fill(255);assert.deepEqual(api.alphaBounds(full,3,2),{x:0,y:0,width:3,height:2});
+ const css=read('public/display-branding.css');assert.match(css,/height:clamp\(28px,4.5vh,64px\)/);assert.doesNotMatch(css,/\.brand-logo\{[^}]*height:1em/);
+ const upload=read('public/settings-display-branding.js');assert.ok(upload.indexOf('api.cropLogo(image)')<upload.indexOf('for(const width of [512'));
+ assert.match(read('public/display-branding.js'),/image.onload=\(\)=>/);
+});
 test('appearance changes are detected but do not trigger a vehicle queue reset prompt',()=>{
  const af=loadAfJs(),base={brands:[{key:'brand1',name:'Brand',models:[{label:'Car',prefix:'AA'}]}]},changed=structuredClone(base);
  changed.brands[0].display=api.normalize({brandFont:'geely'});assert.equal(af.afConfigEqual(base,changed),false);

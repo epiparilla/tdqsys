@@ -25,6 +25,25 @@
         return normalize(raw);
     }
     const family=(id,fallback)=>id==='auto'?fallback:`'${fonts.find(font=>font.id===id)?.name||'Arial'}',sans-serif`;
+    function alphaBounds(pixels,width,height){
+        let left=width,top=height,right=-1,bottom=-1;
+        for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(pixels[(y*width+x)*4+3]>0){
+            left=Math.min(left,x);top=Math.min(top,y);right=Math.max(right,x);bottom=Math.max(bottom,y);
+        }
+        return right<0?null:{x:left,y:top,width:right-left+1,height:bottom-top+1};
+    }
+    function cropLogo(image){
+        const width=image.naturalWidth||image.width,height=image.naturalHeight||image.height;
+        if(!width||!height||width*height>40000000)return null;
+        const source=document.createElement('canvas');source.width=width;source.height=height;
+        const context=source.getContext('2d');context.drawImage(image,0,0);
+        const bounds=alphaBounds(context.getImageData(0,0,width,height).data,width,height);
+        if(!bounds)return null;
+        if(bounds.width===width&&bounds.height===height)return source;
+        const cropped=document.createElement('canvas');cropped.width=bounds.width;cropped.height=bounds.height;
+        cropped.getContext('2d').drawImage(source,bounds.x,bounds.y,bounds.width,bounds.height,0,0,bounds.width,bounds.height);
+        return cropped;
+    }
     let frame;
     function refresh(){
         if(typeof document==='undefined'||typeof requestAnimationFrame==='undefined'||frame)return;
@@ -47,6 +66,13 @@
         section.dataset.customQueueFont=String(format.queueFont!=='auto');
         if(format.headerMode==='logo'){
             const image=document.createElement('img');image.className='brand-logo';image.alt=brand.name;image.src=format.logo;
+            // Correct already-saved padded logos in memory, without changing
+            // location settings. New uploads are trimmed before downsampling.
+            image.onload=()=>{
+                image.onload=null;
+                try{const cropped=cropLogo(image);if(!cropped)throw Error('Empty logo');image.src=cropped.toDataURL('image/png');}
+                catch{heading.textContent=brand.name;}
+            };
             image.onerror=()=>{heading.textContent=brand.name;};heading.replaceChildren(image);
         }
         refresh();
@@ -58,5 +84,5 @@
     }
     if(typeof window!=='undefined')window.addEventListener('resize',refresh);
     if(typeof document!=='undefined'&&document.fonts?.addEventListener)document.fonts.addEventListener('loadingdone',refresh);
-    return {fonts,validLogo,normalize,validate,apply,refresh};
+    return {fonts,validLogo,normalize,validate,alphaBounds,cropLogo,apply,refresh};
 });

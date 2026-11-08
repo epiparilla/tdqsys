@@ -25,11 +25,12 @@ window.TdqDisplaySettings=(()=>{
                 if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>4*1024*1024)throw Error('Choose a PNG, JPEG or WebP image up to 4 MB.');
                 url=URL.createObjectURL(file);const image=new Image();image.src=url;await image.decode();
                 if(!image.naturalWidth||!image.naturalHeight||image.naturalWidth*image.naturalHeight>40000000)throw Error('Logo image dimensions are too large.');
+                const cropped=api.cropLogo(image);if(!cropped)throw Error('Choose a logo with visible artwork, not a fully transparent image.');
                 const canvas=document.createElement('canvas');let data;
                 for(const width of [512,384,256,192]){
-                    const scale=Math.min(1,width/image.naturalWidth,128/image.naturalHeight);
-                    canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
-                    canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);data=canvas.toDataURL('image/png');
+                    const scale=Math.min(1,width/cropped.width,128/cropped.height);
+                    canvas.width=Math.max(1,Math.round(cropped.width*scale));canvas.height=Math.max(1,Math.round(cropped.height*scale));
+                    canvas.getContext('2d').drawImage(cropped,0,0,canvas.width,canvas.height);data=canvas.toDataURL('image/png');
                     if(api.validLogo(data))break;
                 }
                 if(!api.validLogo(data))throw Error('Use a simpler or smaller logo (prepared PNG must fit within 32 KB).');

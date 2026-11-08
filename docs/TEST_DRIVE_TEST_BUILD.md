@@ -1,6 +1,33 @@
 # Test-drive manual-test build
 
 
+## 8 November logo size and transparent padding correction
+
+Fixed tiny logos caused by empty transparent canvas around the visible mark.
+The initial saved sample was 128 x 128 pixels with visible art only 114 x 16.
+Both TV and remote viewer now crop transparent padding in memory when loading
+an existing logo; saved location settings are not rewritten by display code.
+New uploads are cropped before downsampling, so a square padded source does
+not lose most of its useful detail in the 128-pixel height preparation limit.
+Fully transparent images are rejected/fall back to brand text as appropriate.
+Opaque/colored backgrounds and artwork are preserved; only alpha padding is
+removed. Header logo height is now responsive clamp(28px,4.5vh,64px), preserving
+aspect ratio and bounded width on phones and desktops. No size control added.
+
+370 Node checks pass / 3 skipped. Read-only Electron checks using a copied
+saved brand logo verified the larger TV and remote appearance, phone layout,
+and preserved upload detail: a padded 512-square sample kept its cropped
+448 x 64 artwork rather than being reduced to a padded 128-square image.
+No live settings, queue or registration records were changed. Existing logos
+work without re-uploading; re-upload the original if an earlier downsampled
+image looks soft, since lost source detail cannot be recovered.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-logosize-20261108/tdqsys-v2-setup-2.0.0.exe
+V2 viewer updated too; reload existing remote tabs. Earlier installers,
+presentation R2, v1 and OTA remain unchanged. All previous v2 fixes included.
+
+
+
 ## 8 November bundled display fonts and brand logos
 
 Bundled the supplied GEELY-Bold.ttf, Inter-Variable.ttf and
