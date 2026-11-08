@@ -1,6 +1,25 @@
 # TDQSYS Future Improvements
 
 
+## 8 November display scale fine-tuning, revision 2
+
+Relative to the preceding display-scale build: logo height increases 100%
+(2em to 4em), car labels decrease 25% (scale 2 to 1.5), and the complete
+prefixed number increases 25% (scale 0.5 to 0.625). Both TV and remote viewer,
+including portrait/landscape phone breakpoints, share these multipliers.
+Logo width cap doubles to 1920px while retaining the 80vw viewport limit.
+Padding, aspect ratio, logo pixels, brand text size and print labels remain
+unchanged. Automatic row/viewport sizing and queue-font fit stay active.
+
+371 Node checks pass / 3 skipped. Source regression and packaged-file checks
+verify the changes; physical display/visual acceptance remains pending.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-displayscale-r2-20261108/tdqsys-v2-setup-2.0.0.exe
+Install manually for the local TV display; reload the v2 remote viewer after
+deployment. Local guides synchronized; v1, OTA and live records unchanged.
+This revision supersedes the scale values in the preceding entry below.
+
+
 ## 8 November display scale adjustment
 
 TV and remote viewer now use twice the previous logo height (2em), twice
