@@ -6,6 +6,54 @@ not a verbatim transcript.
 ## Resume here
 
 
+## 9 November audited giveaway and beginning-balance corrections
+
+Normal issued-item checkboxes and saved opening balances remain locked.
+Giveaways > Manage items now has "Correct recorded items / history".
+Settings > Giveaway setup has "Correct balance / history" for initialized
+items. These separate contingency dialogs require the entered operator name,
+a reason, a verification checkbox and a before/after confirmation prompt.
+Unchecking a mistaken issue restores one unit; checking a replacement deducts
+one unit. Corrections are records-only: verify physical handover/stock first.
+One of each item per registration/current run is still enforced.
+
+Corrections are licensed desktop operations, authenticated by location writer
+token. SQL locks serialize corrections with normal issues, replenishments and
+run changes. The server compares expected current values and rejects stale
+forms, cross-location targets, closed/earlier runs, duplicates, unavailable
+replacements and negative remaining stock. A replacement batch succeeds in
+full or changes nothing. Saved opening quantities update only through this
+audited action; replenishments are retained. Existing ledger returns feed the
+dashboard's Restored/net-given totals; remaining stock is recalculated.
+
+The existing private audit_log retains original/new values, reason, operator,
+timestamp, run and a retry receipt. Original claim ledger events remain;
+opening corrections retain old/new quantities in audit history atomically
+with the current balance update. Dialogs show the latest 200 matching audit
+entries; full audit data stays in existing event backups. Explicit history
+cleanup includes correction audit records and preserves its backup safeguards.
+No raw form snapshots, Google Sheets data or configuration lists are changed.
+
+Uncertain network results retain a run/target-bound request ID in local
+storage and lock values for retry. Replaying cannot apply twice; a stale-data
+conflict requires closing/refreshing before a new correction. Normal pending
+issues/replenishments must be resolved before entering correction controls.
+The recorded operator name is entered by staff, not a separate user login.
+
+381 Node checks pass / 3 skipped; 43 isolated PostgreSQL checks pass.
+Tests cover UI confirmation/cancellation, pending retry after reopening,
+stale conflicts, location/run boundaries, audit/history, stock return and
+replacement atomicity, opening reductions, retained replenishments, retries,
+browser RPC denial, backups, dashboard totals and unchanged raw Sheet data.
+Packaged files verified; physical visual acceptance remains pending.
+Applied 202611090001_giveaway_corrections.sql and deployed only the private
+test-drive-operations backend. No real client selections or balances corrected.
+No Pages deployment is needed for these desktop-only staff controls.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-giveawaycorrections-20261109/tdqsys-v2-setup-2.0.0.exe
+All previous fixes retained. Local guides synchronized; v1 and OTA unchanged.
+
+
 ## 9 November printed waiver agreement
 
 Added a second, separate required checkbox beneath waiver acceptance:

@@ -45,6 +45,19 @@ Deno.serve(async (req) => {
       const result = await syncOneRegistration(admin, instanceId, Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON'));
       return Response.json(result, { headers: cors });
     }
+    if(['giveaway-correct','giveaway-correction-history'].includes(body.action)) {
+      const id=value=>typeof value==='string' && /^[0-9a-f-]{36}$/i.test(value);
+      if(!id(body.runId) || !['claims','opening'].includes(body.kind) || typeof body.target!=='string' || !body.target.trim() || body.target.length>160 || (body.kind==='claims' && !id(body.target)))return Response.json({error:'Invalid correction target.'},{status:400,headers:cors});
+      const write=body.action==='giveaway-correct';
+      const items=value=>Array.isArray(value) && value.length<=200 && value.every(item=>typeof item==='string' && item.trim() && item.length<=160) && new Set(value.map(item=>item.trim().toLowerCase())).size===value.length;
+      const quantity=value=>Number.isInteger(value) && value>=0 && value<=100000000;
+      if(write && (body.confirm!==true || !id(body.requestId) || typeof body.reason!=='string' || body.reason.trim().length<3 || body.reason.length>500 || typeof body.operator!=='string' || !body.operator.trim() || body.operator.length>120 || !(body.kind==='claims'?items(body.expected)&&items(body.value):quantity(body.expected)&&quantity(body.value))))return Response.json({error:'Review the correction, enter your name and reason, then confirm.'},{status:400,headers:cors});
+      const {data,error}=await admin.rpc(write?'tdqsys_correct_giveaway':'tdqsys_giveaway_correction_history',write?{
+        p_instance_id:instanceId,p_kind:body.kind,p_target:body.target,p_expected:body.expected,p_value:body.value,p_reason:body.reason.trim(),p_operator:body.operator.trim(),p_request_id:body.requestId,p_expected_run:body.runId
+      }:{p_instance_id:instanceId,p_run_id:body.runId,p_kind:body.kind,p_target:body.target});
+      if(error)return Response.json({error:error.message},{status:error.code==='P0001'?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
     if(body.action==='issue-giveaways') {
       if(typeof body.runId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.runId) || typeof body.registrationId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.registrationId) || typeof body.requestId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.requestId)
         || !Array.isArray(body.items) || body.items.length<1 || body.items.length>200 || body.items.some(item=>typeof item!=='string' || !item.trim() || item.length>160)

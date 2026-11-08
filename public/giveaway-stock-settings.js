@@ -7,7 +7,7 @@
   async function request(body) {
     if(!window.afDesktop?.testDrive)throw Error('Open Settings inside TDQSYS.');
     const result=await window.afDesktop.testDrive(body);
-    if(!result.ok)throw Error(result.error || 'Stock service is unavailable.');
+    if(!result.ok)throw Object.assign(Error(result.error || 'Stock service is unavailable.'),{status:result.status});
     return result;
   }
   function key() {return 'tdqsys-pending-stock-'+(typeof stateDoc!=='undefined'?stateDoc?.config?.instanceId:'local')+'-'+(runId || 'legacy');}
@@ -15,14 +15,19 @@
   function addRow(item='',opening='') {
     const tr=document.createElement('tr');
     const first=document.createElement('td'),second=document.createElement('td'),third=document.createElement('td');
-    const name=document.createElement('input'),quantity=document.createElement('input'),remove=document.createElement('button'),plus=document.createElement('button');
+    const name=document.createElement('input'),quantity=document.createElement('input'),remove=document.createElement('button'),plus=document.createElement('button'),correct=document.createElement('button');
     name.type='text';name.value=item;name.maxLength=160;name.placeholder='Giveaway item';name.setAttribute('aria-label','Giveaway item');
     quantity.type='number';quantity.min='0';quantity.max='100000000';quantity.step='1';quantity.value=opening;quantity.placeholder='Opening quantity';quantity.setAttribute('aria-label','Beginning balance');
     remove.type=plus.type='button';remove.textContent='Remove';plus.textContent='+';plus.title='Replenish this item';plus.setAttribute('aria-label','Replenish giveaway item');
     const box=document.createElement('div'),amount=document.createElement('input'),commit=document.createElement('button'),cancel=document.createElement('button');
     box.hidden=true;amount.type='number';amount.min='1';amount.max='100000000';amount.step='1';amount.placeholder='Quantity to add';amount.setAttribute('aria-label','Replenishment quantity');
     commit.type=cancel.type='button';commit.textContent='Add stock';cancel.textContent='Cancel';box.appendChild(amount);box.appendChild(commit);box.appendChild(cancel);
-    const row={tr,name,quantity,total:third,plus,original:item,box,amount,commit};rows.push(row);
+    const row={tr,name,quantity,total:third,plus,correct,original:item,box,amount,commit};rows.push(row);
+    correct.type='button';correct.textContent='Correct balance / history';correct.onclick=()=>{
+      const stock=inventory.find(entry=>entry.item===name.value.trim());
+      if(!stock?.initialized || adding.has(name.value.trim()) || pending()[name.value.trim()])return;
+      window.TdqGiveawayCorrections.open({kind:'opening',target:stock.item,name:stock.item,expected:stock.opening,instanceId:typeof stateDoc!=='undefined'?stateDoc?.config?.instanceId:'local',runId,request,after:refresh});
+    };
     remove.onclick=()=>{rows.splice(rows.indexOf(row),1);tr.remove();};
     plus.onclick=()=>{
       const operation=pending()[row.name.value.trim()];box.hidden=false;
@@ -30,9 +35,9 @@
     };
     commit.onclick=()=>replenish(row);cancel.onclick=()=>{box.hidden=true;};
     for(const input of [name,quantity,amount])input.style.width='min(100%,240px)';
-    for(const element of [remove,plus,commit,cancel]){element.className='btn-ghost settings-btn';element.style.margin='4px';element.style.padding='5px 10px';}
+    for(const element of [remove,plus,commit,cancel,correct]){element.className='btn-ghost settings-btn';element.style.margin='4px';element.style.padding='5px 10px';}
     for(const cell of [first,second,third]){cell.style.padding='7px 6px';cell.style.borderBottom='1px solid #333';}
-    first.appendChild(name);first.appendChild(remove);second.appendChild(quantity);second.appendChild(plus);second.appendChild(box);
+    first.appendChild(name);first.appendChild(remove);second.appendChild(quantity);second.appendChild(plus);second.appendChild(box);second.appendChild(correct);
     tr.appendChild(first);tr.appendChild(second);tr.appendChild(third);byId('cfg-giveaway-items').appendChild(tr);updateRows();
   }
   function updateRows() {
@@ -43,6 +48,7 @@
       if(stock?.initialized)row.quantity.value=stock.opening;
       row.plus.disabled=!stock?.initialized || row.name.value.trim()!==row.original || adding.has(row.name.value.trim());
       row.commit.disabled=adding.has(row.name.value.trim());
+      row.correct.disabled=!stock?.initialized || adding.has(row.name.value.trim()) || !!pending()[row.name.value.trim()] || row.name.value.trim()!==row.original;
       row.total.textContent=stock?String(stock.supplied):'Not yet recorded';
       if(stock && stock.remaining<0)row.total.textContent+=' — opening stock needs reconciliation';
     }

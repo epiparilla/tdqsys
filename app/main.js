@@ -1031,7 +1031,7 @@ function getHistoryCleanup(cfg) {
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
-        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview', 'speech-status', 'giveaway-inventory', 'giveaway-stock'];
+        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview', 'speech-status', 'giveaway-inventory', 'giveaway-stock', 'giveaway-correct', 'giveaway-correction-history'];
         const allowedPage = ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/giveaways.html','/live-dashboard.html','/event-setup.html','/test-drive-operations.html'].includes(sender.pathname)
             || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
@@ -1063,7 +1063,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (request.action === 'configure') {
             request = buildTestDriveSettings(cfg);
         }
-        if (!['snapshot', 'integration-info','export-local-queue','giveaway-snapshot','giveaway-inventory','dashboard-snapshot'].includes(request.action)) {
+        if (!['snapshot', 'integration-info','export-local-queue','giveaway-snapshot','giveaway-inventory','dashboard-snapshot','giveaway-correction-history'].includes(request.action)) {
             const licence = require(path.join(RES_SERVER, 'shared', 'licence.js'));
             if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
         }

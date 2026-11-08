@@ -512,6 +512,66 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
         await db.exec('rollback to savepoint stale_consent');
       }finally{await db.exec('rollback');}
     });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611090001_giveaway_corrections.sql'),'utf8'));
+    await db.exec('begin');
+    try {
+      const correctionRun=await rpc('tdqsys_ensure_daily_run',[A]);
+      const client=(await db.query('select id from registrations where instance_id=$1 limit 1',[A])).rows[0].id;
+      const rawSheet=(await db.query('select payload_snapshot from sheet_sync_jobs where registration_id=$1',[client])).rows;
+      const cap='Correction Cap',mug='Correction Mug',empty='Correction Empty';
+      await rpc('tdqsys_configure_inventory',[A,JSON.stringify([cap,mug,empty]),JSON.stringify([{item:cap,quantity:10,requestId:randomUUID(),runId:correctionRun},{item:mug,quantity:2,requestId:randomUUID(),runId:correctionRun},{item:empty,quantity:0,requestId:randomUUID(),runId:correctionRun}])]);
+      const correct=(kind,target,before,after,id=randomUUID(),location=A,runId=correctionRun,reason='Verified recording error',operator='Test facilitator')=>rpc('tdqsys_correct_giveaway',[location,kind,target,JSON.stringify(before),JSON.stringify(after),reason,operator,id,runId]);
+      const stock=async item=>(await rpc('tdqsys_inventory_snapshot',[A,null])).find(row=>row.item===item);
+      const denied=async(fn,pattern)=>{await db.exec('savepoint rejected_correction');await assert.rejects(fn(),pattern);await db.exec('rollback to savepoint rejected_correction');};
+      await rpc('tdqsys_issue_giveaways',[A,client,JSON.stringify([cap]),randomUUID(),correctionRun]);
+      await check('audited item corrections add replacements and return removed stock exactly once',async()=>{
+        await correct('claims',client,[cap],[cap,mug]);assert.equal((await stock(mug)).remaining,1);
+        const id=randomUUID(),result=await correct('claims',client,[cap,mug],[mug],id);
+        assert.equal((await stock(cap)).remaining,10);
+        assert.equal((await correct('claims',client,[cap,mug],[mug],id)).replayed,true);
+        assert.equal((await stock(cap)).remaining,10);
+        await denied(()=>correct('claims',client,[cap,mug],[],id),/request ID/);
+        await correct('claims',client,[mug],[]);assert.equal((await stock(mug)).remaining,2);
+        await rpc('tdqsys_issue_giveaways',[A,client,JSON.stringify([mug]),randomUUID(),correctionRun]);assert.equal((await stock(mug)).remaining,1);
+        assert.equal(result.saved,true);
+      });
+      await check('corrections reject stale, cross-location, invalid, unstocked and no-op requests atomically',async()=>{
+        const before=await rpc('tdqsys_event_backup',[A]);
+        await denied(()=>correct('claims',client,[mug],[empty]),/out of stock/);
+        await denied(()=>correct('claims',client,[cap],[]),/selection changed/);
+        await denied(()=>correct('claims',client,[mug],[],randomUUID(),B),/run changed|read-only|registration not found/);
+        await denied(()=>correct('claims',client,[mug],[],randomUUID(),A,randomUUID()),/run changed/);
+        await denied(()=>correct('claims',client,[mug],[mug,mug]),/each item once/);
+        await denied(()=>correct('claims',client,[mug],[mug]),/no giveaway correction/);
+        await denied(()=>correct('claims',client,[mug],[],randomUUID(),A,correctionRun,''),/reason/);
+        await denied(()=>correct('claims',client,[mug],[],randomUUID(),A,correctionRun,'Valid reason',''),/operator/);
+        assert.deepEqual(await rpc('tdqsys_event_backup',[A]),before);
+      });
+      await check('beginning balance correction preserves replenishments, prevents negative stock and safely retries',async()=>{
+        const id=randomUUID();await correct('opening',cap,10,8,id);
+        assert.equal((await stock(cap)).opening,8);assert.equal((await stock(cap)).remaining,8);
+        assert.equal((await correct('opening',cap,10,8,id)).replayed,true);
+        await denied(()=>correct('opening',cap,10,9),/balance changed/);
+        await denied(()=>correct('opening',mug,2,0),/negative/);
+        await rpc('tdqsys_add_giveaway_stock',[A,mug,2,'replenishment',randomUUID(),correctionRun]);
+        await correct('opening',mug,2,0);assert.equal((await stock(mug)).supplied,2);assert.equal((await stock(mug)).remaining,1);
+        await denied(()=>correct('opening',cap,8,-1),/whole number/);
+      });
+      await check('correction audit retains operator, reason, before/after and backup data without changing raw Sheets',async()=>{
+        const history=await rpc('tdqsys_giveaway_correction_history',[A,correctionRun,'opening',cap]);
+        assert.equal(history.history[0].actor_id,'Test facilitator');assert.equal(history.history[0].details.result.before,10);assert.equal(history.history[0].details.result.after,8);
+        assert.equal(history.history[0].details.request.reason,'Verified recording error');
+        assert.equal((await rpc('tdqsys_giveaway_correction_history',[B,correctionRun,'opening',cap])).history.length,0);
+        const backup=await rpc('tdqsys_event_backup',[A]);assert.ok(backup.tables.audit_log.some(row=>row.action==='giveaway-correction'));
+        assert.deepEqual((await db.query('select payload_snapshot from sheet_sync_jobs where registration_id=$1',[client])).rows,rawSheet);
+        const dash=await rpc('tdqsys_dashboard_snapshot',[A,correctionRun]);assert.equal(dash.inventory.find(row=>row.item===mug).remaining,1);
+      });
+      await check('closed-run correction attempts are blocked and browser roles cannot call correction RPCs',async()=>{
+        await rpc('tdqsys_open_queue_run',[A,today,'New correction test run','facilitator']);
+        await denied(()=>correct('opening',cap,8,9),/run changed/);
+        for(const role of ['anon','authenticated'])for(const name of ['tdqsys_correct_giveaway(text,text,text,jsonb,jsonb,text,text,uuid,uuid)','tdqsys_giveaway_correction_history(text,uuid,text,text)'])assert.equal((await db.query('select has_function_privilege($1,$2,\'execute\') allowed',[role,name])).rows[0].allowed,false);
+      });
+    }finally{await db.exec('rollback');}
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

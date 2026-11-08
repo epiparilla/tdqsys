@@ -92,6 +92,7 @@
     byId('giveaway-issue').textContent=pending?'Retry pending issue':'Give selected items';
     byId('giveaway-issue').disabled=!canWrite || issuing || (!pending && !draft.size) || !snapshot.registrations.some(row=>row.registrationId===activeId);
     byId('giveaway-close').disabled=issuing;byId('giveaway-choices').disabled=issuing;
+    const correction=byId('giveaway-correct');if(correction)correction.disabled=!canWrite || issuing || !!pending || draft.size>0;
   }
   function renderPanel() {
     if(!activeId)return;
@@ -136,6 +137,12 @@
     } finally {generation++;issuing=false;panelSignature='';signature='';renderPanel();refresh();}
   }
   function closePanel(){if(issuing)return;const id=activeId;activeId=null;draft.clear();byId('giveaway-dialog').close();signature='';render();manageButtons.get(id)?.focus();}
+  const correction=byId('giveaway-correct');
+  correction.onclick=()=>{
+    const registration=snapshot.registrations.find(row=>row.registrationId===activeId);
+    if(!registration || !canWrite || issuing || pendingBatches()[activeId] || draft.size)return;
+    window.TdqGiveawayCorrections.open({kind:'claims',target:activeId,name:registration.fullName,expected:[...claims(registration)],items:snapshot.giveawayItems,instanceId:snapshot.instanceId,runId:snapshot.runId,request,after:async()=>{generation++;signature='';panelSignature='';await refresh();}});
+  };
   byId('giveaway-issue').onclick=issue;byId('giveaway-close').onclick=closePanel;
   byId('giveaway-dialog').addEventListener('cancel',event=>{event.preventDefault();closePanel();});
   byId('giveaway-search').oninput=render;

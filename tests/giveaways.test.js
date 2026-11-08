@@ -15,7 +15,7 @@ test('Giveaways keeps raw Sheet columns without a visible registration ID and ha
 function screen(extra={}) {
   function node(tag='div') {return {tag,children:[],dataset:{},value:'',listeners:{},setAttribute(){},appendChild(child){this.children.push(child);},replaceChildren(){this.children=[];},
     focus(){},showModal(){this.open=true;},close(){this.open=false;},addEventListener(type,fn){this.listeners[type]=fn;}};}
-  const ids=['giveaway-rows','giveaway-search','giveaway-count','refresh','licence-locked','licence-locked-why','message','run','sheets-status','giveaway-dialog','giveaway-client','giveaway-choices','giveaway-panel-status','giveaway-issue','giveaway-close'];
+  const ids=['giveaway-rows','giveaway-search','giveaway-count','refresh','licence-locked','licence-locked-why','message','run','sheets-status','giveaway-dialog','giveaway-client','giveaway-choices','giveaway-panel-status','giveaway-issue','giveaway-close','giveaway-correct'];
   const elements=Object.fromEntries(ids.map(id=>[id,node()]));
   let data=extra.data || {instanceId:'location',day:'2026-11-06',registrations:[{registrationId:'id',fullName:'Client',email:'<script>bad</script>',models:['Car A','Car B'],forApplication:false,giveawayClaims:[]}],
     giveawayItems:['Cap','Tote','Empty'],inventory:[{item:'Cap',remaining:3},{item:'Tote',remaining:5},{item:'Empty',remaining:0}]};

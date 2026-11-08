@@ -182,3 +182,12 @@ test('SE reset requires confirmation and supplies authenticated ownership to its
   const rpc=accepted.calls.find(call=>call.rpc);assert.equal(rpc.rpc,'tdqsys_reset_sales_executives');
   assert.equal(rpc.args.p_instance_id,INSTANCE);assert.equal(rpc.args.p_reason,'Testing');
 });
+
+test('correction bridge requires confirmation, reason and operator and supplies authenticated location',async()=>{
+ const body={action:'giveaway-correct',kind:'claims',target:WRITER,runId:WRITER,requestId:WRITER,expected:['Cap'],value:[],operator:'Staff',reason:'Wrong item recorded',confirm:true};
+ for(const invalid of [{confirm:false},{reason:''},{operator:''},{requestId:'bad'},{value:['Cap','cap']},{kind:'opening',expected:1,value:-1}]){
+  const result=await runEdge({...body,...invalid});assert.equal(result.response.status,400);assert.equal(result.calls.some(call=>call.rpc),false);
+ }
+ const result=await runEdge({...body,instanceId:'other'});assert.equal(result.response.status,200);const call=result.calls.find(call=>call.rpc);assert.equal(call.rpc,'tdqsys_correct_giveaway');assert.equal(call.args.p_instance_id,INSTANCE);assert.deepEqual(Array.from(call.args.p_value),[]);
+ const history=await runEdge({action:'giveaway-correction-history',kind:'opening',target:'Cap',runId:WRITER});assert.equal(history.calls.find(call=>call.rpc).rpc,'tdqsys_giveaway_correction_history');
+});
