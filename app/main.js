@@ -991,30 +991,11 @@ function formatClientLabel(label, config) {
     return {...label,value:(model.prefix||'')+String(label.queueNumber).padStart(2,'0')};
 }
 
-function buildPrintLabelHtml(label) {
-    const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-    const seCode = label.kind === 'se_code_slip';
-    return `<html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}body{margin:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Arial;text-align:center;overflow:hidden}h1{font-size:24pt;line-height:1.05;margin:1mm 2mm;font-weight:900;max-width:46mm;overflow-wrap:anywhere}p{font-size:18pt;font-weight:700;margin:1mm}.large-code h1{width:46mm;height:10mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.large-code h1 span{width:100%;overflow-wrap:anywhere}.large-code p{font-size:36pt;max-width:46mm;line-height:1.05;flex-shrink:0;margin:1mm 0;white-space:nowrap}</style></head><body class="${seCode?'se-code':'client-ticket'} large-code"><h1><span>${escape(label.header)}</span></h1><p>${escape(label.value)}</p></body></html>`;
+function buildPrintLabelHtml(label,formatting) {
+    return require(path.join(RES_SERVER,'public','print-label.js')).buildHtml(label,formatting);
 }
 
-function fitPrintLabel() {
-    const header = document.querySelector('h1'), number = document.querySelector('p');
-    let size = 32;
-    if (document.body.classList.contains('large-code')) {
-        const name = header.querySelector('span');
-        while (size > 6 && (name.getBoundingClientRect().height > header.clientHeight || name.scrollWidth > header.clientWidth)) {
-            size -= 0.5; header.style.fontSize = size + 'px';
-        }
-        let numberSize=48;
-        while(numberSize>12 && number.scrollWidth>number.clientWidth) {
-            numberSize-=0.5;number.style.fontSize=numberSize+'px';
-        }
-        return; // Normal four-character ticket/code remains 36pt.
-    }
-    while (size > 16 && document.body.scrollHeight > document.body.clientHeight) {
-        size--; header.style.fontSize = size + 'px'; number.style.fontSize = Math.max(12,size-4) + 'px';
-    }
-}
+const fitPrintLabel=require(path.join(RES_SERVER,'public','print-label.js')).fit;
 
 let historyCleanupOwner;
 function getHistoryCleanup(cfg) {
@@ -1116,7 +1097,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             const printWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
             let printError;
             try {
-                const html = buildPrintLabelHtml(formatClientLabel(label,cfg));
+                const html = buildPrintLabelHtml(formatClientLabel(label,cfg),cfg.ticketPrinting);
                 await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
                 await printWindow.webContents.executeJavaScript(`(${fitPrintLabel.toString()})()`);
                 await new Promise((resolve, reject) => printWindow.webContents.print({ silent: true, deviceName: printerName,

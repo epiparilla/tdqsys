@@ -369,6 +369,21 @@
         </div>
         <!-- Brands -->
         <div class="settings-card">
+            <h2>Ticket printing</h2>
+            <p>Label size is fixed at <strong>50 mm × 30 mm</strong>. Format client tickets and Agent-code labels separately. Save Configuration to apply. Long text automatically shrinks to keep the complete header and number on the label.</p>
+            <div class="ticket-print-layout"><div>
+                <div class="field"><label for="ticket-label-type">Label type</label><select id="ticket-label-type"><option value="client">Client queue ticket</option><option value="agent">Agent code</option></select></div>
+                <div id="ticket-font-controls"></div>
+                <div class="field"><label for="ticket-align">Text alignment</label><select id="ticket-align"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
+                <button type="button" id="ticket-font-reset" class="settings-btn btn-ghost">Reset this label's formatting</button>
+            </div><aside class="ticket-preview-side" aria-label="Live ticket preview">
+                <h3>Live print preview</h3><p>50 mm × 30 mm · black on white</p>
+                <iframe id="ticket-print-preview" title="Live 50 by 30 millimetre ticket preview" sandbox="allow-scripts"></iframe>
+                <div class="field"><label for="ticket-agent-sample">Preview Agent name (not saved)</label><input id="ticket-agent-sample" value="Alexandra Reyes" maxlength="160"></div>
+                <p class="hint">Uses the first configured vehicle and its complete prefix + 01, or a sample Agent code. Screen size depends on monitor scaling; the printer page is always 50 × 30 mm. Previewing never sends a print job.</p>
+            </aside></div>
+        </div>
+        <div class="settings-card">
             <h2>Brands &amp; Cars</h2>
             <p style="opacity:0.6; font-size:0.85rem; margin-bottom:0.8rem;">Up to 2 brands. Brand 2 turns off automatically when Brand 1 reaches 12 cars. Max 12 cars total.</p>
             <div id="brand-editors"></div>
@@ -480,6 +495,8 @@
 
     <script src="af.js"></script>
     <script src="announcements.js"></script>
+    <script src="print-label.js"></script>
+    <script src="settings-ticket-print.js"></script>
     <!-- Local, not a CDN: Settings must still work when the internet is down. -->
     <script>
         // ---------------------------------------------------------------
@@ -1092,6 +1109,7 @@ function renderLicence(st) {
             set('cfg-waiver', c.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
             set('cfg-dealerships', (c.testDrive?.dealerships || []).join('\n'));
             window.TdqGiveawayStock?.hydrate(c.testDrive || {});
+            window.TdqTicketPrint.hydrate(c.ticketPrinting);
             set('cfg-callback-prefix', c.testDrive?.callbackPrefix || 'Test driver');
             set('cfg-callback-suffix', c.testDrive?.callbackSuffix || 'please stand by, you are next in line to test');
             set('cfg-terms', c.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
@@ -1157,6 +1175,7 @@ function renderLicence(st) {
                 config.testDrive = { ...(stateDoc.config.testDrive || {}), waiver, terms, callbackPrefix, callbackSuffix, dealerships, ...window.TdqGiveawayStock.collect() };
             }
             config.announcements = TdqSpeech.validate({voice:val('cfg-voice') || 'af_heart',prefix:val('cfg-speech-prefix'),template:val('cfg-speech-template'),suffix:val('cfg-speech-suffix')});
+            config.ticketPrinting = window.TdqTicketPrint.collect();
 
             document.querySelectorAll('.brand-block').forEach(block => {
                 const key = block.dataset.brandKey;

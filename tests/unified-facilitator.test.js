@@ -281,7 +281,7 @@ test('Master Table shows the linked agent name and its complete four-digit code'
 });
 
 test('client labels use complete prefixed numbers and the same large-code layout as SE slips',()=>{
-  const context={};vm.createContext(context);vm.runInContext(extractFunction(main,'formatClientLabel')+'\n'+extractFunction(main,'buildPrintLabelHtml'),context);
+  const context={require,path,RES_SERVER:ROOT};vm.createContext(context);vm.runInContext(extractFunction(main,'formatClientLabel')+'\n'+extractFunction(main,'buildPrintLabelHtml'),context);
   for(const number of [1,9,99,100]) {
     const label=context.formatClientLabel({kind:'client_ticket',header:'GX3 PRO',brandKey:'toyota',unit:1,queueNumber:number},config);
     assert.equal(label.value,'AA'+String(number).padStart(2,'0'));
@@ -300,13 +300,14 @@ test('desktop queues ticket speech through its private local service instead of 
 });
 
 test('SE label is 50 by 30mm with a 36pt code and auto-fits the name without shrinking the code',()=>{
-  const context={};vm.createContext(context);vm.runInContext(extractFunction(main,'buildPrintLabelHtml'),context);
+  const context={require,path,RES_SERVER:ROOT};vm.createContext(context);vm.runInContext(extractFunction(main,'buildPrintLabelHtml'),context);
   const html=context.buildPrintLabelHtml({kind:'se_code_slip',header:'Long <Executive> Name',value:'0042'});
-  assert.match(html,/size:50mm 30mm/);assert.match(html,/\.large-code p\{font-size:36pt/);assert.match(html,/Long &lt;Executive&gt; Name/);assert.match(html,/<p>0042<\/p>/);
+  assert.match(html,/size:50mm 30mm/);assert.match(html,/\.large-code p\{[^}]*font-size:36pt/);assert.match(html,/Long &lt;Executive&gt; Name/);assert.match(html,/<p>0042<\/p>/);
   const header={style:{fontSize:'32px'},clientHeight:38,clientWidth:174};const number={style:{fontSize:'36pt'}};
   const name={getBoundingClientRect:()=>({height:parseFloat(header.style.fontSize)*4}),get scrollWidth(){return 174;}};
   header.querySelector=()=>name;context.document={querySelector:tag=>tag==='h1'?header:number,body:{classList:{contains:()=>true}}};
-  vm.runInContext(extractFunction(main,'fitPrintLabel'),context);context.fitPrintLabel();
+  context.getComputedStyle=element=>({fontSize:element===header?'32px':'48px'});
+  vm.runInContext('('+require('../public/print-label').fit.toString()+')()',context);
   assert.ok(name.getBoundingClientRect().height<=38);assert.equal(number.style.fontSize,'36pt');
 });
 

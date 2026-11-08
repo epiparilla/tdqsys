@@ -320,6 +320,7 @@ function afConfigEqual(a, b) {
         ads: c.ads || null,
         announcements: typeof TdqSpeech !== 'undefined' ? TdqSpeech.normalize(c.announcements) : (c.announcements || null),
         testDrive: c.testDrive || null,
+        ticketPrinting: typeof TdqPrintLabel !== 'undefined' ? TdqPrintLabel.normalize(c.ticketPrinting) : (c.ticketPrinting || null),
         brands: (c.brands || []).map(br => ({
             key: br.key,
             name: br.name,

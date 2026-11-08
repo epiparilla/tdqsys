@@ -291,6 +291,7 @@ const server = http.createServer((req, res) => {
                 if (incoming && incoming.queues && incoming.config) {
                     normalizeConfig(incoming.config);
                     if (incoming.config.announcements) speech.validate(incoming.config.announcements);
+                    if (incoming.config.ticketPrinting) require('./public/print-label').validate(incoming.config.ticketPrinting);
                     // Full state doc: keep incoming config too (settings/wizard save)
                     localData = incoming;
                     // The instance id is minted once and then belongs to this
@@ -346,6 +347,7 @@ const server = http.createServer((req, res) => {
                 if (incoming.expectedInstanceId !== localData.config.instanceId) throw new Error('Destination identity changed. Please reopen Restore.');
                 const restored = prepareRestoredState(incoming.state, localData);
                 if (restored.config.announcements) speech.validate(restored.config.announcements);
+                if (restored.config.ticketPrinting) require('./public/print-label').validate(restored.config.ticketPrinting);
                 const backupFile = `data.before-restore-${Date.now()}.json`;
                 fs.writeFileSync(path.join(DATA_DIR, backupFile), JSON.stringify(localData), { flag:'wx' });
                 temporary = `${DATA_FILE}.restore-${require('crypto').randomUUID()}.tmp`;

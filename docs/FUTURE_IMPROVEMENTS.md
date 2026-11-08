@@ -1,6 +1,38 @@
 # TDQSYS Future Improvements
 
 
+## 8 November ticket font settings and live preview
+
+Desktop Settings now includes Ticket printing, with separate Client queue ticket
+and Agent code formats. Each header and number/code has font family, size,
+bold and italic controls; alignment is configurable per label type. Six listed
+Windows fonts are supported. Defaults retain Arial, bold 24pt header / 36pt
+number, with automatic shrinking when necessary to fit complete text.
+Paper size remains hard-coded at 50mm x 30mm in both HTML and the Windows print
+job (50000 x 30000 microns); there are no editable paper dimensions.
+
+A live side preview uses exactly the same renderer and fitting code as actual
+printing. It samples the first configured model shortname and prefix + 01, or
+an editable sample Agent name and 0042. The sample name is never saved. Controls
+are side-by-side on normal desktop windows and stack on narrow windows. Save
+Configuration applies both formats; Cancel/Relock restores saved formats.
+Formatting-only edits do not reset queues or trigger the brand-layout reset
+prompt. Engine save/restore validates formats; malformed stored values safely
+fall back to defaults in the renderer. No actual print jobs were generated.
+
+354 Node checks pass / 3 skipped. An isolated engine verified persistence,
+unchanged queue values and rejection of an invalid save without mutation.
+Read-only Electron checks verified Settings collection/rehydration, responsive
+screenshots, and 12 maximum-size label fits across six fonts and both types.
+Physical NIMBOT output still needs a print acceptance test on 50 x 30mm stock.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-ticketfonts-20261108/tdqsys-v2-setup-2.0.0.exe
+Includes the earlier header and process-tree shutdown fixes. Earlier installers
+and live data are preserved. V1 and OTA remain unchanged. This is desktop-only;
+no cloud backend changes are needed. Existing presentation files are unchanged.
+
+
+
 ## 8 November speech process shutdown fix
 
 Root cause: cleanup killed the PyInstaller speech launcher before requesting
