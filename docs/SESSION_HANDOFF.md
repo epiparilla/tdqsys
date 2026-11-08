@@ -6,6 +6,38 @@ not a verbatim transcript.
 ## Resume here
 
 
+## 8 November optional Waiver and Terms questions
+
+Desktop Settings now permits empty Waiver and Terms & Conditions text.
+Empty/whitespace-only text hides that statement, heading and acceptance
+checkbox in the client form; the checkbox is disabled and not required.
+If both are blank, Next and Back skip the consent step and progress shows
+three steps. If either contains text, that statement still requires explicit
+acceptance. The separate first-page Data Privacy Consent remains required.
+
+Blank values survive Settings reload and desktop background configuration
+sync (no Lorem Ipsum replacement). Existing missing settings retain the
+original placeholder default. Submission validation determines optionality
+from server-loaded location text, never from client-supplied required flags.
+Existing version hashes still reject stale text; blank snapshots and their
+SHA-256 versions remain recorded without fabricating checkbox acceptance.
+No Google Sheets layout change.
+
+375 Node checks pass / 3 skipped; 38 isolated PostgreSQL checks pass.
+Coverage includes all four text combinations, blank/whitespace navigation,
+required populated statements, server-side bypass rejection, Settings reload,
+empty snapshot persistence and stale versions. Packaged files verified;
+physical/browser visual acceptance remains pending.
+Applied 202611080002_optional_registration_statements.sql to the existing
+backend: removed only the two non-empty text checks, preserving NOT NULL,
+defaults, existing statements, registrations, versions and history.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-optionalconsent-20261108/tdqsys-v2-setup-2.0.0.exe
+Install manually, clear the desired statements in Settings and save. Reload
+the v2 online client form after deployment. No live statement was cleared
+automatically. All prior fixes retained; v1, OTA and live records unchanged.
+
+
 ## 8 November Master Table status highlights
 
 Master Table rows now highlight Done in green (#123d26) and Ongoing in orange

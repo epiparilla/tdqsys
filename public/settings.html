@@ -364,9 +364,9 @@
             <div class="field"><label for="cfg-callback-suffix">Call-back suffix</label><input id="cfg-callback-suffix" value="please stand by, you are next in line to test" required></div>
             <button type="button" id="speech-test-callback" class="btn-ghost settings-btn">Test call-back announcement</button>
             <p class="hint">Google Sheets connection setup is now on <a href="event-setup.html">Event Setup / QR Codes</a>.</p>
-            <div class="field"><label for="cfg-waiver">Waiver statement</label><textarea id="cfg-waiver" rows="6" style="width:100%" required>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</textarea></div>
-            <div class="field"><label for="cfg-terms">Terms and Conditions</label><textarea id="cfg-terms" rows="6" style="width:100%" required>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</textarea></div>
-            <p class="hint">Replace the sample text with the approved statements before accepting event registrations.</p>
+            <div class="field"><label for="cfg-waiver">Waiver statement (optional)</label><textarea id="cfg-waiver" rows="6" style="width:100%">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</textarea></div>
+            <div class="field"><label for="cfg-terms">Terms and Conditions (optional)</label><textarea id="cfg-terms" rows="6" style="width:100%">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</textarea></div>
+            <p class="hint">Use approved statements, or leave either field empty to hide it and its acceptance checkbox. If both are empty, the form skips that step. Data Privacy Consent stays required.</p>
         </div>
         <!-- Brands -->
         <div class="settings-card">
@@ -1110,13 +1110,13 @@ function renderLicence(st) {
             set('cfg-site', c.site || 'auto-01');
             set('cfg-hostname', c.hostname || 'tdqsys.local');
             set('cfg-cloudbase', c.cloudBase || '');
-            set('cfg-waiver', c.testDrive?.waiver || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
+            set('cfg-waiver', c.testDrive?.waiver ?? 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
             set('cfg-dealerships', (c.testDrive?.dealerships || []).join('\n'));
             window.TdqGiveawayStock?.hydrate(c.testDrive || {});
             window.TdqTicketPrint.hydrate(c.ticketPrinting);
             set('cfg-callback-prefix', c.testDrive?.callbackPrefix || 'Test driver');
             set('cfg-callback-suffix', c.testDrive?.callbackSuffix || 'please stand by, you are next in line to test');
-            set('cfg-terms', c.testDrive?.terms || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
+            set('cfg-terms', c.testDrive?.terms ?? 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
             const speechConfig = TdqSpeech.normalize(c.announcements);
             set('cfg-voice', speechConfig.voice);
             set('cfg-speech-prefix', speechConfig.prefix);
@@ -1167,7 +1167,6 @@ function renderLicence(st) {
             const termsField = document.getElementById('cfg-terms');
             if (waiverField && termsField) {
                 const waiver = waiverField.value.trim(), terms = termsField.value.trim();
-                if (!waiver || !terms) throw new Error('Waiver and Terms and Conditions cannot be empty.');
                 const callbackPrefix = document.getElementById('cfg-callback-prefix')?.value?.trim() || 'Test driver';
                 const callbackSuffix = document.getElementById('cfg-callback-suffix')?.value?.trim() || 'please stand by, you are next in line to test';
                 if (document.getElementById('cfg-callback-prefix')?.value === '' || document.getElementById('cfg-callback-suffix')?.value === '') throw new Error('Call-back prefix and suffix cannot be empty.');

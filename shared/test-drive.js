@@ -38,7 +38,7 @@ function validateSeCheckin(body = {}) {
   return { ok: Object.keys(errors).length === 0, errors, value: { name, dealership, contactNumber } };
 }
 
-function validateRegistration(body = {}) {
+function validateRegistration(body = {}, { waiverRequired = true, termsRequired = true } = {}) {
   if (!body || typeof body !== 'object') body = {};
   const fullName = text(body.fullName, 160);
   const email = text(body.email, 320).toLowerCase();
@@ -57,8 +57,8 @@ function validateRegistration(body = {}) {
   if (!modelIds.length) errors.modelIds = 'Select at least one vehicle model.';
   if (!validSeCode(body.seCode)) errors.seCode = 'Enter the four-digit Agent code.';
   if (body.privacyAccepted !== true) errors.privacyAccepted = 'Please review and agree to Data Privacy Consent on the first page of the registration form.';
-  if (body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
-  if (body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
+  if (waiverRequired && body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
+  if (termsRequired && body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
   return {
     ok: Object.keys(errors).length === 0,
     errors,

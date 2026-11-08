@@ -9,7 +9,7 @@ export async function onRequest(context) {
   if (context.request.method !== 'POST') return reply({ error: 'Method Not Allowed' }, 405);
   try {
     const body = await context.request.json();
-    const checked = validateRegistration(body);
+    const checked = validateRegistration(body, { waiverRequired:false, termsRequired:false });
     if (!checked.ok) return reply({ error: 'Please check the required fields.', fields: checked.errors }, 400);
     const idempotencyKey = context.request.headers.get('Idempotency-Key');
     if (!idempotencyKey || !/^[a-z0-9-]{8,200}$/i.test(idempotencyKey)) return reply({ error: 'Invalid submission identifier. Please refresh the form.' }, 400);
@@ -28,6 +28,13 @@ export async function onRequest(context) {
       p_client_key: await hash(`${instance}:${context.request.headers.get('CF-Connecting-IP') || 'unknown'}`) });
     if (!validation.response.ok) return reply({ error: 'Registration is temporarily unavailable.' }, 503);
     if (validation.result.error) return reply({ error: validation.result.error }, validation.result.limited ? 429 : 400);
+    if (body.waiverAccepted !== true || body.termsAccepted !== true) {
+      // Only server-loaded location text can make a consent optional.
+      const current = await rpc('tdqsys_public_registration_config', { p_instance_id:instance });
+      if (!current.response.ok || typeof current.result.waiverStatement !== 'string' || typeof current.result.termsAndConditions !== 'string') return reply({ error:'Registration is temporarily unavailable.' },503);
+      const consent = validateRegistration(body, { waiverRequired:!!current.result.waiverStatement.trim(), termsRequired:!!current.result.termsAndConditions.trim() });
+      if (!consent.ok) return reply({ error:'Please check the required fields.', fields:consent.errors },400);
+    }
     const { response, result } = await rpc('tdqsys_submit_registration', {
       p_instance_id: instance, p_full_name: checked.value.fullName, p_name_search: checked.value.nameSearch,
       p_email: checked.value.email, p_city_address: checked.value.cityAddress, p_contact_number: checked.value.contactNumber,

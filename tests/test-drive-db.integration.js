@@ -492,6 +492,26 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       const exposed=(await db.query("select count(*)::int n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'tdqsys_%' and (has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute'))")).rows[0].n;
       assert.equal(exposed,0);
     });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611080002_optional_registration_statements.sql'),'utf8'));
+    await check('blank statements configure and register with hashed empty snapshots; stale versions still fail',async()=>{
+      await db.exec('begin');
+      try {
+        for(const [waiver,terms] of [['',''],['Waiver',''],['','Terms']]){
+          await rpc('tdqsys_configure_registration',[A,JSON.stringify(models),waiver,terms,'',JSON.stringify(['Toyota'])]);
+          const config=await rpc('tdqsys_public_registration_config',[A]);
+          assert.equal(config.waiverStatement,waiver);assert.equal(config.termsAndConditions,terms);
+          assert.equal(config.waiverVersion,hash(waiver));assert.equal(config.termsVersion,hash(terms));
+          const values=args(randomUUID());values[8]=hash('8765');values[9]=hash(waiver);values[10]=hash(terms);
+          const result=await rpc('tdqsys_submit_registration',values);
+          const saved=(await db.query('select waiver_snapshot,terms_snapshot from registrations where id=$1',[result.registrationId])).rows[0];
+          assert.equal(saved.waiver_snapshot,waiver);assert.equal(saved.terms_snapshot,terms);
+        }
+        await db.exec('savepoint stale_consent');
+        const stale=args(randomUUID());stale[8]=hash('8765');
+        await assert.rejects(rpc('tdqsys_submit_registration',stale),/consent text changed/);
+        await db.exec('rollback to savepoint stale_consent');
+      }finally{await db.exec('rollback');}
+    });
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

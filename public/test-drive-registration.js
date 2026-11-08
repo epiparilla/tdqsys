@@ -4,7 +4,7 @@
   const form = $('registration');
   const field = name => form.elements.namedItem(name);
   const instanceId = new URL(location.href).searchParams.get('id') || '';
-  let config; let step = 0; let verifiedCode = ''; let busy = false;
+  let config; let step = 0; let verifiedCode = ''; let busy = false; let steps = [0,1,2,3];
   // The key survives network failures and page refreshes for this phone/tab.
   const storageKey = `tdqsys-registration:${instanceId}`;
   let submissionKey;
@@ -13,13 +13,13 @@
   try { sessionStorage.setItem(storageKey, submissionKey); } catch { /* in-memory retry remains available */ }
   function show() {
     document.querySelectorAll('[data-step]').forEach(section => { section.hidden = +section.dataset.step !== step; });
-    $('progress').textContent = `Step ${step + 1} of 4`;
+    $('progress').textContent = `Step ${steps.indexOf(step) + 1} of ${steps.length}`;
     $('back').hidden = step === 0; $('next').hidden = step === 3; $('submit').hidden = step !== 3;
     $('message').textContent = '';
   }
   function validStep() {
     const controls = document.querySelector(`[data-step="${step}"]`).querySelectorAll('input,select');
-    for (const input of controls) if (!input.reportValidity()) return false;
+    for (const input of controls) if (!input.disabled && !input.reportValidity()) return false;
     if (step === 1 && !form.querySelector('[name=modelIds]:checked')) {
       $('message').textContent = 'Select at least one vehicle model.'; return false;
     }
@@ -31,8 +31,8 @@
     if (!response.ok) throw new Error(result.fields ? Object.values(result.fields).join('\n') : result.error || 'Please try again.');
     return result;
   }
-  $('next').onclick = () => { if (validStep()) { step++; show(); } };
-  $('back').onclick = () => { step--; show(); };
+  $('next').onclick = () => { if (validStep()) { step = steps[steps.indexOf(step) + 1]; show(); } };
+  $('back').onclick = () => { step = steps[steps.indexOf(step) - 1]; show(); };
   field('seCode').oninput = () => { verifiedCode = ''; $('submit').disabled = true; $('se-details').textContent = ''; };
   field('privacyAccepted').onchange = () => { $('submit').disabled = busy || !verifiedCode || verifiedCode !== field('seCode').value || !field('privacyAccepted').checked; };
   $('validate-code').onclick = async () => {
@@ -81,12 +81,19 @@
     try {
       const response = await fetch(`/api/test-drive/config?id=${encodeURIComponent(instanceId)}`);
       config = await response.json(); if (!response.ok || config.error) throw Error(config.error || 'Registration unavailable.');
-      if (!config.models?.length || !config.waiverStatement || !config.termsAndConditions) throw Error('Registration is being prepared. Please see the facilitator.');
+      if (!config.models?.length || typeof config.waiverStatement !== 'string' || typeof config.termsAndConditions !== 'string') throw Error('Registration is being prepared. Please see the facilitator.');
       for (const model of config.models) {
         const label = document.createElement('label'); const input = document.createElement('input');
         input.type = 'checkbox'; input.name = 'modelIds'; input.value = model.id; label.append(input, ` ${model.name}`); $('models').appendChild(label);
       }
       $('waiver').textContent = config.waiverStatement; $('terms').textContent = config.termsAndConditions;
+      for (const [name,text] of [['waiver',config.waiverStatement],['terms',config.termsAndConditions]]) {
+        const required = !!text.trim();
+        $(name+'-question').hidden = !required;
+        field(name+'Accepted').required = required;
+        field(name+'Accepted').disabled = !required;
+      }
+      if (!config.waiverStatement.trim() && !config.termsAndConditions.trim()) steps = [0,1,3];
       form.hidden = false; show();
     } catch (error) { $('message').textContent = error.message; }
   })();

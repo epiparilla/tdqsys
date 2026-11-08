@@ -104,6 +104,25 @@ test('rate-limited SE validation cannot allocate a client ticket',async()=>{
   const response=await invoke('registrations.js',body,async()=>{calls++;return Response.json({error:'Wait one minute',limited:true});});
   assert.equal(response.status,429);assert.equal(calls,1);
 });
+
+test('optional consent is determined by server text, never client claims',async()=>{
+ for(const [waiverStatement,termsAndConditions] of [['',''],['Waiver',''],['','Terms'],['Waiver','Terms']]){
+  let submitted=false;
+  const response=await invoke('registrations.js',{...body,waiverAccepted:false,termsAccepted:false,waiverRequired:false,termsRequired:false},async(url)=>{
+   if(url.endsWith('tdqsys_validate_se_code'))return Response.json({name:'Agent'});
+   if(url.endsWith('tdqsys_public_registration_config'))return Response.json({waiverStatement,termsAndConditions});
+   submitted=true;return Response.json({entries:[]});
+  });
+  const allowed=!waiverStatement&&!termsAndConditions;
+  assert.equal(response.status,allowed?201:400);assert.equal(submitted,allowed);
+ }
+ for(const [waiverStatement,termsAndConditions,waiverAccepted,termsAccepted] of [['','Terms',false,true],['Waiver','',true,false]]){
+  const response=await invoke('registrations.js',{...body,waiverAccepted,termsAccepted},async(url)=>Response.json(url.endsWith('tdqsys_public_registration_config')?{waiverStatement,termsAndConditions}:{entries:[]}));
+  assert.equal(response.status,201);
+ }
+ const unavailable=await invoke('registrations.js',{...body,waiverAccepted:false},async(url)=>Response.json(url.endsWith('tdqsys_public_registration_config')?{}:{name:'Agent'}));
+ assert.equal(unavailable.status,503);
+});
 test('code endpoint never accepts a truncated five-digit code',async()=>{
   const response=await invoke('se-code.js',{instanceId,code:'01234'},()=>{throw Error('must not fetch');});
   assert.equal(response.status,400);

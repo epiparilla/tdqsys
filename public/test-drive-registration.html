@@ -27,10 +27,10 @@
       <label>For Application? (optional)<select name="forApplication"><option value="">Not selected</option><option>Yes</option><option>No</option></select></label>
       <label>For Reservation? (optional)<select name="forReservation"><option value="">Not selected</option><option>Yes</option><option>No</option></select></label>
     </section>
-    <section data-step="2" hidden><h2>Waiver</h2><div id="waiver" class="consent"></div>
-      <label><input type="checkbox" name="waiverAccepted" required> I have read and accept the waiver.</label>
-      <h2>Terms and Conditions</h2><div id="terms" class="consent"></div>
-      <label><input type="checkbox" name="termsAccepted" required> I have read and accept the Terms and Conditions.</label>
+    <section data-step="2" hidden><div id="waiver-question"><h2>Waiver</h2><div id="waiver" class="consent"></div>
+      <label><input type="checkbox" name="waiverAccepted" required> I have read and accept the waiver.</label></div>
+      <div id="terms-question"><h2>Terms and Conditions</h2><div id="terms" class="consent"></div>
+      <label><input type="checkbox" name="termsAccepted" required> I have read and accept the Terms and Conditions.</label></div>
     </section>
     <section data-step="3" hidden><h2>Agent</h2>
       <label>Agent unique code<input name="seCode" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required></label>
