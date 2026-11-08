@@ -214,6 +214,7 @@
       byId('master-sort')?.value,byId('master-direction')?.value,(entry,key)=>key==='name'?entry.registrations?.full_name:key==='agent'?entry.agentName:key==='model'?snapshot.models.find(m=>m.id===entry.vehicle_model_id)?.full_name || entry.vehicle_models?.full_name:entry[key]);
     for (const entry of list.filter(e => (e.registrations?.full_name || '').toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
+      row.dataset.status = entry.status;
       cell(row, formatTicket(entry,snapshot.models.find(m => m.id === entry.vehicle_model_id) || entry.vehicle_models)); cell(row, entry.registrations?.full_name);
       cell(row,[entry.agentName,entry.agentCode].filter(Boolean).join(' / '));
       cell(row, snapshot.models.find(m => m.id === entry.vehicle_model_id)?.full_name || entry.vehicle_models?.full_name); cell(row, entry.status);

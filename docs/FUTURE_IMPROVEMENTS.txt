@@ -1,6 +1,24 @@
 # TDQSYS Future Improvements
 
 
+## 8 November Master Table status highlights
+
+Master Table rows now highlight Done in green (#123d26) and Ongoing in orange
+(#663600), with white text and the existing written status retained. Every
+render rebuild tags rows from their current status, so Ongoing-to-Done changes
+update the color too. Waiting, No Show and Cancelled retain their previous
+appearance. This also applies when viewing earlier-run rows.
+Status actions, sorting, search, printing and all data remain unchanged.
+
+372 Node checks pass / 3 skipped, including a rendered-row status-transition
+regression. Packaged files verified; physical visual acceptance is pending.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-masterstatus-20261108/tdqsys-v2-setup-2.0.0.exe
+All previous display-scale refinements remain included. Install manually;
+this is a desktop-only Master Table change, with no remote-viewer deployment
+required. Local guides synchronized; v1, OTA and live records unchanged.
+
+
 ## 8 November display scale fine-tuning, revision 2
 
 Relative to the preceding display-scale build: logo height increases 100%
