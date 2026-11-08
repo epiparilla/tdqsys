@@ -6,30 +6,30 @@ not a verbatim transcript.
 ## Resume here
 
 
-## 8 November logo size and transparent padding correction
+## 8 November client logo padding restored
 
-Fixed tiny logos caused by empty transparent canvas around the visible mark.
-The initial saved sample was 128 x 128 pixels with visible art only 114 x 16.
-Both TV and remote viewer now crop transparent padding in memory when loading
-an existing logo; saved location settings are not rewritten by display code.
-New uploads are cropped before downsampling, so a square padded source does
-not lose most of its useful detail in the 128-pixel height preparation limit.
-Fully transparent images are rejected/fall back to brand text as appropriate.
-Opaque/colored backgrounds and artwork are preserved; only alpha padding is
-removed. Header logo height is now responsive clamp(28px,4.5vh,64px), preserving
-aspect ratio and bounded width on phones and desktops. No size control added.
+Client-supplied logo padding must be preserved. Reverted the automatic
+transparent-padding crop for existing logos and new uploads, and restored
+the original 1em logo height and width limits. The three production branding
+files match their pre-cropping version (34fb140) exactly. Upload preparation
+still resizes the complete image proportionally to fit the existing compact
+PNG storage limit; it never trims the canvas or changes its aspect ratio.
 
-370 Node checks pass / 3 skipped. Read-only Electron checks using a copied
-saved brand logo verified the larger TV and remote appearance, phone layout,
-and preserved upload detail: a padded 512-square sample kept its cropped
-448 x 64 artwork rather than being reduced to a padded 128-square image.
-No live settings, queue or registration records were changed. Existing logos
-work without re-uploading; re-upload the original if an earlier downsampled
-image looks soft, since lost source detail cannot be recovered.
+Logo-to-screen ratio tuning is the next step, not part of this restoration.
+No new scale setting or increased logo size has been introduced. Saved
+settings are not rewritten. If a logo was uploaded and saved while cropping
+was enabled, re-upload the original asset to recover its supplied padding;
+padding already removed from a saved image cannot be reconstructed.
+
+370 Node checks pass / 3 skipped, including a padding-preservation regression.
+Verification here is source/test and packaged-file verification, not a new
+physical display or visual acceptance check.
 Latest manual installer, still v2.0.0:
-app/dist-test-drive-v2-logosize-20261108/tdqsys-v2-setup-2.0.0.exe
-V2 viewer updated too; reload existing remote tabs. Earlier installers,
-presentation R2, v1 and OTA remain unchanged. All previous v2 fixes included.
+app/dist-test-drive-v2-logopadding-20261108/tdqsys-v2-setup-2.0.0.exe
+Reload existing v2 remote viewer tabs after deployment; install the manual
+build for local display changes. No live settings, queues, registration or
+giveaway records changed. Earlier installers, presentation R2, v1 and OTA
+remain unchanged. All other v2 fixes and bundled fonts are retained.
 
 
 
