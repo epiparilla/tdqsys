@@ -1,7 +1,7 @@
 'use strict';
 (() => {
     const api=window.TdqPrintLabel,controls=document.getElementById('ticket-font-controls');
-    let formats=api.normalize(),active='client';
+    let formats=api.normalize(),active='client';const fontData={};
     for(const line of ['header','number']){
         const fieldset=document.createElement('fieldset');
         const title=line==='header'?'Header (model shortname / Agent name)':'Queue number / four-digit code';
@@ -26,7 +26,7 @@
         const model=document.querySelector('.brand-block .model-row');
         const header=active==='agent'?node('ticket-agent-sample').value:(model?.querySelector('.model-shortname')?.value||model?.querySelector('.model-label')?.value||'CAR MODEL');
         const prefix=model?.querySelector('.model-prefix')?.value||'AA';
-        node('ticket-print-preview').srcdoc=api.buildHtml({kind:active==='agent'?'se_code_slip':'client_ticket',header,value:active==='agent'?'0042':prefix+'01'},formats);
+        node('ticket-print-preview').srcdoc=api.buildHtml({kind:active==='agent'?'se_code_slip':'client_ticket',header,value:active==='agent'?'0042':prefix+'01'},formats,fontData);
     }
     controls.addEventListener('input',()=>{capture();preview();});
     node('ticket-align').addEventListener('change',()=>{capture();preview();});
@@ -37,4 +37,10 @@
     new MutationObserver(preview).observe(document.getElementById('brand-editors'),{childList:true,subtree:true});
     window.TdqTicketPrint={hydrate(raw){formats=api.normalize(raw);renderControls();preview();},collect(){capture();return api.validate(formats);}};
     renderControls();preview();
+    Promise.all(Object.entries(api.bundledFonts).map(async([name,file])=>{
+        const response=await fetch('fonts/'+file);if(!response.ok)throw Error('Bundled font is unavailable.');
+        const blob=await response.blob();fontData[name]=await new Promise((resolve,reject)=>{
+            const reader=new FileReader();reader.onload=()=>resolve(reader.result.replace(/^data:[^;]*;base64,/, 'data:font/ttf;base64,'));reader.onerror=reject;reader.readAsDataURL(blob);
+        });
+    })).then(preview).catch(()=>{node('ticket-font-notice').textContent='A bundled font preview could not load. Reopen Settings before testing those fonts.';});
 })();

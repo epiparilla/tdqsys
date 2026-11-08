@@ -4,7 +4,8 @@
     else root.TdqPrintLabel=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
     'use strict';
-    const FONTS=['Arial','Calibri','Verdana','Tahoma','Courier New','Georgia'];
+    const bundledFonts={'GEELY Bold':'GEELY-Bold.ttf','Inter Variable':'Inter-Variable.ttf','Lynkco Type Medium':'LynkcoType-Medium.ttf'};
+    const FONTS=['Arial','Calibri','Verdana','Tahoma','Courier New','Georgia',...Object.keys(bundledFonts)];
     const bounds={header:[6,30],number:[12,48]};
     function normalize(raw){
         const result={};
@@ -40,11 +41,12 @@
             numberSize-=0.5;number.style.fontSize=numberSize+'px';
         }
     }
-    function buildHtml(label,raw){
+    function buildHtml(label,raw,fontData={}){
         const escape=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
         const agent=label.kind==='se_code_slip',format=normalize(raw)[agent?'agent':'client'];
         const font=(line,weight)=>`font-family:'${line.fontFamily}';font-size:${line.fontSize}pt;font-weight:${line.bold?weight:400};font-style:${line.italic?'italic':'normal'}`;
-        return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:50mm 30mm;margin:0}*{box-sizing:border-box}html{margin:0;padding:0;width:50mm;height:30mm;background:white;color:black}body{margin:0;padding:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:${format.align};overflow:hidden}h1{${font(format.header,900)};line-height:1.05;margin:1mm 2mm;max-width:46mm;overflow-wrap:anywhere}.large-code h1{width:46mm;height:10mm;flex-shrink:0;display:flex;align-items:center;overflow:hidden}.large-code h1 span{width:100%;overflow-wrap:anywhere}.large-code p{${font(format.number,700)};width:46mm;max-width:46mm;line-height:1.05;flex-shrink:0;margin:1mm 0;white-space:nowrap}</style></head><body class="${agent?'se-code':'client-ticket'} large-code"><h1><span>${escape(label.header)}</span></h1><p>${escape(label.value)}</p><script>(${fit.toString()})();<\/script></body></html>`;
+        const faces=Object.keys(bundledFonts).filter(name=>[format.header.fontFamily,format.number.fontFamily].includes(name)&&/^data:font\/ttf;base64,[A-Za-z0-9+/]+={0,2}$/.test(fontData[name]||'')).map(name=>`@font-face{font-family:'${name}';src:url('${fontData[name]}') format('truetype');font-weight:100 900}`).join('');
+        return `<!doctype html><html><head><meta charset="utf-8"><style>${faces}@page{size:50mm 30mm;margin:0}*{box-sizing:border-box}html{margin:0;padding:0;width:50mm;height:30mm;background:white;color:black}body{margin:0;padding:0;width:50mm;height:30mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:${format.align};overflow:hidden}h1{${font(format.header,900)};line-height:1.05;margin:1mm 2mm;max-width:46mm;overflow-wrap:anywhere}.large-code h1{width:46mm;height:10mm;flex-shrink:0;display:flex;align-items:center;overflow:hidden}.large-code h1 span{width:100%;overflow-wrap:anywhere}.large-code p{${font(format.number,700)};width:46mm;max-width:46mm;line-height:1.05;flex-shrink:0;margin:1mm 0;white-space:nowrap}</style></head><body class="${agent?'se-code':'client-ticket'} large-code"><h1><span>${escape(label.header)}</span></h1><p>${escape(label.value)}</p><script>document.fonts.ready.then(${fit.toString()});<\/script></body></html>`;
     }
-    return {FONTS,bounds,normalize,validate,fit,buildHtml};
+    return {FONTS,bundledFonts,bounds,normalize,validate,fit,buildHtml};
 });

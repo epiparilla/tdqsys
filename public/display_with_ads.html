@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TDQSYS TV Display</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="display-branding.css">
+    <script src="display-branding.js"></script>
 </head>
 
 <body style="overflow: hidden;">
@@ -102,6 +104,7 @@
                 header.className = 'brand-header';
                 const h1 = document.createElement('h1');
                 h1.textContent = brand.name;
+                if(typeof TdqDisplayBranding!=='undefined')TdqDisplayBranding.apply(section,h1,brand);
                 header.appendChild(h1);
                 section.appendChild(header);
 
@@ -128,6 +131,7 @@
                     grid.appendChild(card);
                 });
             });
+            if(typeof TdqDisplayBranding!=='undefined')TdqDisplayBranding.refresh();
         }
 
         function renderAll(state) {
@@ -154,7 +158,7 @@
         // rebuilt when this changes.
         function configSignature(config) {
             return (config.brands || []).map(b =>
-                [b.key, b.name, b.color, (b.models || []).map(m => [m.label, m.prefix, m.pronounce].join('~')).join('~')].join('^')
+                [b.key, b.name, b.color, JSON.stringify(b.display || null), (b.models || []).map(m => [m.label, m.prefix, m.pronounce].join('~')).join('~')].join('^')
             ).join('|');
         }
 
@@ -208,6 +212,7 @@
 
             if (forceReannounce || (el.textContent != displayValue)) {
                 el.innerHTML = `<span class="prefix">${prefix}</span>${formattedVal}`;
+                if(typeof TdqDisplayBranding!=='undefined')TdqDisplayBranding.refresh();
                 if (newValue > 0) {
                     announceNumber(displayValue, brandKey, unit);
                 }

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TDQSYS Settings</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="display-branding.css">
     <style>
         body.settings { padding: 1.5rem 2rem; overflow-y: auto; height: 100vh; }
         .settings-header { text-align: center; margin-bottom: 1.5rem; }
@@ -377,7 +378,7 @@
                 <div class="field"><label for="ticket-align">Text alignment</label><select id="ticket-align"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
                 <button type="button" id="ticket-font-reset" class="settings-btn btn-ghost">Reset this label's formatting</button>
             </div><aside class="ticket-preview-side" aria-label="Live ticket preview">
-                <h3>Live print preview</h3><p>50 mm × 30 mm · black on white</p>
+                <h3>Live print preview</h3><p>50 mm × 30 mm · black on white</p><p id="ticket-font-notice" class="hint" role="status"></p>
                 <iframe id="ticket-print-preview" title="Live 50 by 30 millimetre ticket preview" sandbox="allow-scripts"></iframe>
                 <div class="field"><label for="ticket-agent-sample">Preview Agent name (not saved)</label><input id="ticket-agent-sample" value="Alexandra Reyes" maxlength="160"></div>
                 <p class="hint">Uses the first configured vehicle and its complete prefix + 01, or a sample Agent code. Screen size depends on monitor scaling; the printer page is always 50 × 30 mm. Previewing never sends a print job.</p>
@@ -495,6 +496,8 @@
 
     <script src="af.js"></script>
     <script src="announcements.js"></script>
+    <script src="display-branding.js"></script>
+    <script src="settings-display-branding.js"></script>
     <script src="print-label.js"></script>
     <script src="settings-ticket-print.js"></script>
     <!-- Local, not a CDN: Settings must still work when the internet is down. -->
@@ -971,6 +974,7 @@ function renderLicence(st) {
                 </div>
             `;
             wrap.appendChild(section);
+            window.TdqDisplaySettings.mount(section,(stateDoc.config.brands || []).find(brand=>brand.key===spec.key)?.display);
 
             const listEl = section.querySelector('.model-list');
             (spec.models || []).forEach((rawModel, i) => {
@@ -1200,7 +1204,7 @@ function renderLicence(st) {
                 });
                 const enabled = !block.classList.contains('disabled');
                 if (models.length && enabled) {
-                    config.brands.push({ key, name, color: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#555555', models });
+                    config.brands.push({ key, name, color: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#555555', models, display:window.TdqDisplaySettings.collect(block) });
                 }
             });
 
@@ -1373,7 +1377,7 @@ function renderLicence(st) {
             // noise -- and the old check below could never be true anyway,
             // because !JSON.stringify(anything) is always false.
             const brandsChanged =
-                JSON.stringify(oldConfig.brands || []) !== JSON.stringify(newConfig.brands || []);
+                JSON.stringify((oldConfig.brands || []).map(({display,...brand})=>brand)) !== JSON.stringify((newConfig.brands || []).map(({display,...brand})=>brand));
             if (!brandsChanged) {
                 changedAction('keep');
                 return;

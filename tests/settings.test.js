@@ -41,7 +41,7 @@ function changeOutcome(oldConfig, newConfig) {
   const structureChanged = !af.afConfigEqual(oldConfig, newConfig);
   if (!labelChanged && !structureChanged) return 'NO-CHANGE';
   const brandsChanged =
-    JSON.stringify(oldConfig.brands || []) !== JSON.stringify(newConfig.brands || []);
+    JSON.stringify((oldConfig.brands || []).map(({display,...brand})=>brand)) !== JSON.stringify((newConfig.brands || []).map(({display,...brand})=>brand));
   return brandsChanged ? 'ASK-KEEP-CLEAR' : 'SAVE-KEEP-NUMBERS';
 }
 
@@ -58,6 +58,10 @@ const BASE = {
   }]
 };
 const clone = (o) => JSON.parse(JSON.stringify(o));
+test('display font and logo edits save while keeping queue numbers',()=>{
+  const changed=clone(BASE);changed.brands[0].display={brandFont:'geely',labelFont:'inter',queueFont:'lynkco',headerMode:'text',logo:''};
+  assert.equal(changeOutcome(clone(BASE),changed),'SAVE-KEEP-NUMBERS');
+});
 
 test('afConfigEqual ignores the site label by design', () => {
   // Documented behaviour, not an accident: for cloud sync a label is cosmetic.

@@ -169,6 +169,9 @@ function validateConfig(config) {
         const key = brand.key || `brand${idx + 1}`;
         if (!brand.name || !String(brand.name).trim()) errors.push(`Brand ${idx+1}: name is required.`);
         if (!brand.color || !/^#[0-9a-fA-F]{6}$/.test(brand.color)) errors.push(`Brand ${idx+1}: hex color required.`);
+        if (brand.display !== undefined) {
+            try {require('../public/display-branding').validate(brand.display);} catch (error) {errors.push(error.message);}
+        }
         if (!Array.isArray(brand.models) || brand.models.length === 0) errors.push(`Brand ${idx+1} (${key}): at least one car required.`);
         total += (brand.models || []).length;
         (brand.models || []).forEach((m, mi) => {

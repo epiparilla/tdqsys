@@ -30,7 +30,7 @@ test('Settings detects formatting-only edits without changing brand or queue con
 test('live preview uses the same renderer as printing and never submits a printer job',()=>{
  const read=file=>fs.readFileSync(require('node:path').join(__dirname,'../',file),'utf8');
  const ui=read('public/settings-ticket-print.js'),main=read('app/main.js');
- assert.match(ui,/srcdoc=api.buildHtml/);assert.doesNotMatch(ui,/afDesktop|fetch\(|\.print\(/);
+ assert.match(ui,/srcdoc=api.buildHtml/);assert.doesNotMatch(ui,/afDesktop|\.print\(|method:\s*['"]POST/);assert.match(ui,/fetch\('fonts\/'\+file\)/);
  assert.match(main,/buildPrintLabelHtml\(formatClientLabel\(label,cfg\),cfg.ticketPrinting\)/);
  assert.match(main,/pageSize: \{ width: 50000, height: 30000 \}/);
  assert.match(main,/require\(path.join\(RES_SERVER,'public','print-label.js'\)\).fit/);

@@ -6,6 +6,47 @@ not a verbatim transcript.
 ## Resume here
 
 
+## 8 November bundled display fonts and brand logos
+
+Bundled the supplied GEELY-Bold.ttf, Inter-Variable.ttf and
+LynkcoType-Medium.ttf byte-identically under public/fonts. They ship inside the
+installer and the v2 site; Windows font installation is not required.
+Desktop Settings > Brands & Cars now has per-brand font-type selectors for
+Brand name, Car label and the complete prefixed queue number. System default
+retains the previous appearance; display font sizing is still automatic, with
+custom queue fonts measured to fit the available card without following the
+transient Ongoing animation scale. Font loading and viewport resizing refit.
+
+Each brand can choose text or an uploaded logo. PNG/JPEG/WebP files up to 4 MB
+are rasterized/resized to a compact PNG (maximum 32 KiB, up to 512 x 128 pixels,
+aspect ratio retained); transparent PNG is recommended. Only PNG data is saved
+with the location configuration, never a local path or external URL. This
+keeps logo selection portable to the online mirror and strips source metadata.
+Text remains the brand identity/fallback. Remove logo restores text mode.
+Invalid logos/fonts are rejected on save/restore. Appearance-only edits save
+without the vehicle queue reset prompt; no queue numbers or records reset.
+
+TV and remote viewer use the same renderer/fonts and rebuild on appearance
+changes. Both brands retain independent settings. Supplied fonts also appear
+in existing ticket-font controls: prepared print/preview documents embed the
+selected font bytes and await fonts before fitting the fixed 50 x 30 mm label.
+No live setting, registration, queue, giveaway record or printer job changed.
+
+369 Node checks pass / 3 skipped. Isolated Electron checks cover Settings
+collection/rehydration, a real sample image-upload path, seven/twelve-car TV
+layouts, independent two-brand mirroring, coarse-pointer phone layout and all
+three fonts in self-contained label rendering. Visual screenshots inspected;
+physical label output still needs acceptance. Local configured mirror URL was
+verified to point to tdqsys-v2.pages.dev. V2 viewer/assets deployed; reload an
+already-open mirror after installation to load the new viewer code.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-brandfonts-20261108/tdqsys-v2-setup-2.0.0.exe
+Install, enter Edit Mode, choose fonts/logo per brand and Save Configuration.
+Includes earlier recovery, privacy-form and shutdown changes. V1 and OTA stay
+unchanged. Earlier installers and client presentation R2 are preserved.
+
+
+
 ## 8 November required client Data Privacy Consent
 
 The first client-registration step now starts with an unchecked required

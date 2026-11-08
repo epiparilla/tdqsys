@@ -994,7 +994,12 @@ function formatClientLabel(label, config) {
 }
 
 function buildPrintLabelHtml(label,formatting) {
-    return require(path.join(RES_SERVER,'public','print-label.js')).buildHtml(label,formatting);
+    const layout=require(path.join(RES_SERVER,'public','print-label.js'));
+    const format=layout.normalize(formatting)[label.kind==='se_code_slip'?'agent':'client'],fontData={};
+    for(const name of new Set([format.header.fontFamily,format.number.fontFamily]))if(layout.bundledFonts[name]) {
+        fontData[name]='data:font/ttf;base64,'+fs.readFileSync(path.join(RES_SERVER,'public','fonts',layout.bundledFonts[name])).toString('base64');
+    }
+    return layout.buildHtml(label,formatting,fontData);
 }
 
 const fitPrintLabel=require(path.join(RES_SERVER,'public','print-label.js')).fit;
@@ -1101,7 +1106,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             try {
                 const html = buildPrintLabelHtml(formatClientLabel(label,cfg),cfg.ticketPrinting);
                 await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-                await printWindow.webContents.executeJavaScript(`(${fitPrintLabel.toString()})()`);
+                await printWindow.webContents.executeJavaScript(`document.fonts.ready.then(()=>(${fitPrintLabel.toString()})())`);
                 await new Promise((resolve, reject) => printWindow.webContents.print({ silent: true, deviceName: printerName,
                     pageSize: { width: 50000, height: 30000 }, margins: { marginType: 'none' }, printBackground: true },
                     (success, reason) => success ? resolve() : reject(new Error(reason || 'Printer did not accept the label.'))));

@@ -292,6 +292,7 @@ const server = http.createServer((req, res) => {
                     normalizeConfig(incoming.config);
                     if (incoming.config.announcements) speech.validate(incoming.config.announcements);
                     if (incoming.config.ticketPrinting) require('./public/print-label').validate(incoming.config.ticketPrinting);
+                    for (const brand of incoming.config.brands || []) if (brand.display !== undefined) require('./public/display-branding').validate(brand.display);
                     // Full state doc: keep incoming config too (settings/wizard save)
                     localData = incoming;
                     // The instance id is minted once and then belongs to this
@@ -348,6 +349,7 @@ const server = http.createServer((req, res) => {
                 const restored = prepareRestoredState(incoming.state, localData);
                 if (restored.config.announcements) speech.validate(restored.config.announcements);
                 if (restored.config.ticketPrinting) require('./public/print-label').validate(restored.config.ticketPrinting);
+                for (const brand of restored.config.brands || []) if (brand.display !== undefined) require('./public/display-branding').validate(brand.display);
                 const backupFile = `data.before-restore-${Date.now()}.json`;
                 fs.writeFileSync(path.join(DATA_DIR, backupFile), JSON.stringify(localData), { flag:'wx' });
                 temporary = `${DATA_FILE}.restore-${require('crypto').randomUUID()}.tmp`;
@@ -517,7 +519,8 @@ const server = http.createServer((req, res) => {
                 '.png':  'image/png',
                 '.jpg':  'image/jpeg',
                 '.svg':  'image/svg+xml',
-                '.woff2':'font/woff2'
+                '.woff2':'font/woff2',
+                '.ttf':'font/ttf'
             };
             res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
             return fs.createReadStream(filePath).pipe(res);

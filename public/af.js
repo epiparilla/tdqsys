@@ -325,6 +325,7 @@ function afConfigEqual(a, b) {
             key: br.key,
             name: br.name,
             color: br.color,
+            display: typeof TdqDisplayBranding !== 'undefined' ? TdqDisplayBranding.normalize(br.display) : (br.display || null),
             models: (br.models || []).map(m => ({ label: m.label, shortname:m.shortname || '', shortnamePronounce:m.shortnamePronounce || '', prefix: m.prefix, pronounce: m.pronounce }))
         }))
     });
