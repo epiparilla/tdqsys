@@ -6,6 +6,51 @@ not a verbatim transcript.
 ## Resume here
 
 
+## 9 November explicit Done and No Show confirmation
+
+Queue Board Done and No Show buttons now ask for confirmation before calling
+the existing status action. The prompt identifies the complete prefixed ticket,
+client and vehicle, and explains that the entry leaves the active queue list
+without changing the TV number. Cancel performs no mutation or local write.
+This applies to every vehicle column, including repeated horizontal-loop
+columns and the second-brand board.
+
+Ongoing and Call Back remain immediate and do not prompt. The automatic change
+of the previous ongoing client to Done is unchanged; confirmation applies only
+when the facilitator explicitly presses Done or No Show.
+397 Node checks pass / 3 skipped, including cancel/confirm behavior, prompt
+details and unchanged Ongoing/Call Back actions. Packaged source verified;
+physical/native-dialog visual acceptance remains pending.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-statusconfirm-20261109/tdqsys-v2-setup-2.0.0.exe
+No database or public viewer deployment required. All earlier features and
+the client presentation revision 3 are retained. Local guides synchronized;
+no live statuses changed. V1, version manifests and OTA unchanged.
+
+
+## 9 November client presentation revision 3
+
+Updated the client walkthrough and regenerated 35 screenshots from the current
+v2 UI using isolated fictional fixtures. The ten-page Word document now covers
+opening TDQSYS v2, reopening via the tray, Restart versus Reset to Zero, and
+full shutdown via Quit TDQSYS. It also reflects current privacy/waiver options,
+printed-waiver agreement, Master Table status colors, display font/logo
+settings, audited giveaway/opening corrections, short simulation pacing and
+complete vehicle-list import.
+
+Deliverables:
+outputs/TDQSYS Client Presentation 2026-11-09/TDQSYS v2 Client Walkthrough.docx
+outputs/TDQSYS v2 Client Presentation 2026-11-09.zip
+The full archive contains the walkthrough, HTML screenshot gallery, Read Me
+and 35 PNG screenshots (38 files). Earlier presentation versions are retained.
+All ten pages visually inspected using the isolated OOXML page preview;
+native Word/LibreOffice rendering remains unavailable. Source styles/package
+parts and the prior walkthrough were preserved. No live simulation, client
+registration, printer job, giveaway change or installed setting was written.
+This is an artifact/documentation update only, not a new installer or deploy.
+The latest manual installer remains the fastsimulation build listed below.
+
+
 ## 9 November built-in simulation shortened to a 2–3 minute target
 
 The built-in simulator no longer uses the old 5–60 second observation delays.

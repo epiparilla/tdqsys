@@ -126,7 +126,10 @@
         const actions = document.createElement('div'); actions.className = 'actions';
         for (const [label, action, status] of [['Ongoing', 'ongoing'], ['Done', 'status', 'done'], ['No Show', 'status', 'no_show'], ['Call Back','callback']]) {
           const button = document.createElement('button'); button.textContent = label; button.dataset.write = '';
-          button.onclick = () => mutate({ action, entryId: entry.id, status }); actions.appendChild(button);
+          button.onclick = () => {
+            if (['done','no_show'].includes(status) && !window.confirm(`Mark this entry as ${label}?\n\nQueue: ${formatTicket(entry,model)}\nClient: ${entry.registrations?.full_name || 'Unnamed client'}\nVehicle: ${model.full_name}\n\nThis removes the entry from the active queue list. The TV queue number will not change.`)) return;
+            return mutate({ action, entryId: entry.id, status });
+          }; actions.appendChild(button);
         }
         row.appendChild(actions); column.appendChild(row);
       }

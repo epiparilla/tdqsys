@@ -35,6 +35,19 @@ test('dashboard is the registration board with separate Master Table and Print Q
   assert.match(fs.readFileSync(path.join(PUBLIC,'test-drive-operations.html'),'utf8'),/url=dashboard.html/);
 });
 
+test('Done and No Show require an entry-specific confirmation; cancelling changes nothing and calls stay instant',()=>{
+  const rendered=board({models:[{id:'model',brand_key:'brand1',unit_index:1,full_name:'Test Vehicle',display_prefix:'AA'}],entries:[{id:'ticket',registration_id:'client',vehicle_model_id:'model',queue_number:7,status:'ongoing',registrations:{full_name:'Ana Cruz'}}],printJobs:[]});
+  const ctx=rendered.context,calls=[],prompts=[];let accept=false;
+  ctx.window={confirm:message=>{prompts.push(message);return accept;}};ctx.mutate=body=>calls.push(body);
+  const buttons=rendered.board.children[0].children[2].children[1].children;
+  for(const [index,status,label] of [[1,'done','Done'],[2,'no_show','No Show']]){
+    buttons[index].onclick();assert.equal(calls.length,0);assert.equal(ctx.snapshot.entries[0].status,'ongoing');
+    const prompt=prompts.at(-1);for(const detail of [label,'AA07','Ana Cruz','Test Vehicle','TV queue number will not change'])assert.ok(prompt.includes(detail));
+    accept=true;buttons[index].onclick();assert.equal(calls.at(-1).action,'status');assert.equal(calls.at(-1).status,status);assert.equal(calls.at(-1).entryId,'ticket');calls.length=0;accept=false;
+  }
+  const count=prompts.length;buttons[0].onclick();buttons[3].onclick();assert.equal(prompts.length,count);assert.deepEqual(calls.map(call=>call.action),['ongoing','callback']);
+});
+
 test('vehicle board renders full name, unique registrant total, inline prefixed ticket/name/status, then four actions',()=>{
   const rendered=board({models:[{id:'rav4',full_name:'Toyota RAV4 Hybrid',display_prefix:'AA'}],entries:[
     {id:'one',registration_id:'client',vehicle_model_id:'rav4',queue_number:7,status:'ongoing',registrations:{full_name:'Juan Dela Cruz'}},
