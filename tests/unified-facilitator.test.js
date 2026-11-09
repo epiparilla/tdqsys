@@ -330,7 +330,7 @@ test('SE reset never changes TV counters or requests the queue-reset action',asy
 
 test('Sheets worker keeps retrying independently of pages and syncs a newly saved destination first',async()=>{
   let savedConfig=JSON.parse(JSON.stringify(config));const calls=[];let fail=true;
-  const context={app:{isQuitting:false},engineDown:()=>false,registrationSyncBusy:false,registrationSettingsHash:null,registrationSyncStatus:{},BASE_DIR:'isolated',RES_SERVER:'server',SUPABASE_URL:'https://cloud.test',path,crypto,AbortSignal,
+  const context={app:{isQuitting:false},engineDown:()=>false,registrationSimulator:null,registrationSyncBusy:false,registrationSettingsHash:null,registrationSyncStatus:{},BASE_DIR:'isolated',RES_SERVER:'server',SUPABASE_URL:'https://cloud.test',path,crypto,AbortSignal,
     fs:{readFileSync:()=>JSON.stringify({config:savedConfig})},require:()=>({status:()=>({canWrite:true})}),
     fetch:async(_url,options)=>{const body=JSON.parse(options.body);calls.push(body);if(body.action==='sync-sheets'&&fail)throw Error('offline');return Response.json({configured:true});}};
   vm.createContext(context);vm.runInContext(extractFunction(main,'buildTestDriveSettings')+'\n'+extractFunction(main,'registrationSyncTick'),context);

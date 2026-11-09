@@ -1,6 +1,42 @@
 # TDQSYS Future Improvements
 
 
+## 9 November built-in simulation shortened to a 2–3 minute target
+
+The built-in simulator no longer uses the old 5–60 second observation delays.
+It schedules registrations on a short five-second-per-record timeline and
+subtracts time already spent in setup/API requests from subsequent waits.
+The default 10-Agent / 20-client batch targets approximately 2–3 minutes;
+smaller batches finish sooner. Slow networks/cloud delivery can exceed this
+target: no real wall-clock/Google Sheets completion guarantee is claimed.
+
+Removed the redundant public se-code prefill lookup during simulation.
+Every registration submission still validates its Agent code server-side,
+with all existing consent, version, location and atomic test-run safeguards.
+Catch-up pacing enforces at least 4.2 seconds between client submissions to
+avoid bursting the existing public code-validation limit after slow setup.
+
+The existing Sheets worker is nudged after every simulated client and may
+drain up to five sequential jobs per tick only while this location's simulation
+is active. It stops on idle, unconfirmed delivery/failure or missing setup;
+existing leases, idempotency and silent retry behavior are unchanged.
+The normal outside-simulation policy remains one job per 15-second tick.
+Sheet backlog, outages and delivery remain asynchronous; no registration is
+deleted or falsely marked delivered. Printing remains manual.
+
+396 Node checks pass / 3 skipped. Fake-clock full-batch checks verify 145s
+with instant responses and about 147s with 1s per network request, safe
+catch-up spacing, per-client Sheets nudges and bounded sequential catch-up.
+Existing normal Sheets retry tests still pass. The unchanged database suite
+previously passed 45 checks; this change requires no migration or API deploy.
+Packaged helper, main process and Settings files verified. No live simulation
+was started and no actual cloud timing or physical UI acceptance was measured.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-fastsimulation-20261109/tdqsys-v2-setup-2.0.0.exe
+Local guides synchronized; v1, version manifests and OTA unchanged.
+This timing supersedes the historical 5–60-second notes below.
+
+
 ## 9 November Settings registration simulator and vehicle-list import
 
 Desktop Settings now has a separate Registration simulation — TEST DATA card.

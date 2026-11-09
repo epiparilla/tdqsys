@@ -423,7 +423,13 @@ async function registrationSyncTick() {
             return result;
         };
         if (hash !== registrationSettingsHash) { await send(settings); registrationSettingsHash = hash; }
-        if (registrationSyncStatus.hasUrl) await send({action:'sync-sheets'});
+        if (registrationSyncStatus.hasUrl) {
+            const limit=registrationSimulator?.state.active && registrationSimulator.identity===cfg.instanceId ? 5 : 1;
+            for(let index=0;index<limit;index++) {
+                const result=await send({action:'sync-sheets'});
+                if(result.idle || result.delivered!==true)break;
+            }
+        }
     } catch { /* Keep registrations in the durable outbox and retry silently. */ }
     finally { registrationSyncBusy = false; }
 }
@@ -884,7 +890,7 @@ function getRegistrationSimulator(){
     const {RegistrationSimulator}=require(path.join(RES_SERVER,'shared','registration-simulator.js'));
     const statusFile=path.join(BASE_DIR,'registration-simulation-status.json');let restored=null;
     try{if(fs.existsSync(statusFile))restored=JSON.parse(fs.readFileSync(statusFile,'utf8'));}catch{/* Status only; registrations remain in the database. */}
-    registrationSimulator=new RegistrationSimulator({getConfig:localConfig,restored,
+    registrationSimulator=new RegistrationSimulator({getConfig:localConfig,restored,onRegistration:()=>{registrationSyncTick();},
         allowed:cfg=>{if(app.isQuitting || !require(path.join(RES_SERVER,'shared','licence.js')).status(cfg.instanceId,{dataDir:BASE_DIR}).canWrite)throw Error('This installation is not licensed for testing changes.');},
         persist:status=>{try{fs.writeFileSync(statusFile+'.tmp',JSON.stringify(status),{mode:0o600});fs.renameSync(statusFile+'.tmp',statusFile);}catch{console.warn('Could not save simulation status. Check tables before restarting.');}},
         remote:async(body,instanceId)=>{const cfg=localConfig();if(cfg.instanceId!==instanceId)throw Error('Simulation location changed.');const queue=getLocalQueue(cfg);await queue.barrier();try{return await remoteQueueOperation(body.action==='configure'?buildTestDriveSettings(cfg):body,instanceId);}finally{try{await queue.sync({force:true});}finally{queue.remoteBusy=false;}}},
