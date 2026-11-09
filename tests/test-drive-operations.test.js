@@ -191,3 +191,8 @@ test('correction bridge requires confirmation, reason and operator and supplies 
  const result=await runEdge({...body,instanceId:'other'});assert.equal(result.response.status,200);const call=result.calls.find(call=>call.rpc);assert.equal(call.rpc,'tdqsys_correct_giveaway');assert.equal(call.args.p_instance_id,INSTANCE);assert.deepEqual(Array.from(call.args.p_value),[]);
  const history=await runEdge({action:'giveaway-correction-history',kind:'opening',target:'Cap',runId:WRITER});assert.equal(history.calls.find(call=>call.rpc).rpc,'tdqsys_giveaway_correction_history');
 });
+
+test('simulation opening is confirmed and always scoped to the private writer location',async()=>{
+ const denied=await runEdge({action:'simulation-open'});assert.equal(denied.response.status,400);assert.equal(denied.calls.some(call=>call.rpc),false);
+ const allowed=await runEdge({action:'simulation-open',confirm:true,instanceId:'other'});assert.equal(allowed.response.status,200);const call=allowed.calls.find(call=>call.rpc);assert.equal(call.rpc,'tdqsys_open_simulation_run');assert.equal(call.args.p_instance_id,INSTANCE);
+});

@@ -838,6 +838,7 @@ function stopOwnedProcessTree(child) {
 }
 
 function cleanup() {
+    registrationSimulator?.stop();
     if (cloudTimer) clearInterval(cloudTimer);
     if (registrationTimer) clearInterval(registrationTimer);
     if (updatePollTimer) clearInterval(updatePollTimer);
@@ -877,6 +878,23 @@ let localQueueOwner=null;
 let displayProjection=null;
 let localActionChain=Promise.resolve();
 function localConfig() {return JSON.parse(fs.readFileSync(path.join(BASE_DIR,'data.json'),'utf8')).config;}
+let registrationSimulator=null;
+function getRegistrationSimulator(){
+    if(registrationSimulator)return registrationSimulator;
+    const {RegistrationSimulator}=require(path.join(RES_SERVER,'shared','registration-simulator.js'));
+    const statusFile=path.join(BASE_DIR,'registration-simulation-status.json');let restored=null;
+    try{if(fs.existsSync(statusFile))restored=JSON.parse(fs.readFileSync(statusFile,'utf8'));}catch{/* Status only; registrations remain in the database. */}
+    registrationSimulator=new RegistrationSimulator({getConfig:localConfig,restored,
+        allowed:cfg=>{if(app.isQuitting || !require(path.join(RES_SERVER,'shared','licence.js')).status(cfg.instanceId,{dataDir:BASE_DIR}).canWrite)throw Error('This installation is not licensed for testing changes.');},
+        persist:status=>{try{fs.writeFileSync(statusFile+'.tmp',JSON.stringify(status),{mode:0o600});fs.renameSync(statusFile+'.tmp',statusFile);}catch{console.warn('Could not save simulation status. Check tables before restarting.');}},
+        remote:async(body,instanceId)=>{const cfg=localConfig();if(cfg.instanceId!==instanceId)throw Error('Simulation location changed.');const queue=getLocalQueue(cfg);await queue.barrier();try{return await remoteQueueOperation(body.action==='configure'?buildTestDriveSettings(cfg):body,instanceId);}finally{try{await queue.sync({force:true});}finally{queue.remoteBusy=false;}}},
+        request:async(cfg,route,body,key)=>{
+            const base=cfg.cloudBase.replace(/\/+$/,''),url=route==='config'?`${base}/api/test-drive/config?id=${encodeURIComponent(cfg.instanceId)}`:`${base}/api/test-drive/${route}`;
+            const response=await fetch(url,{signal:AbortSignal.timeout(30000),...(body?{method:'POST',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)}:{})});
+            const result=await response.json();if(!response.ok)throw Error((result.fields?Object.values(result.fields).join(' '):result.error)||'Test registration failed; verify tables before restarting.');return result;
+        }});
+    return registrationSimulator;
+}
 async function remoteQueueOperation(body,expectedInstanceId) {
     const cfg=localConfig();
     if(expectedInstanceId && cfg.instanceId!==expectedInstanceId)throw Object.assign(Error('Installation identity changed; local actions have been retained for review.'),{status:409});
@@ -1031,7 +1049,7 @@ function getHistoryCleanup(cfg) {
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
-        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview', 'speech-status', 'giveaway-inventory', 'giveaway-stock', 'giveaway-correct', 'giveaway-correction-history'];
+        const settingsActions = ['integration-info', 'test-sheets', 'speech-preview', 'speech-status', 'giveaway-inventory', 'giveaway-stock', 'giveaway-correct', 'giveaway-correction-history', 'simulation-start', 'simulation-status', 'simulation-stop'];
         const allowedPage = ['/dashboard.html','/dashboard-brand2.html','/master-table.html','/print-queue.html','/sales-executives.html','/giveaways.html','/live-dashboard.html','/event-setup.html','/test-drive-operations.html'].includes(sender.pathname)
             || (sender.pathname === '/settings.html' && settingsActions.includes(request?.action));
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
@@ -1040,6 +1058,11 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', 'giveaway-snapshot', 'set-giveaway', 'issue-giveaways', 'dashboard-snapshot', ...settingsActions];
         if(sender.pathname==='/event-setup.html')actions.push('history-list','history-preview','history-backup','history-delete','history-resume');
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
+        if(request.action.startsWith('simulation-')){
+            if(sender.pathname!=='/settings.html')throw Error('Open the simulation controls in desktop Settings.');
+            const simulator=getRegistrationSimulator();
+            return {ok:true,simulation:request.action==='simulation-start'?simulator.start(request):request.action==='simulation-stop'?simulator.stop():simulator.status()};
+        }
         if(request.action==='speech-status') {
             const response=await fetch(`http://127.0.0.1:${TTS_PORT}/api/speech-status`,{
                 signal:AbortSignal.timeout(2000),headers:{'X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN}

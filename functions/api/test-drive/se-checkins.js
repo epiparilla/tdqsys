@@ -54,6 +54,7 @@ export async function onRequest(context) {
     const body = await context.request.json();
     const checked = validateSeCheckin(body);
     if (!checked.ok) return json({ error: 'Validation failed', fields: checked.errors }, 400);
+    if(body.simulationRunId!==undefined && (typeof body.simulationRunId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.simulationRunId) || !checked.value.name.startsWith('TEST ')))return json({error:'Invalid simulation registration.'},400);
     const serviceKey = context.env.SUPABASE_SECRET_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
     const codeKey = context.env.TEST_DRIVE_CODE_ENCRYPTION_KEY;
     if (!context.env.SUPABASE_URL || !serviceKey || !codeKey) return json({ error: 'Registration is temporarily unavailable.' }, 503);
@@ -67,18 +68,14 @@ export async function onRequest(context) {
     if(!settings[0].dealerships?.includes(checked.value.dealership))return json({error:'Select a dealership from the configured list. Ask the facilitator to update Settings if yours is missing.'},400);
     const zone = settings[0].timezone;
     const day = operatingDay(zone);
-    const rpc = `${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/tdqsys_register_se_checkin`;
+    const rpc = `${context.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/${body.simulationRunId?'tdqsys_simulation_registration':'tdqsys_register_se_checkin'}`;
     for (let tries = 0; tries < 30; tries += 1) {
       const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0');
+      const args={p_instance_id:instanceId,p_name:checked.value.name,p_dealership:checked.value.dealership,p_contact_number:checked.value.contactNumber,p_operating_day:day,p_code_hash:await sha256(code),p_code_ciphertext:await encryptCode(code,codeKey),p_expires_at:expiryAtMidnight(zone)};
       const response = await fetch(rpc, {
         method: 'POST',
         headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          p_instance_id: body.instanceId.trim().toLowerCase(), p_name: checked.value.name,
-          p_dealership: checked.value.dealership, p_contact_number: checked.value.contactNumber, p_operating_day: day,
-          p_code_hash: await sha256(code), p_code_ciphertext: await encryptCode(code, codeKey),
-          p_expires_at: expiryAtMidnight(zone)
-        })
+        body: JSON.stringify(body.simulationRunId?{p_instance_id:instanceId,p_run_id:body.simulationRunId,p_kind:'agent',p_data:args}:args)
       });
       if (response.ok) return json({ code, message: 'Collect your printed code at the registration booth.' }, 201);
       const error = await response.json().catch(() => ({}));

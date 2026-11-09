@@ -140,3 +140,12 @@ test('code endpoint never accepts a truncated five-digit code',async()=>{
   const response=await invoke('se-code.js',{instanceId,code:'01234'},()=>{throw Error('must not fetch');});
   assert.equal(response.status,400);
 });
+
+test('simulation registrations use the atomic run-scoped wrapper and reject non-TEST names',async()=>{
+ let submitted;
+ const client=await invoke('registrations.js',{...body,fullName:'TEST Client Trial',simulationRunId:modelId},async(url,options)=>{if(url.endsWith('tdqsys_validate_se_code'))return Response.json({name:'Agent'});assert.ok(url.endsWith('tdqsys_simulation_registration'));submitted=JSON.parse(options.body);return Response.json({entries:[]});});
+ assert.equal(client.status,201);assert.equal(submitted.p_run_id,modelId);assert.equal(submitted.p_kind,'client');assert.equal(submitted.p_data.p_instance_id,instanceId);
+ const agent=await invoke('se-checkins.js',{instanceId,name:'TEST Agent Trial',dealership:'Dealer',contactNumber:'00000000001',simulationRunId:modelId},async(url,options)=>{if(url.includes('test_drive_settings'))return Response.json([{timezone:'Asia/Manila',dealerships:['Dealer']}]);assert.ok(url.endsWith('tdqsys_simulation_registration'));submitted=JSON.parse(options.body);return Response.json('checkin');});
+ assert.equal(agent.status,201);assert.equal(submitted.p_kind,'agent');assert.equal(submitted.p_data.p_contact_number,'00000000001');
+ assert.equal((await invoke('registrations.js',{...body,simulationRunId:modelId},()=>{throw Error('must not fetch');})).status,400);
+});

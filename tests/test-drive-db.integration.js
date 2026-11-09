@@ -572,6 +572,37 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
         for(const role of ['anon','authenticated'])for(const name of ['tdqsys_correct_giveaway(text,text,text,jsonb,jsonb,text,text,uuid,uuid)','tdqsys_giveaway_correction_history(text,uuid,text,text)'])assert.equal((await db.query('select has_function_privilege($1,$2,\'execute\') allowed',[role,name])).rows[0].allowed,false);
       });
     }finally{await db.exec('rollback');}
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611090002_registration_simulation.sql'),'utf8'));
+    await db.exec('begin');
+    try {
+      const location='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      await rpc('tdqsys_configure_registration',[location,JSON.stringify(models),'Waiver','Terms','',JSON.stringify(['Dealer'])]);
+      const run=(await rpc('tdqsys_open_simulation_run',[location])).runId;
+      const model=(await db.query('select id from vehicle_models where instance_id=$1 limit 1',[location])).rows[0].id;
+      const agent={p_instance_id:location,p_name:'TEST Agent Trial',p_dealership:'Dealer',p_contact_number:'00000000001',p_operating_day:today,p_code_hash:hash('1234'),p_code_ciphertext:'encrypted-test-code',p_expires_at:'2099-01-01T00:00:00Z'};
+      const client={p_instance_id:location,p_full_name:'TEST Client Trial',p_name_search:'test client trial',p_email:'trial@example.invalid',p_city_address:'TEST City',p_contact_number:'00000000001',p_code_hash:hash('1234'),p_waiver_version:hash('Waiver'),p_terms_version:hash('Terms'),p_idempotency_key:'simulation-test-client',p_model_ids:[model]};
+      const submit=(kind,data,runId=run)=>rpc('tdqsys_simulation_registration',[location,runId,kind,JSON.stringify(data)]);
+      const denied=async(fn,pattern)=>{await db.exec('savepoint rejected_simulation');await assert.rejects(fn(),pattern);await db.exec('rollback to savepoint rejected_simulation');};
+      await check('scoped simulation uses normal Agent/client registration and produces real test-run tickets and jobs',async()=>{
+        await submit('agent',agent);const result=await submit('client',client);
+        assert.equal((await db.query('select queue_run_id from test_drive_entries where registration_id=$1',[result.registrationId])).rows[0].queue_run_id,run);
+        assert.equal((await db.query('select count(*)::int n from sheet_sync_jobs where registration_id=$1',[result.registrationId])).rows[0].n,1);
+        assert.equal((await db.query("select count(*)::int n from print_jobs where instance_id=$1",[location])).rows[0].n,2);
+        assert.deepEqual(await submit('client',client),result);
+      });
+      await check('simulation cannot replace a populated run, cross locations, use real names or write after official reset',async()=>{
+        await denied(()=>rpc('tdqsys_open_simulation_run',[location]),/not empty/);
+        await denied(()=>submit('agent',{...agent,p_name:'Real Agent'}),/invalid simulation/);
+        await denied(()=>submit('client',{...client,p_instance_id:A}),/location mismatch/);
+        const official=(await rpc('tdqsys_open_queue_run',[location,today,'Official run','staff'])).id;
+        await denied(()=>submit('client',{...client,p_idempotency_key:'after-reset'}),/simulation run changed/);
+        await denied(()=>submit('agent',agent,official),/simulation run changed/);
+        assert.equal((await db.query('select count(*)::int n from test_drive_entries where queue_run_id=$1',[official])).rows[0].n,0);
+        await rpc('tdqsys_configure_inventory',[location,JSON.stringify(['Cap']),JSON.stringify([{item:'Cap',quantity:1,runId:official,requestId:randomUUID()}])]);
+        await denied(()=>rpc('tdqsys_open_simulation_run',[location]),/not empty/);
+        for(const role of ['anon','authenticated'])for(const name of ['tdqsys_open_simulation_run(text)','tdqsys_simulation_registration(text,uuid,text,jsonb)'])assert.equal((await db.query("select has_function_privilege($1,$2,'execute') allowed",[role,name])).rows[0].allowed,false);
+      });
+    }finally{await db.exec('rollback');}
     console.log(`${count} PostgreSQL integration checks passed.`);
   } finally { await db.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

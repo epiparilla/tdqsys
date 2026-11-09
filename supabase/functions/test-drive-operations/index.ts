@@ -24,6 +24,12 @@ Deno.serve(async (req) => {
     const { data: revoked, error: revocationError } = await admin.from('revoked_licenses').select('instance_id').eq('instance_id', instanceId).maybeSingle();
     if (revocationError) throw revocationError;
     if (revoked) return Response.json({ error: 'license_revoked' }, { status: 403, headers: cors });
+    if(body.action==='simulation-open') {
+      if(body.confirm!==true)return Response.json({error:'Confirm a test run first.'},{status:400,headers:cors});
+      const {data,error}=await admin.rpc('tdqsys_open_simulation_run',{p_instance_id:instanceId});
+      if(error)return Response.json({error:error.message},{status:error.code==='P0001'?409:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
     if(body.action==='sync-local-operation') {
       const {data,error}=await admin.rpc('tdqsys_apply_local_operation',{p_instance_id:instanceId,p_operation:body.operation});
       if(error)return Response.json({error:error.message},{status:['P0001','22P02','23505'].includes(error.code)?409:503,headers:cors});

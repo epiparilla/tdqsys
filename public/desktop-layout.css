@@ -74,3 +74,4 @@ html{scroll-padding-top:calc(var(--desktop-top-height,0px) + 12px)}
  .desktop-top .link-button,.desktop-top nav a{padding:5px 8px;font-size:11px}
  .desktop-top{padding:3px 0 5px}.desktop-top nav{margin:4px 0}
 }
+#vehicle-import-preview{max-height:320px;overflow:auto;margin-top:12px}#vehicle-import-preview table{width:100%;text-align:left}#registration-simulation{border:1px solid #a66b18}#registration-simulation label{display:block;margin:10px 0}

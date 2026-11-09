@@ -11,6 +11,7 @@ export async function onRequest(context) {
     const body = await context.request.json();
     const checked = validateRegistration(body, { waiverRequired:false, termsRequired:false });
     if (!checked.ok) return reply({ error: 'Please check the required fields.', fields: checked.errors }, 400);
+    if(body.simulationRunId!==undefined && (typeof body.simulationRunId!=='string' || !/^[0-9a-f-]{36}$/i.test(body.simulationRunId) || !checked.value.fullName.startsWith('TEST ')))return reply({error:'Invalid simulation registration.'},400);
     const idempotencyKey = context.request.headers.get('Idempotency-Key');
     if (!idempotencyKey || !/^[a-z0-9-]{8,200}$/i.test(idempotencyKey)) return reply({ error: 'Invalid submission identifier. Please refresh the form.' }, 400);
     if (!/^[a-f0-9]{64}$/.test(body.waiverVersion || '') || !/^[a-f0-9]{64}$/.test(body.termsVersion || '')) return reply({ error: 'Please reload and review the current waiver and Terms.' }, 400);
@@ -35,13 +36,14 @@ export async function onRequest(context) {
       const consent = validateRegistration(body, { waiverRequired:!!current.result.waiverStatement.trim(), termsRequired:!!current.result.termsAndConditions.trim() });
       if (!consent.ok) return reply({ error:'Please check the required fields.', fields:consent.errors },400);
     }
-    const { response, result } = await rpc('tdqsys_submit_registration', {
+    const args = {
       p_instance_id: instance, p_full_name: checked.value.fullName, p_name_search: checked.value.nameSearch,
       p_email: checked.value.email, p_city_address: checked.value.cityAddress, p_contact_number: checked.value.contactNumber,
       p_for_application: optionalBoolean(body.forApplication), p_for_reservation: optionalBoolean(body.forReservation),
       p_code_hash: codeHash, p_waiver_version: body.waiverVersion, p_terms_version: body.termsVersion,
       p_idempotency_key: idempotencyKey, p_model_ids: checked.value.modelIds
-    });
+    };
+    const {response,result}=await rpc(body.simulationRunId?'tdqsys_simulation_registration':'tdqsys_submit_registration',body.simulationRunId?{p_instance_id:instance,p_run_id:body.simulationRunId,p_kind:'client',p_data:args}:args);
     if (!response.ok) return reply({ error: result.message?.includes('consent text changed') ? 'The waiver or Terms changed. Please reload and review them.' : 'Registration could not be completed. Please see the facilitator.' }, 400);
     return reply({ ...result, message: 'Registration received—please collect your printed queue number from the facilitator.' }, 201);
   } catch { return reply({ error: 'Registration could not be completed. Please retry.' }, 400); }

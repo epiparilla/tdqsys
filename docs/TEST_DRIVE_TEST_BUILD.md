@@ -1,6 +1,78 @@
 # Test-drive manual-test build
 
 
+## 9 November Settings registration simulator and vehicle-list import
+
+Desktop Settings now has a separate Registration simulation — TEST DATA card.
+Defaults: 10 Agents then 20 clients, with adjustable limits 1–10 / 1–20.
+Submissions run sequentially through the public registration/code-validation
+APIs at random 5–60 second intervals. Every third client selects two distinct
+models when available (default full batch: 27 tickets). Names are marked TEST;
+emails use example.invalid and contacts are synthetic eleven-digit strings.
+Current saved settings/dealerships/models/consent versions are used. No Chrome
+automation, direct registration-table insertion or automatic printing.
+
+Start requires explicit TEST-data acknowledgement and confirmation. It syncs
+saved configuration and opens a marked [SIMULATION] run, but only if the
+current run has no tickets or giveaway stock/claim activity. Existing history
+and daily Agent registrations are retained. A populated run must be closed
+by the operator using the normal Reset to Zero / Open run flow first.
+Start never clears an occupied run or deletes records. Simulation creates
+real print jobs, registration rows and pending raw Google Sheets jobs; normal
+background Sheets delivery/retries apply when a destination is configured.
+
+The Electron main process owns the job, so navigation/page reload does not
+stop it. Settings shows progress/logs/next submission time and a Stop button.
+Stop interrupts pacing; an in-flight request may finish. Quit interrupts the
+job, and it never auto-resumes after restart. A private status-only journal
+contains counts/names/errors, not issued codes. Network/validation errors,
+licence failure, location or saved registration-setting changes stop further
+submissions. Uncertain submissions are not blindly repeated; verify tables.
+The main process prevents duplicate jobs and restricts these controls to
+local Settings. Licence checks apply before start and during the job.
+
+Database wrappers lock/check the exact simulation run and TEST name before
+calling the normal Agent/client allocation functions. If reset/daily rollover
+switches the active run, delayed simulation submissions cannot allocate into
+the official run. Browser roles cannot execute these RPCs. Ordinary registration
+behavior is unchanged. Before official use: stop the test and open a new run;
+optional advanced selected-run cleanup retains its existing private-backup
+and confirmation safeguards. Google Sheets rows are never automatically
+deleted. TEST Agent codes stay active until normal reset/expiry; no blanket
+Agent reset or cleanup is performed automatically.
+
+Brands & Cars now imports CSV or JSON files up to 100 KB, with validation,
+a complete preview, and explicit Apply to editor before the normal Save flow.
+Download CSV template and Export saved car list buttons are included.
+CSV headers (case/space/underscore/hyphen tolerant):
+Brand, Label, Shortname, Shortname pronunciation, Prefix, Prefix pronunciation
+JSON accepts a flat array using brand/label/shortname/shortnamePronounce/prefix/
+pronounce or {brands:[{name,models:[...]}]}. All six values must be present
+and nonblank. Import limits: 2 brands, 12 total vehicles; duplicate labels or
+prefixes within a brand, malformed CSV, markup/control characters and formula
+cells are rejected. CSV export neutralizes spreadsheet-formula prefixes.
+Matching saved brand names retain their colors and font/logo display settings;
+new brands get default colors/display settings. File identity/cloud credentials,
+waivers, giveaways, printing, queues and other Settings are not imported.
+Applying only replaces the brand/car editor draft; normal Save confirmation,
+queue handling and audio preparation still apply. Discard restores saved data.
+No real configuration file was imported automatically.
+
+393 Node checks pass / 3 skipped; 45 isolated PostgreSQL checks pass.
+Tests cover full 10-Agent/20-client pacing, 27 tickets, cancellation, duplicate
+start, licensing, interrupted jobs, settings changes, run/location guards,
+normal allocation/print/Sheet jobs, private RPC permissions, preview-only
+import, stale file reads, six-field round trips and malicious/invalid inputs.
+Packaged main/helper/public files verified; real UI/live simulation acceptance
+remains pending. No live simulation, printing, registration or import was run.
+Applied 202611090002_registration_simulation.sql; deployed the private
+test-drive-operations action and v2 public registration wrappers. No v1 deploy.
+Latest manual installer, still v2.0.0:
+app/dist-test-drive-v2-testingtools-20261109/tdqsys-v2-setup-2.0.0.exe
+Earlier installers and all fixes preserved. Local guides synchronized;
+version manifests and OTA notification remain unchanged.
+
+
 ## 9 November audited giveaway and beginning-balance corrections
 
 Normal issued-item checkboxes and saved opening balances remain locked.
