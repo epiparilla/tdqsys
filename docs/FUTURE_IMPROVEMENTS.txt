@@ -1,5 +1,24 @@
 # TDQSYS Future Improvements
 
+## 10 November manual installer published
+
+Download: https://github.com/epiparilla/tdqsys/releases/download/v2.0.0-test-20261110/tdqsys-v2-setup-2.0.0.exe
+
+GitHub prerelease: v2.0.0-test-20261110. App version remains 2.0.0.
+Includes explicit Done / No Show confirmation and all earlier changes.
+Source commit: 1c1a2f21d2a369bc8cb886b9fe55b5dc4a0ff14f.
+Installer: 232868895 bytes. SHA256:
+7450487415df1269be1a34e916a619f09afe232ef7413c6f4636831f37e42a01
+
+Verified uploaded asset checksum, public download HTTP 200 and exact byte size.
+Fresh Node suite: 397 passing, 3 skipped, 0 failures.
+V2 Pages deployed from the same source (4910546d); public v2 manifest
+remains enabled=false. V1 latest remains v1.1.28; neither updater manifest changed.
+Manual installation only: fully Quit TDQSYS v2 from the tray before installing.
+No live records changed. Physical acceptance remains with the operator.
+
+
+
 
 ## 9 November explicit Done and No Show confirmation
 
