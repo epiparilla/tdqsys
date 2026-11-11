@@ -1,5 +1,26 @@
 # TDQSYS Future Improvements
 
+## 11 November v2 OTA enabled
+
+User authorized OTA activation after publication of v2.0.1.
+https://tdqsys-v2.pages.dev/version.json now has enabled=true and targets
+the existing v2.0.1 installer (232870105 bytes, SHA256
+5a0880a7459a1754361a2b1e4a1b45242f648f35df8b2d874f45e404b482b962).
+No binary rebuild or version change was needed.
+Cloudflare v2 deployment: d944bc3e. Live feed matches local metadata.
+GitHub asset checksum matched; public installer HEAD is HTTP 200 with exact size.
+Live validator check: v2.0.0 is offered 2.0.1; v2.0.1 is not offered itself.
+Legacy v1 feed remains byte-content equivalent and unchanged at 1.1.28.
+402 Node tests pass / 3 skipped, including activation and disabled-feed gating.
+No update was installed on the operator laptop and no live data was changed.
+
+Operator: open Settings > Check for Updates in v2.0.0. The background check
+runs about 15 seconds after startup and every 30 minutes thereafter.
+Actual download/install/relaunch acceptance remains for the operator.
+This entry supersedes earlier notes saying v2 OTA was disabled.
+
+
+
 ## 11 November v2.0.1 release
 
 V2 desktop version is now 2.0.1 (app package and lockfile agree).

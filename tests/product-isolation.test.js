@@ -32,7 +32,11 @@ test('v2 never discovers a v1 or unrelated uninstaller',()=>{
 test('v1 feed remains frozen and v2 feed is not controlled by cloudBase or backup',()=>{
  assert.equal(JSON.parse(read('public/version.json')).version,'1.1.28');
  assert.equal(PRODUCT.updateUrl,'https://tdqsys-v2.pages.dev/version.json');
- assert.equal(JSON.parse(read('releases/v2/version.json')).enabled,false);
+ const feed=JSON.parse(read('releases/v2/version.json'));
+ assert.equal(feed.enabled,true);
+ assert.equal(validateManifest(feed,'2.0.0').updateAvailable,true);
+ assert.equal(validateManifest(feed,feed.version).updateAvailable,false);
+ assert.equal(validateManifest({...feed,enabled:false},'2.0.0').updateAvailable,false);
  const source=read('app/main.js');
  assert.match(source,/validateManifest\(m,current\)/);
  assert.match(source,/info.sha256/);
