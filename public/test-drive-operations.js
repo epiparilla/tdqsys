@@ -19,6 +19,7 @@
   function applyLicenceLock(st) {
     licenceStatus = st; licenceCanWrite = !!st?.canWrite;
     document.querySelectorAll('[data-write]').forEach(button => { button.disabled = busy || !licenceCanWrite; });
+    for(const direction of ['undo','redo'])if(byId(`${direction}-ongoing`))byId(`${direction}-ongoing`).disabled=busy || !licenceCanWrite || !snapshot.queueHistory?.[direction];
     byId('licence-locked').hidden = licenceCanWrite;
     byId('licence-locked-why').textContent = licenceCanWrite ? '' : st?.state === 'expired'
       ? `This licence expired on ${st.until || 'an unknown date'}.`
@@ -257,7 +258,7 @@
     try {
       const result = await request(body);
       if(result.localSnapshot){snapshot=result.localSnapshot;render();}
-      byId('message').textContent = result.printed ? result.issuedTicket ? `Ticket ${result.issuedTicket.reprint?'reprinted':'issued and printed'}: ${result.issuedTicket.queueNumber}.` : 'Printed.' : body.action==='cancel-print' ? 'Print job cancelled. Client registration and queue number are retained.' : body.action==='reprint-se-code' ? 'Agent slip queued in Print Queue.' : body.action === 'reset-sales-executives'
+      byId('message').textContent = ['undo-ongoing','redo-ongoing'].includes(body.action) ? 'Ongoing selection and display number restored. No new announcement was played.' : result.printed ? result.issuedTicket ? `Ticket ${result.issuedTicket.reprint?'reprinted':'issued and printed'}: ${result.issuedTicket.queueNumber}.` : 'Printed.' : body.action==='cancel-print' ? 'Print job cancelled. Client registration and queue number are retained.' : body.action==='reprint-se-code' ? 'Agent slip queued in Print Queue.' : body.action === 'reset-sales-executives'
         ? `${result.deactivated} Agent code(s) deactivated. Agents may register again. Client registrations, queues and TV numbers are unchanged.`
         : body.action === 'reset'
         ? 'New queue run opened. Every model and the TV display have been reset to zero. Client and Agent history are retained.'
@@ -269,6 +270,13 @@
     finally { busy = false; applyLicenceLock(licenceStatus); }
   }
   byId('refresh').onclick = () => refresh(true).catch(error => { byId('message').textContent = error.message; });
+  for(const direction of ['undo','redo'])if(byId(`${direction}-ongoing`))byId(`${direction}-ongoing`).onclick=()=>mutate({action:`${direction}-ongoing`});
+  window.addEventListener('keydown',event=>{
+    if(document.body.dataset.view!=='board' || !(event.ctrlKey || event.metaKey) || event.altKey || event.target?.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+    const key=event.key.toLowerCase(),direction=key==='z'?(event.shiftKey?'redo':'undo'):key==='y'?'redo':null;
+    if(!direction)return;
+    event.preventDefault();if(!byId(`${direction}-ongoing`)?.disabled)mutate({action:`${direction}-ongoing`});
+  });
   window.addEventListener('tdqsys-history-cleaned',()=>refresh(true).catch(error=>{byId('message').textContent=error.message;}));
   byId('configure').onclick = () => mutate({ action: 'configure' });
   byId('retry-local-sync').onclick=()=>mutate({action:'retry-local-sync'});

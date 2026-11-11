@@ -22,6 +22,37 @@ test('local operations persist across restart, advance only the selected model, 
     assert.equal(restarted.state.displayPending[0].number,2);restarted.markDisplayApplied(restarted.state.displayPending);assert.equal(restarted.state.displayPending.length,0);
     assert.equal(restarted.ticket('a2').entry.queue_number,2);assert.equal(restarted.state.outbox.length,1);
 }));
+test('Ongoing undo/redo is durable, local, model-scoped and keeps all assigned numbers',()=>using(async directory=>{
+    let requests=0;const options={directory,instanceId:INSTANCE,now:()=>NOW,remote:async()=>{requests++;throw Error('offline');}};
+    const queue=new LocalTestDrive(options);queue.acceptSnapshot(snapshot());queue.commit({action:'ongoing',entryId:'a2'});
+    assert.equal(queue.view().queueHistory.undo,true);queue.restore('undo');
+    assert.deepEqual(queue.view().entries.map(e=>e.status),['ongoing','waiting','ongoing']);assert.equal(queue.state.displayPending.find(e=>e.modelId==='a').number,1);
+    const restarted=new LocalTestDrive(options);assert.equal(restarted.view().queueHistory.redo,true);restarted.restore('redo');
+    assert.deepEqual(restarted.view().entries.map(e=>e.status),['done','ongoing','ongoing']);assert.deepEqual(restarted.view().entries.map(e=>e.queue_number),[1,2,1]);assert.equal(requests,0);
+    assert.deepEqual(restarted.state.outbox.map(e=>e.action),['ongoing','restore-ongoing','restore-ongoing']);
+    restarted.restore('undo');restarted.commit({action:'ongoing',entryId:'b1'});assert.equal(restarted.view().queueHistory.redo,false);
+}));
+test('undo can restore zero, chains multiple selections and clears on status actions, conflicts or day/run changes',()=>using(async directory=>{
+    let clock=NOW;const queue=new LocalTestDrive({directory,instanceId:INSTANCE,now:()=>clock});const data=snapshot();data.entries[0].status='waiting';queue.acceptSnapshot(data);
+    queue.commit({action:'ongoing',entryId:'a1'});queue.commit({action:'ongoing',entryId:'a2'});
+    queue.restore('undo');queue.restore('undo');assert.equal(queue.view().modelDisplays.find(e=>e.vehicle_model_id==='a').queue_number,0);assert.deepEqual(queue.view().entries.map(e=>e.status),['waiting','waiting','ongoing']);
+    queue.restore('redo');queue.restore('redo');queue.commit({action:'status',entryId:'a2',status:'done'});assert.equal(queue.view().queueHistory.undo,false);
+    queue.commit({action:'ongoing',entryId:'b1'});clock=new Date('2026-11-04T04:00:00Z');assert.throws(()=>queue.restore('undo'),/Nothing safe/);
+    clock=NOW;queue.acceptSnapshot(snapshot('newrun'));assert.equal(queue.view().queueHistory.undo,false);
+}));
+test('undo does not publish changes if durable save fails',()=>using(async directory=>{
+    const queue=new LocalTestDrive({directory,instanceId:INSTANCE,now:()=>NOW});queue.acceptSnapshot(snapshot());queue.commit({action:'ongoing',entryId:'a2'});
+    queue.save=()=>{throw Error('disk full');};assert.throws(()=>queue.restore('undo'),/disk full/);assert.equal(queue.view().entries[1].status,'ongoing');assert.equal(queue.view().queueHistory.undo,true);
+}));
+test('synced undo survives cloud polling and refuses externally changed status',()=>using(async directory=>{
+    let cloud=snapshot();const {applyOperation}=require('../shared/test-drive-local');
+    const queue=new LocalTestDrive({directory,instanceId:INSTANCE,now:()=>NOW,remote:async request=>{
+        if(request.action==='snapshot')return structuredClone(cloud);
+        applyOperation(cloud,request.operation);return {operationId:request.operation.id};
+    }});queue.acceptSnapshot(cloud);queue.commit({action:'ongoing',entryId:'a2'});await queue.sync({force:true});
+    queue.restore('undo');await queue.sync({force:true});assert.deepEqual(queue.view().entries.map(e=>e.status),['ongoing','waiting','ongoing']);assert.equal(queue.view().queueHistory.redo,true);
+    cloud.entries[1].status='no_show';queue.acceptSnapshot(cloud);assert.equal(queue.view().queueHistory.redo,false);assert.throws(()=>queue.restore('redo'),/Nothing safe/);
+}));
 test('failed atomic save does not expose an unrecorded action',()=>using(async directory=>{
     const queue=new LocalTestDrive({directory,instanceId:INSTANCE,now:()=>NOW});queue.acceptSnapshot(snapshot());
     queue.save=()=>{throw Error('disk unavailable');};

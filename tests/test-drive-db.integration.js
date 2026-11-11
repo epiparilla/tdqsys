@@ -30,6 +30,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020003_direct_reprint_cancel.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611020004_registration_dealerships.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611030001_local_operation_sync.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611110001_queue_undo.sql'), 'utf8'));
     // Hosted Supabase can grant browser roles EXECUTE through default privileges.
     await db.exec('alter default privileges grant execute on functions to anon,authenticated;');
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611060001_giveaways.sql'), 'utf8'));
@@ -118,6 +119,30 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
         const replacement=await rpc('tdqsys_reissue_ticket',[A,job.test_drive_entry_id,null,false]);
         await rpc('tdqsys_claim_print_job',[A,replacement.jobId]);
         await assert.rejects(rpc('tdqsys_cancel_print_job',[A,replacement.jobId]),/only pending/);
+      } finally {await db.exec('rollback');}
+    });
+    await check('Undo/Redo compensates only one model, is idempotent and refuses conflicting state or browser roles',async()=>{
+      await db.exec('begin');
+      try {
+        const nextArgs=args('undo-client');nextArgs[1]='Undo Client';nextArgs[2]='undo client';
+        const next=await rpc('tdqsys_submit_registration',nextArgs),old=first.entries[0],ticket=next.entries.find(e=>e.modelId===old.modelId);
+        const other=first.entries[1];
+        await rpc('tdqsys_set_ongoing',[old.entryId,'test']);
+        await rpc('tdqsys_set_ongoing',[ticket.entryId,'test']);
+        const undo={id:randomUUID(),runId:run.id,entryId:ticket.entryId,action:'restore-ongoing',expected:{entries:[{id:old.entryId,status:'done'},{id:ticket.entryId,status:'ongoing'}],number:ticket.queueNumber},target:{entries:[{id:old.entryId,status:'ongoing'},{id:ticket.entryId,status:'waiting'}],number:old.queueNumber}};
+        const call=op=>rpc('tdqsys_apply_local_operation',[A,JSON.stringify(op)]);
+        const accepted=await call(undo);assert.deepEqual(await call(undo),accepted);
+        assert.equal((await db.query('select status from test_drive_entries where id=$1',[old.entryId])).rows[0].status,'ongoing');
+        assert.equal((await db.query('select status from test_drive_entries where id=$1',[other.entryId])).rows[0].status,'ongoing');
+        assert.equal((await db.query('select queue_number from queue_model_display where queue_run_id=$1 and vehicle_model_id=$2',[run.id,old.modelId])).rows[0].queue_number,old.queueNumber);
+        await call({...undo,id:randomUUID(),expected:undo.target,target:undo.expected});
+        const zero={...undo,id:randomUUID(),target:{entries:[{id:old.entryId,status:'waiting'},{id:ticket.entryId,status:'waiting'}],number:0}};
+        await call(zero);assert.equal((await db.query('select queue_number from queue_model_display where queue_run_id=$1 and vehicle_model_id=$2',[run.id,old.modelId])).rows[0].queue_number,0);
+        await call({...zero,id:randomUUID(),expected:zero.target,target:zero.expected});
+        // A stale restore is refused without erasing a subsequent status action.
+        await rpc('tdqsys_mark_entry',[A,ticket.entryId,'no_show']);
+        await db.exec('savepoint conflict');await assert.rejects(call({...undo,id:randomUUID()}),/status changed/);await db.exec('rollback to savepoint conflict');
+        for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'tdqsys_apply_local_operation(text,jsonb)','execute') allowed",[role])).rows[0].allowed,false);
       } finally {await db.exec('rollback');}
     });
     await check('local operation receipts prevent duplicate application and an old retry cannot undo a later status',async()=>{

@@ -35,6 +35,19 @@ test('dashboard is the registration board with separate Master Table and Print Q
   assert.match(fs.readFileSync(path.join(PUBLIC,'test-drive-operations.html'),'utf8'),/url=dashboard.html/);
 });
 
+test('Ongoing status is orange and history controls are licence/busy gated and ignore native text undo',()=>{
+  const css=fs.readFileSync(path.join(PUBLIC,'facilitator.css'),'utf8');
+  assert.match(css,/\.entry\[data-status="ongoing"\] \.entry-summary small\{color:#ffa500/);
+  for(const direction of ['undo','redo'])assert.ok(shell.includes(`id="${direction}-ongoing" data-write disabled`));
+  assert.match(source,/event\.shiftKey\?'redo':'undo'/);assert.match(source,/key==='y'\?'redo'/);
+  assert.match(source,/input,textarea,select,\[contenteditable="true"\]/);
+  const ctx={busy:false,licenceCanWrite:true,snapshot:{queueHistory:{undo:true,redo:false}},byId:id=>controls[id],document:{querySelectorAll:()=>[]}};
+  const controls={'undo-ongoing':{},'redo-ongoing':{},'licence-locked':{},'licence-locked-why':{}};
+  vm.createContext(ctx);vm.runInContext(extractFunction(source,'applyLicenceLock'),ctx);
+  ctx.applyLicenceLock({canWrite:true});assert.equal(controls['undo-ongoing'].disabled,false);assert.equal(controls['redo-ongoing'].disabled,true);
+  ctx.busy=true;ctx.applyLicenceLock({canWrite:true});assert.equal(controls['undo-ongoing'].disabled,true);
+  ctx.busy=false;ctx.applyLicenceLock({canWrite:false});assert.equal(controls['undo-ongoing'].disabled,true);
+});
 test('Done and No Show require an entry-specific confirmation; cancelling changes nothing and calls stay instant',()=>{
   const rendered=board({models:[{id:'model',brand_key:'brand1',unit_index:1,full_name:'Test Vehicle',display_prefix:'AA'}],entries:[{id:'ticket',registration_id:'client',vehicle_model_id:'model',queue_number:7,status:'ongoing',registrations:{full_name:'Ana Cruz'}}],printJobs:[]});
   const ctx=rendered.context,calls=[],prompts=[];let accept=false;

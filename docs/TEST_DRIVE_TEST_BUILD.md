@@ -1,5 +1,36 @@
 # Test-drive manual-test build
 
+## 11 November Queue Board Ongoing undo/redo
+
+Ongoing status text is now orange. Queue Board has Undo Ongoing / Redo Ongoing
+buttons plus Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z (text fields keep native undo).
+The last 30 Ongoing selections are retained locally across page changes and
+app restarts. Undo restores the affected clients' statuses and that model's
+display number, including zero; redo reapplies the selection. Ticket numbers,
+registrations, counters and other vehicle models are unchanged.
+No announcement is replayed; previously heard audio cannot be undone.
+
+Done / No Show / Cancel status actions clear this Ongoing-only history.
+A new Ongoing selection clears redo. Run/day/model changes and conflicting
+current statuses/display numbers prevent unsafe restoration. Licence and busy
+guards apply. Restores are durably journaled before display projection and
+sync asynchronously with idempotent, audited, location/run-scoped compensation.
+Migration 202611110001_queue_undo.sql applied and verified live; anon and
+authenticated cannot execute the sync RPC. Ordinary queue sync is preserved.
+No live registrations, statuses or queue numbers were changed during testing.
+
+402 Node tests pass / 3 skipped; 46 isolated PostgreSQL checks pass.
+Packaged main, local engine and UI match source. Native visual/operator
+acceptance remains pending (no GUI test claimed).
+New local manual installer, still v2.0.0:
+app/dist-test-drive-v2-undo-20261111/tdqsys-v2-setup-2.0.0.exe
+Size: 232870076 bytes; SHA256:
+693f2c3f353ce2bcb71d6ec9e1b3632c0f05c6dda4be0d55181d7ba0c6edcede
+The 10 November public download is unchanged and does NOT include this change.
+No version bump, OTA activation, v1 change or public Pages deployment.
+
+
+
 ## 10 November manual installer published
 
 Download: https://github.com/epiparilla/tdqsys/releases/download/v2.0.0-test-20261110/tdqsys-v2-setup-2.0.0.exe

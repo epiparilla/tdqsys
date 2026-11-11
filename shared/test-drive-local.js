@@ -13,7 +13,18 @@ function applyOperation(snapshot, operation) {
     if(snapshot?.run?.id!==operation.runId)return;
     const entry=snapshot.entries.find(entry=>entry.id===operation.entryId);
     if(!entry)return;
-    if(operation.action==='ongoing') {
+    if(operation.action==='restore-ongoing') {
+        for(const saved of operation.target.entries) {
+            const item=snapshot.entries.find(item=>item.id===saved.id);
+            if(item)item.status=saved.status;
+        }
+        snapshot.modelDisplays ||= [];
+        const display=snapshot.modelDisplays.find(item=>item.vehicle_model_id===entry.vehicle_model_id);
+        if(display)display.queue_number=operation.target.number;
+        else snapshot.modelDisplays.push({vehicle_model_id:entry.vehicle_model_id,queue_number:operation.target.number});
+        const active=snapshot.entries.find(item=>item.id===snapshot.display?.active_test_drive_entry_id);
+        if(!active || active.vehicle_model_id===entry.vehicle_model_id)snapshot.display={...snapshot.display,active_test_drive_entry_id:operation.target.entries.find(item=>item.status==='ongoing')?.id || null,queue_run_id:operation.runId};
+    } else if(operation.action==='ongoing') {
         for(const previous of snapshot.entries)if(previous.vehicle_model_id===entry.vehicle_model_id && previous.status==='ongoing' && previous.id!==entry.id)previous.status='done';
         entry.status='ongoing';
         snapshot.modelDisplays ||= [];
@@ -59,7 +70,9 @@ class LocalTestDrive {
         if(snapshot.run && snapshot.run.operating_day!==operatingDay(this.now(),snapshot.timezone)) {
             snapshot.entries=[];snapshot.printJobs=[];snapshot.seCheckins=[];
         }
-        snapshot.localSync=this.status();return snapshot;
+        snapshot.localSync=this.status();
+        snapshot.queueHistory={undo:this.canRestore('undo',snapshot),redo:this.canRestore('redo',snapshot)};
+        return snapshot;
     }
     setOptions(options={}) {
         const next={history:!!options.history,includeAgentCodes:!!options.includeAgentCodes,includePrintCodes:!!options.includePrintCodes,
@@ -85,12 +98,38 @@ class LocalTestDrive {
         const operation={id:this.id(),runId:run.id,entryId:entry.id,action:request.action,createdAt:this.now().toISOString(),
             ...(request.action==='status'?{status:request.status}:{})};
         const next=copy(this.state);next.outbox.push(operation);
+        next.queueHistory ||= {undo:[],redo:[]};
+        if(operation.action==='ongoing') {
+            const view=this.view(),affected=view.entries.filter(item=>item.id===entry.id || (item.vehicle_model_id===model.id && item.status==='ongoing'));
+            const before={entries:affected.map(item=>({id:item.id,status:item.status})),number:(view.modelDisplays || []).find(item=>item.vehicle_model_id===model.id)?.queue_number ?? view.entries.find(item=>item.vehicle_model_id===model.id && item.status==='ongoing')?.queue_number ?? 0};
+            const after={entries:affected.map(item=>({id:item.id,status:item.id===entry.id?'ongoing':'done'})),number:entry.queue_number};
+            if(JSON.stringify(before)!==JSON.stringify(after))next.queueHistory.undo.push({runId:run.id,entryId:entry.id,modelId:model.id,before,after});
+            next.queueHistory.undo=next.queueHistory.undo.slice(-30);next.queueHistory.redo=[];
+        } else next.queueHistory={undo:[],redo:[]};
         if(operation.action==='ongoing') {
             next.displayPending=next.displayPending.filter(item=>item.modelId!==model.id);
             next.displayPending.push({operationId:operation.id,modelId:model.id,brandKey:model.brand_key,unit:model.unit_index,fullName:model.full_name,number:entry.queue_number,runId:run.id});
         }
         this.save(next);
         return {entry:this.view().entries.find(item=>item.id===entry.id),model,operationId:operation.id};
+    }
+    canRestore(direction,snapshot) {
+        const change=this.state.queueHistory?.[direction]?.at(-1);
+        if(!change || !snapshot.run || snapshot.run.id!==change.runId || snapshot.run.status!=='active' || snapshot.run.operating_day!==operatingDay(this.now(),snapshot.timezone) || snapshot.localSync?.blocked)return false;
+        const expected=direction==='undo'?change.after:change.before;
+        const number=(snapshot.modelDisplays || []).find(item=>item.vehicle_model_id===change.modelId)?.queue_number ?? snapshot.entries.find(item=>item.vehicle_model_id===change.modelId && item.status==='ongoing')?.queue_number ?? 0;
+        return number===expected.number && expected.entries.every(saved=>snapshot.entries.some(item=>item.id===saved.id && item.status===saved.status)) && !snapshot.entries.some(item=>item.vehicle_model_id===change.modelId && item.status==='ongoing' && !expected.entries.some(saved=>saved.id===item.id && saved.status==='ongoing'));
+    }
+    restore(direction) {
+        if(this.remoteBusy)throw Error('Finish the current registration/print/reset action first.');
+        if(!['undo','redo'].includes(direction) || !this.canRestore(direction,this.view()))throw Error('Nothing safe to undo/redo. The queue may have changed or a new run started.');
+        const change=this.state.queueHistory[direction].at(-1),model=this.state.snapshot.models.find(item=>item.id===change.modelId);
+        if(!model)throw Error('Vehicle model is no longer available.');
+        const operation={id:this.id(),runId:change.runId,entryId:change.entryId,action:'restore-ongoing',createdAt:this.now().toISOString(),expected:copy(direction==='undo'?change.after:change.before),target:copy(direction==='undo'?change.before:change.after)};
+        const next=copy(this.state);next.outbox.push(operation);next.queueHistory[direction].pop();next.queueHistory[direction==='undo'?'redo':'undo'].push(change);
+        next.displayPending=next.displayPending.filter(item=>item.modelId!==model.id);
+        next.displayPending.push({operationId:operation.id,modelId:model.id,brandKey:model.brand_key,unit:model.unit_index,fullName:model.full_name,number:operation.target.number,runId:change.runId});
+        this.save(next);return {operationId:operation.id};
     }
     markDisplayApplied(items) {
         const ids=new Set(items.map(item=>item.operationId));const next=copy(this.state);
@@ -130,6 +169,7 @@ class LocalTestDrive {
             }
         }
         next.snapshot=copy(snapshot);next.lastSyncedAt=this.now().toISOString();
+        if(previous?.run?.id!==snapshot.run?.id || JSON.stringify(previous?.models)!==JSON.stringify(snapshot.models))next.queueHistory={undo:[],redo:[]};
         for(const operation of next.outbox)if(operation.runId!==snapshot.run?.id) {
             operation.blocked=true;operation.error='The cloud queue run changed. Export/review and archive earlier-run actions in Event Setup.';
         }

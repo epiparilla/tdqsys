@@ -998,6 +998,15 @@ async function localQueueAction(request,cfg) {
         const result=queue.archiveEarlierRun(request.confirm);setTimeout(()=>localQueueTick(true),0);
         return {ok:true,...result,localSnapshot:decorateLocalSnapshot(queue.view(),cfg)};
     }
+    if(['undo-ongoing','redo-ongoing'].includes(request.action)) {
+        const direction=request.action==='undo-ongoing'?'undo':'redo';
+        const change=queue.state.queueHistory?.[direction]?.at(-1),model=queue.state.snapshot?.models.find(item=>item.id===change?.modelId);
+        const configured=(cfg.brands || []).find(brand=>brand.key===model?.brand_key)?.models?.[model?.unit_index-1];
+        if(!model || configured?.label!==model.full_name)throw Error('Vehicle configuration changed or no Ongoing selection is available to restore.');
+        const result=queue.restore(direction);
+        await applyLocalDisplay(queue);setTimeout(()=>localQueueTick(),0);notifyLocalQueueChanged();
+        return {ok:true,...result,localSaved:true,localSnapshot:decorateLocalSnapshot(queue.view(),cfg)};
+    }
     const ticket=queue.ticket(request.entryId);
     const configured=(cfg.brands || []).find(brand=>brand.key===ticket.model.brand_key)?.models?.[ticket.model.unit_index-1];
     if(configured?.label!==ticket.model.full_name)throw Error('Vehicle configuration changed. Wait for Settings synchronization before calling this client.');
@@ -1061,7 +1070,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         if (sender.origin !== new URL(`http://localhost:${PORT}`).origin || !allowedPage) {
             throw new Error('Open Test Drive Operations inside TDQSYS.');
         }
-        const actions = ['snapshot', 'ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', 'giveaway-snapshot', 'set-giveaway', 'issue-giveaways', 'dashboard-snapshot', ...settingsActions];
+        const actions = ['snapshot', 'ongoing', 'undo-ongoing', 'redo-ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', 'giveaway-snapshot', 'set-giveaway', 'issue-giveaways', 'dashboard-snapshot', ...settingsActions];
         if(sender.pathname==='/event-setup.html')actions.push('history-list','history-preview','history-backup','history-delete','history-resume');
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         if(request.action.startsWith('simulation-')){
@@ -1097,7 +1106,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
             if (!licence.status(cfg.instanceId, { dataDir: BASE_DIR }).canWrite) throw new Error('This licence does not allow changes.');
         }
         if(request.action.startsWith('history-'))return await getHistoryCleanup(cfg).handle(request);
-        if(['ongoing','status','callback'].includes(request.action))return await dispatchLocalQueueAction(request,cfg);
+        if(['ongoing','status','callback','undo-ongoing','redo-ongoing'].includes(request.action))return await dispatchLocalQueueAction(request,cfg);
         if(['snapshot','export-local-queue','archive-local-conflicts','retry-local-sync'].includes(request.action))return await localQueueAction(request,cfg);
         let printerName;
         if (request.action === 'print' || (request.action==='reissue' && request.printNow===true)) {
