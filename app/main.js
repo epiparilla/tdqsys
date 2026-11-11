@@ -1224,10 +1224,8 @@ ipcMain.handle('af:installUpdate', async (event) => {
         const info = await checkForUpdates();
         if (!info || !info.updateAvailable || !info.url) return { ok: false, reason: 'no-update' };
         if (!UNINSTALLER_EXE) {
-            // Portable builds have no fixed install folder to relaunch, so they
-            // keep the old browser-download behaviour.
-            if (info.url) shell.openExternal(info.url);
-            return { ok: false, reason: 'portable' };
+            // Do not unexpectedly open a browser/save dialog from Update.
+            return { ok: false, reason: 'portable', error: 'Automatic updates require an installed TDQSYS v2 copy. Run the v2 setup installer once, then retry from the installed app.' };
         }
         await applyUpdate(info, win);
         return { ok: true };

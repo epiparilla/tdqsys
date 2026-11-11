@@ -27,7 +27,10 @@ test('v2 never discovers a v1 or unrelated uninstaller',()=>{
  const exe=path.join('separate','tdqsys-v2.exe');
  assert.equal(findOwnUninstaller(exe,()=>false),null);
  assert.equal(findOwnUninstaller(exe,p=>p===path.join('legacy','Uninstall TDQSYS.exe')),null);
- assert.equal(findOwnUninstaller(exe,()=>true),path.join('separate','Uninstall TDQSYS v2.exe'));
+ assert.equal(findOwnUninstaller(exe,()=>true),path.join('separate','Uninstall tdqsys-v2.exe'));
+ assert.equal(findOwnUninstaller(exe,p=>p===path.join('separate','Uninstall TDQSYS v2.exe')),path.join('separate','Uninstall TDQSYS v2.exe'));
+ assert.equal(findOwnUninstaller(exe,p=>p===path.join('separate','Uninstall tdqsys-v2.exe')),path.join('separate','Uninstall tdqsys-v2.exe'));
+ assert.equal(findOwnUninstaller(exe,p=>p===path.join('separate','Uninstall TDQSYS.exe')),null);
 });
 test('v1 feed remains frozen and v2 feed is not controlled by cloudBase or backup',()=>{
  assert.equal(JSON.parse(read('public/version.json')).version,'1.1.28');

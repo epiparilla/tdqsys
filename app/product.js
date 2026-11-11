@@ -19,7 +19,12 @@ function validateManifest(manifest,current) {
   return {updateAvailable:true,latest:manifest.version,url:url.href,size:manifest.size,sha256:manifest.sha256,notes:String(manifest.notes || '')};
 }
 function findOwnUninstaller(execPath,exists) {
-  const candidate=path.join(path.dirname(execPath),`Uninstall ${PRODUCT.name}.exe`);
-  return exists(candidate)?candidate:null;
+  // NSIS uses PRODUCT_FILENAME (executableName), not the display productName.
+  // Keep the display-name variant for earlier/custom v2 installers only.
+  for(const name of [`Uninstall ${path.basename(PRODUCT.executable,'.exe')}.exe`,`Uninstall ${PRODUCT.name}.exe`]) {
+    const candidate=path.join(path.dirname(execPath),name);
+    if(exists(candidate))return candidate;
+  }
+  return null;
 }
 module.exports={PRODUCT,validateManifest,findOwnUninstaller};

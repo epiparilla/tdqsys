@@ -1,10 +1,10 @@
 {
   "productId": "com.tdqsys.queue.v2",
   "channel": "v2",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "enabled": true,
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.1/tdqsys-v2-setup-2.0.1.exe",
-  "size": 232870105,
-  "sha256": "5a0880a7459a1754361a2b1e4a1b45242f648f35df8b2d874f45e404b482b962",
-  "notes": "TDQSYS v2.0.1: orange Ongoing status and durable Queue Board undo/redo. V2 OTA updates are enabled."
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.2/tdqsys-v2-setup-2.0.2.exe",
+  "size": 232870253,
+  "sha256": "89a69c8b97696f4948656c96db3720385a86cdb265a0c951e4af925443c58c25",
+  "notes": "TDQSYS v2.0.2 fixes installed-mode detection for background download, automatic installation and restart. Versions 2.0.0 and 2.0.1 need one manual setup installation to receive this updater fix."
 }

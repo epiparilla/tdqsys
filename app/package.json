@@ -1,7 +1,7 @@
 {
   "name": "tdqsys-v2-desktop",
   "productName": "TDQSYS v2",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "TDQSYS - desktop app (Windows installer build)",
   "main": "main.js",
   "author": "TDQSYS",
@@ -45,7 +45,7 @@
       }
     ],
     "directories": {
-      "output": "dist-v2-2.0.1-20261111"
+      "output": "dist-v2-2.0.2-20261111"
     },
     "win": {
       "target": [
