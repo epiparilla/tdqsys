@@ -1,5 +1,32 @@
 # Test-drive manual-test build
 
+## 11 November v2.0.1 release
+
+V2 desktop version is now 2.0.1 (app package and lockfile agree).
+Installer: app/dist-v2-2.0.1-20261111/tdqsys-v2-setup-2.0.1.exe
+Portable: app/dist-v2-2.0.1-20261111/tdqsys-v2-portable-2.0.1.exe
+GitHub tag: v2.0.1; source e7a578f67c92a4e82bca789b52820f86cedf012a.
+Installer download:
+https://github.com/epiparilla/tdqsys/releases/download/v2.0.1/tdqsys-v2-setup-2.0.1.exe
+Installer: 232870105 bytes; SHA256:
+5a0880a7459a1754361a2b1e4a1b45242f648f35df8b2d874f45e404b482b962
+Portable: 226207686 bytes; SHA256:
+8b22dfe36aaa03c87c9ab55beb22c1cf24ebf8a2dadfb3d78a1c8fd74d4363ec
+
+Includes orange Ongoing status and durable Ongoing undo/redo (ae66d22).
+402 Node tests pass / 3 skipped; 46 PostgreSQL integration checks pass.
+Packaged version is 2.0.1, executable version 2.0.1.0; main, product,
+preload, queue engine and UI match source. Native/operator acceptance pending.
+V2 Pages deployment a626317d completed with version 2.0.1 and enabled=false.
+Facilitator JS remains desktop-only (404 on Pages by design).
+V1 manifest/assets and stable Latest v1.1.28 remain unchanged.
+OTA stays disabled; manually Quit via the tray and install this build.
+Matching binaries and tracked sources are also kept in the local TDQSYS v2 folder.
+GitHub installer/portable checksums and byte counts match local builds.
+Both public downloads verified HTTP 200 and exact Content-Length.
+
+
+
 ## 11 November Queue Board Ongoing undo/redo
 
 Ongoing status text is now orange. Queue Board has Undo Ongoing / Redo Ongoing
