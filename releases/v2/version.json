@@ -1,7 +1,10 @@
 {
   "productId": "com.tdqsys.queue.v2",
   "channel": "v2",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "enabled": false,
-  "notes": "V2 bootstrap testing only. No OTA installer has been published."
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.1/tdqsys-v2-setup-2.0.1.exe",
+  "size": 232870105,
+  "sha256": "5a0880a7459a1754361a2b1e4a1b45242f648f35df8b2d874f45e404b482b962",
+  "notes": "TDQSYS v2.0.1: orange Ongoing status and durable Queue Board undo/redo. Manual installation; OTA remains disabled."
 }

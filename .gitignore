@@ -35,6 +35,7 @@ app/dist-test-drive-*/
 app/server/
 app/release/
 app/out/
+app/dist-v2-*/
 
 # PyInstaller build outputs
 build/
