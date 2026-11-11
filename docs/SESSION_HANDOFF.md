@@ -1,9 +1,48 @@
 # TDQSYS session handoff
 
-Updated 11 November 2026, Asia/Manila. This is a conversation handoff summary,
+Updated 12 November 2026, Asia/Manila. This is a conversation handoff summary,
 not a verbatim transcript.
 
 ## Resume here
+
+## 12 November v2.0.4 removes printed-waiver agreement
+
+Removed the "I agree to sign a printed copy of this waiver" checkbox.
+The registration browser script no longer reads/submits/requires that field.
+Shared validation no longer requires it, and the Pages registration endpoint
+no longer uses it to trigger consent checks. The built-in simulator submits
+the updated payload. Legacy requests containing the extra field remain
+compatible, but cannot bypass normal waiver, Terms or Data Privacy consent.
+Populated waiver acceptance, Terms acceptance, required privacy consent and
+blank-statement hiding/navigation remain unchanged.
+
+V2 desktop package/lockfile now 2.0.4. Source:
+256ac7aedd56951903f90702df11ba198f30711b.
+405 Node tests pass / 3 skipped; 46 isolated PostgreSQL checks pass.
+Packaged version 2.0.4 and HTML/JS/simulator verified against source.
+No printed-waiver field remains in production public/shared/functions sources.
+No database migration, live registration, reset or data correction performed.
+Native UI/operator acceptance is not claimed.
+
+Artifacts: app/dist-v2-2.0.4-20261112/ (also copied to local TDQSYS v2)
+Installer: tdqsys-v2-setup-2.0.4.exe, 232870126 bytes, SHA256:
+e39b58d1515cb735d4fb4d3b11661b1b612f9ca266d91e84e9d11e265b640e0d
+Portable: tdqsys-v2-portable-2.0.4.exe, 232589358 bytes, SHA256:
+b670530527b74ead6aeba8b1a53d4e73a69f63ff46ce6cb9dfa76d2a4b80c334
+Download:
+https://github.com/epiparilla/tdqsys/releases/download/v2.0.4/tdqsys-v2-setup-2.0.4.exe
+Both GitHub asset sizes/SHA256 digests verified. Public installer HTTP 200.
+Completed interrupted Cloudflare deployment dff7831e: live feed now enabled
+at 2.0.4; public HTML/JS verified without the printed-waiver field.
+Missing update notification was traced to the live feed remaining at 2.0.3
+after interruption, not a new updater-code defect. Resumed deployment fixed it.
+Live validator offers 2.0.4 to 2.0.3, not to 2.0.4 itself. Use Settings >
+Check for Updates immediately; automatic background polling is every 30 minutes.
+V2 OTA remains enabled. Installed v2.0.2+ can check from Settings.
+V1 manifest, assets and stable Latest 1.1.28 remain unchanged.
+For manual install, fully Quit v2 via the tray first. Do not uninstall/reset.
+
+
 
 ## 11 November v2.0.2 to v2.0.3 OTA acceptance test ready
 
