@@ -22,26 +22,24 @@ test('client form hides only blank questions and skips consent step in both navi
   const field=name=>{if(!fields.has(name))fields.set(name,{checked:name==='privacyAccepted',required:true,disabled:false,reportValidity(){return this.disabled || !this.required || this.checked;}});return fields.get(name);};
   const form=node('registration');form.elements={namedItem:field};form.querySelector=()=>({checked:true});
   const config={models:[{id:'model',name:'Car'}],waiverStatement,termsAndConditions};
-  const context={URL,location:{href:'https://example.test/?id=abc'},crypto:{randomUUID:()=> 'request-1234'},sessionStorage:{getItem(){},setItem(){}},fetch:async()=>({ok:true,json:async()=>config}),document:{getElementById:node,createElement:()=>({append(){}}),querySelectorAll:()=>sections,querySelector:selector=>({querySelectorAll:()=>selector.includes('"2"')?[field('waiverAccepted'),field('printedWaiverAccepted'),field('termsAccepted')]:[]})}};
+  const context={URL,location:{href:'https://example.test/?id=abc'},crypto:{randomUUID:()=> 'request-1234'},sessionStorage:{getItem(){},setItem(){}},fetch:async()=>({ok:true,json:async()=>config}),document:{getElementById:node,createElement:()=>({append(){}}),querySelectorAll:()=>sections,querySelector:selector=>({querySelectorAll:()=>selector.includes('"2"')?[field('waiverAccepted'),field('termsAccepted')]:[]})}};
   vm.runInNewContext(readPublic('test-drive-registration.js'),context);await new Promise(resolve=>setImmediate(resolve));
   for(const [key,text] of [['waiver',waiverStatement],['terms',termsAndConditions]]){
    assert.equal(node(key+'-question').hidden,!text.trim());assert.equal(field(key+'Accepted').required,!!text.trim());assert.equal(field(key+'Accepted').disabled,!text.trim());assert.equal(field(key+'Accepted').checked,false);
   }
   const hasConsent=!!(waiverStatement.trim()||termsAndConditions.trim());
-  assert.equal(field('printedWaiverAccepted').required,!!waiverStatement.trim());
-  assert.equal(field('printedWaiverAccepted').disabled,!waiverStatement.trim());
-  assert.equal(field('printedWaiverAccepted').checked,false);
   node('next').onclick();node('next').onclick();
   assert.equal(sections[hasConsent?2:3].hidden,false);
   assert.equal(node('progress').textContent,hasConsent?'Step 3 of 4':'Step 3 of 3');
-  if(hasConsent){node('next').onclick();assert.equal(sections[2].hidden,false);field('waiverAccepted').checked=true;field('termsAccepted').checked=true;if(waiverStatement.trim()){node('next').onclick();assert.equal(sections[2].hidden,false);}field('printedWaiverAccepted').checked=true;node('next').onclick();assert.equal(sections[3].hidden,false);}
+  if(hasConsent){node('next').onclick();assert.equal(sections[2].hidden,false);field('waiverAccepted').checked=true;field('termsAccepted').checked=true;node('next').onclick();assert.equal(sections[3].hidden,false);}
   node('back').onclick();assert.equal(sections[hasConsent?2:1].hidden,false);
   assert.equal(field('privacyAccepted').required,true);
  }
 });
 
-test('printed waiver agreement is separate from waiver acceptance and starts unchecked',()=>{
+test('printed waiver agreement is absent while ordinary waiver acceptance remains',()=>{
  const html=readPublic('test-drive-registration.html');
- assert.match(html,/<input type="checkbox" name="printedWaiverAccepted" required> I agree to sign a printed copy of this waiver\./);
- assert.doesNotMatch(html,/name="printedWaiverAccepted"[^>]*\bchecked\b/);
+ assert.doesNotMatch(html,/printedWaiverAccepted|I agree to sign a printed copy/);
+ assert.match(html,/name="waiverAccepted" required/);
+ assert.doesNotMatch(readPublic('test-drive-registration.js'),/printedWaiverAccepted/);
 });

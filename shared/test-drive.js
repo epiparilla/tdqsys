@@ -58,7 +58,6 @@ function validateRegistration(body = {}, { waiverRequired = true, termsRequired 
   if (!validSeCode(body.seCode)) errors.seCode = 'Enter the four-digit Agent code.';
   if (body.privacyAccepted !== true) errors.privacyAccepted = 'Please review and agree to Data Privacy Consent on the first page of the registration form.';
   if (waiverRequired && body.waiverAccepted !== true) errors.waiverAccepted = 'You must accept the waiver.';
-  if (waiverRequired && body.printedWaiverAccepted !== true) errors.printedWaiverAccepted = 'Please agree to sign a printed copy of the waiver.';
   if (termsRequired && body.termsAccepted !== true) errors.termsAccepted = 'You must accept the Terms and Conditions.';
   return {
     ok: Object.keys(errors).length === 0,

@@ -42,7 +42,7 @@ class RegistrationSimulator {
    if(index%3===0&&initial.models.length>1)selected.push(initial.models[(index+1)%initial.models.length]);
    // Submission itself validates the code. Avoid a redundant prefill lookup.
    if(this.lastClientAt!==null)await this.waitUntil(this.lastClientAt+4200);
-   this.check();const name=`TEST Client ${letters} ${String.fromCharCode(65+index)}`,body={instanceId:this.identity,simulationRunId:run.runId,fullName:name,email:`test.${letters}.${index+1}@example.invalid`,cityAddress:'TEST City',contactNumber:String(index+1).padStart(11,'0'),modelIds:selected.map(model=>model.id),seCode:agent.code,privacyAccepted:true,waiverAccepted:true,printedWaiverAccepted:true,termsAccepted:true,waiverVersion:current.waiverVersion,termsVersion:current.termsVersion,forApplication:'',forReservation:''};
+   this.check();const name=`TEST Client ${letters} ${String.fromCharCode(65+index)}`,body={instanceId:this.identity,simulationRunId:run.runId,fullName:name,email:`test.${letters}.${index+1}@example.invalid`,cityAddress:'TEST City',contactNumber:String(index+1).padStart(11,'0'),modelIds:selected.map(model=>model.id),seCode:agent.code,privacyAccepted:true,waiverAccepted:true,termsAccepted:true,waiverVersion:current.waiverVersion,termsVersion:current.termsVersion,forApplication:'',forReservation:''};
    this.lastClientAt=this.now();const result=await this.request(config,'registrations',body,this.id());
    this.update({clients:index+1,tickets:this.state.tickets+(result.entries?.length||0),phase:'Registering TEST clients'},`${name} registered for ${selected.map(model=>model.name).join(', ')}.`);
    this.onRegistration();

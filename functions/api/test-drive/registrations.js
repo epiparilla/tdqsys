@@ -29,7 +29,7 @@ export async function onRequest(context) {
       p_client_key: await hash(`${instance}:${context.request.headers.get('CF-Connecting-IP') || 'unknown'}`) });
     if (!validation.response.ok) return reply({ error: 'Registration is temporarily unavailable.' }, 503);
     if (validation.result.error) return reply({ error: validation.result.error }, validation.result.limited ? 429 : 400);
-    if (body.waiverAccepted !== true || body.printedWaiverAccepted !== true || body.termsAccepted !== true) {
+    if (body.waiverAccepted !== true || body.termsAccepted !== true) {
       // Only server-loaded location text can make a consent optional.
       const current = await rpc('tdqsys_public_registration_config', { p_instance_id:instance });
       if (!current.response.ok || typeof current.result.waiverStatement !== 'string' || typeof current.result.termsAndConditions !== 'string') return reply({ error:'Registration is temporarily unavailable.' },503);

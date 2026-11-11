@@ -15,7 +15,7 @@ test('simulation uses real endpoints, normal consent/code checks and scoped TEST
  const {simulator,calls,pauses,states}=setup();simulator.start({agents:1,clients:3,confirm:true});await simulator.task;
  assert.equal(simulator.status().clients,3);assert.equal(simulator.status().tickets,4);assert.equal(simulator.status().active,false);assert.match(simulator.status().phase,/Complete/);assert.deepEqual(pauses,[5000,5000,5000]);
  const submitted=calls.filter(call=>call.route==='registrations');assert.equal(submitted.length,3);assert.equal(submitted[0].body.modelIds.length,2);
- for(const call of submitted){assert.match(call.body.fullName,/^TEST Client [a-z]+ [A-Z]$/);assert.equal(call.body.simulationRunId,'test-run');assert.equal(call.body.printedWaiverAccepted,true);assert.equal(call.body.privacyAccepted,true);assert.match(call.body.contactNumber,/^0{10}[1-3]$/);assert.ok(call.key);assert.match(call.body.email,/@example\.invalid$/);}
+ for(const call of submitted){assert.match(call.body.fullName,/^TEST Client [a-z]+ [A-Z]$/);assert.equal(call.body.simulationRunId,'test-run');assert.equal(call.body.printedWaiverAccepted,undefined);assert.equal(call.body.privacyAccepted,true);assert.match(call.body.contactNumber,/^0{10}[1-3]$/);assert.ok(call.key);assert.match(call.body.email,/@example\.invalid$/);}
  assert.equal(calls.some(call=>call.action==='print'),false);assert.equal(JSON.stringify(states).includes('0123'),false);
 });
 

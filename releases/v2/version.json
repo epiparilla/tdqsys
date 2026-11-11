@@ -1,10 +1,10 @@
 {
   "productId": "com.tdqsys.queue.v2",
   "channel": "v2",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "enabled": true,
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.3/tdqsys-v2-setup-2.0.3.exe",
-  "size": 232870271,
-  "sha256": "719f8ef195ef02b20a3465bbb103d70d559628ded5fbb1264813315d45c1b5ee",
-  "notes": "TDQSYS v2.0.3 is a version-only OTA acceptance build for installed v2.0.2: background download, verified installation and automatic restart. No queue or registration behavior changes."
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.4/tdqsys-v2-setup-2.0.4.exe",
+  "size": 232870126,
+  "sha256": "e39b58d1515cb735d4fb4d3b11661b1b612f9ca266d91e84e9d11e265b640e0d",
+  "notes": "TDQSYS v2.0.4 removes the printed-waiver signing checkbox and its submission requirement. Normal waiver, Terms and Data Privacy acceptance remain unchanged."
 }

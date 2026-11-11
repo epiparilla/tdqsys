@@ -9,7 +9,7 @@ const helpers = require('../shared/test-drive');
 const instanceId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const modelId = '11111111-2222-4333-8444-555555555555';
 const body = { instanceId, fullName:'Ana Cruz',email:'ana@example.com',cityAddress:'Manila',contactNumber:'09170000000',
-  modelIds:[modelId],seCode:'0123',privacyAccepted:true,waiverAccepted:true,printedWaiverAccepted:true,termsAccepted:true,waiverVersion:'a'.repeat(64),termsVersion:'b'.repeat(64) };
+  modelIds:[modelId],seCode:'0123',privacyAccepted:true,waiverAccepted:true,termsAccepted:true,waiverVersion:'a'.repeat(64),termsVersion:'b'.repeat(64) };
 
 async function invoke(file, payload, fetcher, key='request-00001') {
   const source=fs.readFileSync(path.join(__dirname,'../functions/api/test-drive',file),'utf8')
@@ -124,7 +124,7 @@ test('optional consent is determined by server text, never client claims',async(
  assert.equal(unavailable.status,503);
 });
 
-test('printed waiver agreement is required only for populated waivers and cannot be bypassed',async()=>{
+test('printed waiver agreement is no longer required for populated or blank waivers',async()=>{
  for(const printedWaiverAccepted of [undefined,false,null,'true',1])for(const waiverStatement of ['Approved waiver','']){
   let allocated=false;
   const response=await invoke('registrations.js',{...body,printedWaiverAccepted},async(url)=>{
@@ -132,8 +132,7 @@ test('printed waiver agreement is required only for populated waivers and cannot
    if(url.endsWith('tdqsys_public_registration_config'))return Response.json({waiverStatement,termsAndConditions:'Terms'});
    allocated=true;return Response.json({entries:[]});
   });
-  assert.equal(response.status,waiverStatement?400:201);assert.equal(allocated,!waiverStatement);
-  if(waiverStatement)assert.match((await response.json()).fields.printedWaiverAccepted,/sign a printed copy/);
+  assert.equal(response.status,201);assert.equal(allocated,true);
  }
 });
 test('code endpoint never accepts a truncated five-digit code',async()=>{
