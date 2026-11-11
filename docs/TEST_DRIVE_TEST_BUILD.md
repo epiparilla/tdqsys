@@ -1,5 +1,36 @@
 # Test-drive manual-test build
 
+## 11 November v2.0.2 to v2.0.3 OTA acceptance test ready
+
+Confirmed the running installed application is TDQSYS v2 version 2.0.2.0 at
+C:/Program Files/tdqsys-v2/tdqsys-v2.exe with the expected NSIS uninstaller.
+User chose to click Update personally; no update/quit/install was triggered
+by the agent. Pre-test data.json and local queue journal were copied privately
+to ignored .dev-db/ota-203-preflight-20261111. Never publish these files.
+
+V2.0.3 is a version-only acceptance release. Packaged main.js, product.js and
+preload.js are byte-identical to v2.0.2; no business behavior changes.
+Source: 60fbf474e11e5a70d41854887dd980a2cf4d1a6a.
+Artifacts in app/dist-v2-2.0.3-20261111/ (also copied to local TDQSYS v2):
+Installer 232870271 bytes, SHA256:
+719f8ef195ef02b20a3465bbb103d70d559628ded5fbb1264813315d45c1b5ee
+Portable 232589501 bytes, SHA256:
+703450c028fbbb61290959ba3837f29ff4aa3b582d76b648e359bb803ffb5dce
+GitHub v2.0.3 published; uploaded checksums match and installer HEAD is HTTP 200.
+Cloudflare v2 deployment cd40e0ca completed. Live enabled feed offers 2.0.3
+to 2.0.2, with exact installer URL, bytes and hash.
+405 Node tests pass / 3 skipped. No live test records changed.
+V1 and previous v2 assets are retained.
+
+Operator action: Settings > Check for Updates > Update from installed 2.0.2.
+Do not manually install this target when testing OTA. Allow the download,
+approve Windows elevation if requested, and verify restart reports 2.0.3.
+Helper log: %TEMP%/TDQSYS-v2-update-2.0.3.log.
+Live download/install/restart acceptance is still pending; readiness and
+feed checks must not be reported as a successful physical OTA test.
+
+
+
 ## 11 November v2.0.2 updater detection fix
 
 Observed installed v2.0.0 at C:/Program Files/tdqsys-v2/tdqsys-v2.exe.
