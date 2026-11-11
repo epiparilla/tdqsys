@@ -1,5 +1,45 @@
 # Test-drive manual-test build
 
+## 11 November v2.0.2 updater detection fix
+
+Observed installed v2.0.0 at C:/Program Files/tdqsys-v2/tdqsys-v2.exe.
+Its real NSIS uninstaller is Uninstall tdqsys-v2.exe; the old detector only
+accepted Uninstall TDQSYS v2.exe. This incorrectly selected portable mode,
+opened the browser download and returned "Update failed: portable".
+NSIS uses executableName as PRODUCT_FILENAME, confirming the naming mismatch.
+
+findOwnUninstaller now checks the exact executable-name uninstaller first,
+then the v2 display-name variant for compatibility. Both are restricted to
+the executable's own directory; v1/other folders remain excluded.
+The portable fallback no longer opens a browser/save dialog; it explains
+that setup installation is required. Installed mode retains the existing
+background download, byte/SHA256 validation, silent install and relaunch path.
+Regression tests exercise the IPC branch with mocked installation only.
+
+V2.0.0 and v2.0.1 cannot bootstrap this correction through their broken gate.
+One manual setup installation of v2.0.2 is required: fully Quit from the tray,
+run setup over the existing installation, and retain all data. Do not uninstall.
+Windows may request administrator permission. No running app was stopped,
+installed or changed during development; actual OTA install/relaunch remains
+operator acceptance, not a verified live result.
+
+New artifacts: app/dist-v2-2.0.2-20261111/
+Installer: tdqsys-v2-setup-2.0.2.exe, 232870253 bytes, SHA256:
+89a69c8b97696f4948656c96db3720385a86cdb265a0c951e4af925443c58c25
+Portable: tdqsys-v2-portable-2.0.2.exe, 232589501 bytes, SHA256:
+065ab3eb09f14ab553fbfdd784735d2b3c9d980d5f921f5bebba283257412df1
+Source: 8cb903e67be9337d15ad8f0a68cddb049d25284b.
+405 Node checks pass / 3 skipped. Packaged main/product/preload match source;
+packaged version 2.0.2 and actual installed-directory detection verified.
+Download: https://github.com/epiparilla/tdqsys/releases/download/v2.0.2/tdqsys-v2-setup-2.0.2.exe
+GitHub checksums and byte counts verified; public installer is HTTP 200.
+V2 Pages cd48b4e8 deployed. Live feed targets 2.0.2 with OTA enabled;
+validator offers it to older v2, not to 2.0.2 itself. V1 Latest remains 1.1.28.
+V1, live data and earlier v2.0.1 release assets remain unchanged.
+Local TDQSYS v2 source and release binaries synchronized.
+
+
+
 ## 11 November v2 OTA enabled
 
 User authorized OTA activation after publication of v2.0.1.
