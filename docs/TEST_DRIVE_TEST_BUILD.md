@@ -1,5 +1,11 @@
 # Test-drive manual-test build
 
+## 12 November v2 video-audio mute option
+
+Settings > video ads now includes "Mute video audio (announcements and callbacks remain audible)". Saved as `config.ads.muted`, default false for existing setups. TV and remote viewer apply it at initial display load and subsequent state polls without restarting video playback. Only the ad-video element is muted; browser/native speech and system volume are untouched. Muting remains effective when announcement ducking ends; disabling it restores the prior video volume and normal ducking behavior.
+
+Verification: 416 app tests passing, 3 optional skips, including Settings save/hydration and mute/ducking interaction. No physical audio/visual acceptance performed. Manual test installer: `app/dist-test-drive-v2-video-mute-20261112/tdqsys-v2-setup-2.0.5.exe`; includes the Agents phone and dealership reporting changes. Same version, separate test build, not published to OTA. V1, current live Settings, queues and feeds remain unchanged. Install only when the operator chooses a safe time.
+
 ## 12 November v2 Agents contacts and dealership reporting
 
 Implemented v2-only: Agents now shows the saved eleven-digit phone number, preserving leading zeroes; older missing numbers show "Not recorded". Live Dashboard adds dealership performance for the selected current/history run: unique queued registrations, tickets issued, Done and No Show. Multi-model tickets and reissues do not multiply the client count. Original form dealership snapshots take precedence over current Agent details, with legacy fallback. Grouping ignores case and repeated whitespace.

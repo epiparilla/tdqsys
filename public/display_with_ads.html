@@ -80,6 +80,7 @@
 
         // --------- BUILD DOM FROM CONFIG ---------
         function buildDisplay(state) {
+            TdqMediaDucking.configure(state.config?.ads);
             const container = document.getElementById('brand-sections');
             container.innerHTML = '';
             modelLookup = {};
@@ -165,6 +166,7 @@
         async function pollData() {
             let data = await afFetchState();
             if (!data) return;
+            TdqMediaDucking.configure(data.config?.ads);
             if (Date.now() - lastLocalUpdate < 3000) return;
 
             const signature = configSignature(data.config || {});

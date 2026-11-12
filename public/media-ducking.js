@@ -14,7 +14,11 @@
       if(!reasons.size && normalVolume!==null) {player.volume=normalVolume;normalVolume=null;}
     }
   }
-  window.TdqMediaDucking={set};
+  function configure(ads) {
+    const player=document.getElementById('ad-video');
+    if(player)player.muted=ads?.muted === true;
+  }
+  window.TdqMediaDucking={set,configure};
   const stop=window.afDesktop?.onSpeechActivity?.(active=>{revision++;set(active,'native');});
   const initial=revision;
   window.afDesktop?.speechActivity?.().then(state=>{
