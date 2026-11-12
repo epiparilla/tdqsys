@@ -295,10 +295,13 @@ test('brand dashboards show only their configured models and expose a second pag
 
 test('Print Queue displays the unchanged four-digit SE code in the queue-number column and the SE master list retains dealership',()=>{
   const rendered=board({models:[],entries:[],printJobs:[{kind:'se_code_slip',seCode:'0042',status:'pending',se_daily_checkins:{sales_executives:{name:'Test Executive'}}}],
-    seCheckins:[{code:'0042',name:'Test Executive',dealership:'Toyota Dealer',operatingDay:'2026-11-01',expiresAt:'2099-11-02T00:00:00Z'}]});
+    seCheckins:[{code:'0042',name:'Test Executive',contactNumber:'09123456789',dealership:'Toyota Dealer',operatingDay:'2026-11-01',expiresAt:'2099-11-02T00:00:00Z'}]});
   assert.equal(rendered['print-rows'].children[0].children[0].textContent,'0042');
-  assert.equal(rendered['sales-rows'].children[0].children[0].textContent,'0042');assert.equal(rendered['sales-rows'].children[0].children[2].textContent,'Toyota Dealer');
-  assert.equal(rendered['sales-rows'].children[0].children[6].children[0].textContent,'Reprint');
+  assert.equal(rendered['sales-rows'].children[0].children[0].textContent,'0042');assert.equal(rendered['sales-rows'].children[0].children[3].textContent,'Toyota Dealer');
+  assert.equal(rendered['sales-rows'].children[0].children[2].textContent,'09123456789');
+  assert.equal(rendered['sales-rows'].children[0].children[7].children[0].textContent,'Reprint');
+  const legacy=board({models:[],entries:[],printJobs:[],seCheckins:[{name:'Legacy Agent'}]});
+  assert.equal(legacy['sales-rows'].children[0].children[2].textContent,'Not recorded');
 });
 
 test('Master Table shows the linked agent name and its complete four-digit code',()=>{

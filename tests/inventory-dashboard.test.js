@@ -34,10 +34,10 @@ test('stock setup has exactly three columns, collects opening plans and locks co
 });
 
 test('Live Dashboard renders real summary/table/chart data and requests selected history run without writes',async()=>{
-  const ids=['analytics-run','run','analytics-updated','analytics-cards','analytics-models','analytics-inventory','model-chart','giveaway-chart','remaining-chart','message','refresh'];
+  const ids=['analytics-run','run','analytics-updated','analytics-cards','analytics-models','analytics-inventory','analytics-dealerships','dealership-chart','model-chart','giveaway-chart','remaining-chart','message','refresh'];
   const nodes=Object.fromEntries(ids.map(id=>[id,element()])),calls=[];
   const data={runs:[{id:'history',day:'2026-11-05',number:1,status:'closed'}],run:{operating_day:'2026-11-06',run_number:2,status:'active'},registered:4,queuedClients:5,tickets:7,given:3,returned:1,netGiven:2,
-    models:[{model:'<model>',registered:5,tickets:7,done:2,noShow:1}],inventory:[{item:'Cap',beginning:10,added:5,issued:3,returned:1,remaining:13}]};
+    dealerships:[{dealership:'<Dealer>',clients:5,tickets:7,done:2,noShow:1}],models:[{model:'<model>',registered:5,tickets:7,done:2,noShow:1}],inventory:[{item:'Cap',beginning:10,added:5,issued:3,returned:1,remaining:13}]};
   const context={document:{getElementById:id=>nodes[id],createElement:element,activeElement:null},Option:function(text,value){return {text,value};},setInterval(){},clearInterval(){},
     window:{addEventListener(){},afDesktop:{testDrive:async body=>{calls.push(body);return {ok:true,...data};}}}};
   vm.runInNewContext(readPublic('live-dashboard.js'),context);await tick();
@@ -45,7 +45,14 @@ test('Live Dashboard renders real summary/table/chart data and requests selected
   assert.equal(nodes['analytics-inventory'].children[0].children[5].textContent,'13');
   assert.equal(nodes['analytics-cards'].children[0].children[1].textContent,'4');
   assert.equal(nodes['model-chart'].children.length,2);
+  assert.deepEqual(nodes['analytics-dealerships'].children[0].children.map(cell=>cell.textContent),['<Dealer>','5','7','2','1']);
+  assert.equal(nodes['dealership-chart'].children.length,2);
+  data.dealerships[0].clients=6;
+  await nodes.refresh.onclick();
+  assert.equal(nodes['analytics-dealerships'].children[0].children[1].textContent,'6');
   nodes['analytics-run'].value='history';nodes['analytics-run'].onchange();await tick();
   assert.equal(calls.at(-1).runId,'history');assert.ok(calls.every(call=>call.action==='dashboard-snapshot'));
+  data.dealerships=[];await nodes.refresh.onclick();
+  assert.equal(nodes['analytics-dealerships'].children.length,0);
   assert.match(readPublic('facilitator-shell.js'),/href="live-dashboard.html"/);
 });

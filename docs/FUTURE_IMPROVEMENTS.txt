@@ -1,5 +1,13 @@
 # TDQSYS Future Improvements
 
+## 12 November v2 Agents contacts and dealership reporting
+
+Implemented v2-only: Agents now shows the saved eleven-digit phone number, preserving leading zeroes; older missing numbers show "Not recorded". Live Dashboard adds dealership performance for the selected current/history run: unique queued registrations, tickets issued, Done and No Show. Multi-model tickets and reissues do not multiply the client count. Original form dealership snapshots take precedence over current Agent details, with legacy fallback. Grouping ignores case and repeated whitespace.
+
+The additive read-only migration `202611120001_dealership_performance.sql` and backward-compatible private `test-drive-operations` endpoint were deployed. Browser roles cannot execute the reporting RPC; service_role can. No operating records were modified, no app was stopped, and v1/OTA feeds remain unchanged. The desktop UI requires the new manual test installer; the published OTA release is still the earlier v2.0.5.
+
+Verification: 414 app tests passing, 3 optional skips; 47 isolated PostgreSQL integration checks passing. Browser/physical UI inspection has not been performed. Manual installer output: `app/dist-test-drive-v2-agent-dealership-20261112/tdqsys-v2-setup-2.0.5.exe` (same version, separate test build; not an OTA release).
+
 ## 12 November media ducking OTA publication
 
 User authorized OTA publication of the media-volume-only change while live.

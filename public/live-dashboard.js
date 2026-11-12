@@ -29,16 +29,18 @@
     byId('run').textContent=data.run?`${data.run.operating_day} · Run ${data.run.run_number} · ${data.run.status}`:'No queue runs yet.';
     byId('analytics-updated').textContent=`${data.run?.status==='closed'?'Historical run closing balance':'Live; refreshes every 5 seconds'} · As of ${new Date(data.asOf || Date.now()).toLocaleString()}`;
     // Avoid rebuilding tables/charts for an unchanged poll.
-    const next=JSON.stringify([data.run,data.registered,data.queuedClients,data.tickets,data.given,data.returned,data.models,data.inventory]);
+    const next=JSON.stringify([data.run,data.registered,data.queuedClients,data.tickets,data.given,data.returned,data.models,data.inventory,data.dealerships]);
     if(next===signature)return;signature=next;
     byId('analytics-cards').replaceChildren();
     for(const [label,value] of [['New registrations',data.registered],['Queued clients',data.queuedClients],['Tickets issued',data.tickets],['Giveaways given',data.given],['Giveaways restored',data.returned],['Net giveaways given',data.netGiven]]) {
       const card=document.createElement('article'),heading=document.createElement('h2'),number=document.createElement('strong');
       heading.textContent=label;number.textContent=String(value || 0);card.appendChild(heading);card.appendChild(number);byId('analytics-cards').appendChild(card);
     }
-    byId('analytics-models').replaceChildren();byId('analytics-inventory').replaceChildren();
+    byId('analytics-models').replaceChildren();byId('analytics-inventory').replaceChildren();byId('analytics-dealerships').replaceChildren();
     for(const model of data.models || [])row(byId('analytics-models'),[model.model,model.registered,model.tickets,model.done,model.noShow]);
     for(const item of data.inventory || [])row(byId('analytics-inventory'),[item.item,item.beginning,item.added,item.issued,item.returned,item.initialized===false?(Number(item.remaining)===0?'0 — opening not recorded':'Opening not recorded'):item.remaining]);
+    for(const dealer of data.dealerships || [])row(byId('analytics-dealerships'),[dealer.dealership,dealer.clients,dealer.tickets,dealer.done,dealer.noShow]);
+    chart('dealership-chart','Unique queued clients',(data.dealerships || []).map(dealer=>({label:dealer.dealership,value:dealer.clients})));
     chart('model-chart','Unique clients',(data.models || []).map(model=>({label:model.model,value:model.registered})));
     chart('giveaway-chart','Units given in this run',(data.inventory || []).map(item=>({label:item.item,value:item.issued})));
     chart('remaining-chart','Remaining stock',(data.inventory || []).filter(item=>item.initialized!==false || Number(item.remaining)===0).map(item=>({label:item.item,value:item.remaining})));

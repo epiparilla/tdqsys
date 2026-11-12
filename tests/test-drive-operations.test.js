@@ -31,7 +31,7 @@ async function runEdge(body, records = {}, environment = {}) {
       };
       return query;
     },
-    async rpc(name, args) { calls.push({ rpc: name, args }); return { data: { id: 'entry' }, error: null }; }
+    async rpc(name, args) { calls.push({ rpc: name, args }); return records.rpcs?.[name] || { data: { id: 'entry' }, error: null }; }
   };
   const source = fs.readFileSync(path.join(ROOT, 'supabase/functions/test-drive-operations/index.ts'), 'utf8')
     .replace(/^import .*;$/gm, '')
@@ -79,6 +79,22 @@ test('stock and analytics endpoints bind ownership, validate quantities and keep
   const inventory=await runEdge({action:'giveaway-inventory'});assert.equal(inventory.calls.filter(call=>call.rpc).at(-1).rpc,'tdqsys_giveaway_stock_history');
   const configured=await runEdge({action:'configure',models:[],waiver:'w',terms:'t',giveawayItems:['Cap'],giveawayStockOpenings:[{item:'Cap',quantity:10,requestId:WRITER}]});
   assert.equal(configured.calls.at(-1).rpc,'tdqsys_configure_inventory');assert.equal(configured.calls.at(-1).args.p_openings[0].quantity,10);
+});
+
+test('dealership analytics uses the resolved run and authenticated location, with no writes',async()=>{
+  const records={rpcs:{tdqsys_dashboard_snapshot:{data:{run:{id:WRITER},tickets:3},error:null},tdqsys_dealership_performance:{data:[{dealership:'Dealer',clients:2,tickets:3}],error:null}}};
+  const result=await runEdge({action:'dashboard-snapshot',runId:WRITER,instanceId:'foreign'},records);
+  assert.equal(result.response.status,200);
+  const data=await result.response.json();assert.equal(data.tickets,3);assert.equal(data.dealerships[0].clients,2);
+  const call=result.calls.find(call=>call.rpc==='tdqsys_dealership_performance');
+  assert.equal(call.args.p_instance_id,INSTANCE);assert.equal(call.args.p_run_id,WRITER);
+  records.rpcs.tdqsys_dealership_performance={data:null,error:{message:'private database detail'}};
+  const failed=await runEdge({action:'dashboard-snapshot',runId:WRITER},records);assert.equal(failed.response.status,503);
+  assert.equal(JSON.stringify(await failed.response.json()).includes('private database detail'),false);
+  records.rpcs.tdqsys_dashboard_snapshot={data:{run:null},error:null};
+  const empty=await runEdge({action:'dashboard-snapshot',runId:WRITER},records);
+  assert.deepEqual((await empty.response.json()).dealerships,[]);
+  assert.equal(empty.calls.some(call=>call.rpc==='tdqsys_dealership_performance'),false);
 });
 
 test('multi-item API validates distinct items and passes the authenticated owner and stable batch ID',async()=>{
@@ -153,13 +169,14 @@ test('private snapshots expose active SE codes only on requested staff views and
   function records(){return {queue_runs:{id:'run',operating_day:'2026-11-01'},vehicle_models:[],test_drive_entries:[],display_state:null,
     print_jobs:[{id:'slip',kind:'se_code_slip',se_daily_checkins:{expires_at:'2099-11-02T00:00:00Z',code_ciphertext:ciphertext,sales_executives:{name:'Test SE'}}}],
     se_daily_checkins:[{id:'se',operating_day:'2026-11-01',expires_at:'2099-11-02T00:00:00Z',code_ciphertext:ciphertext,sales_executives:{name:'Test SE',dealership:'Test Dealer'}},
-      {id:'expired',operating_day:'2020-01-01',expires_at:'2020-01-02T00:00:00Z',code_ciphertext:'expired-code-is-never-decrypted',sales_executives:{name:'Old SE',dealership:'Old Dealer'}}]};}
+      {id:'expired',operating_day:'2020-01-01',expires_at:'2020-01-02T00:00:00Z',code_ciphertext:'expired-code-is-never-decrypted',sales_executives:{name:'Old SE',dealership:'Old Dealer',contact_number:'09123456789'}}]};}
   const normal=await(await runEdge({action:'snapshot'},records(),environment)).response.json();
   assert.equal(normal.printJobs[0].seCode,undefined);assert.equal(JSON.stringify(normal).includes('code_ciphertext'),false);
   const {response,calls}=await runEdge({action:'snapshot',includePrintCodes:true,includeSalesExecutives:true},records(),environment);
   assert.equal(response.status,200);const result=await response.json();
   assert.equal(result.printJobs[0].seCode,'0042');assert.equal(result.seCheckins[0].code,'0042');assert.equal(result.seCheckins[0].dealership,'Test Dealer');assert.equal(result.seCheckins[1].code,null);
   assert.equal(JSON.stringify(result).includes(ciphertext),false);
+  assert.equal(result.seCheckins[1].contactNumber,'09123456789');assert.equal(result.seCheckins[0].contactNumber,'');
   const read=calls.find(call=>call.table==='se_daily_checkins');
   assert.ok(read.filters.some(([key,value])=>key==='instance_id'&&value===INSTANCE));
   assert.ok(read.filters.some(([key,value])=>key==='operating_day'&&value==='2026-11-01'));

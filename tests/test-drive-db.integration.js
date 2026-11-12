@@ -52,6 +52,25 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       assert.deepEqual(await rpc('tdqsys_submit_registration', args('request-0001')), first);
       assert.equal((await db.query('select count(*)::int as n from registrations')).rows[0].n, 1);
     });
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611120001_dealership_performance.sql'),'utf8'));
+    await check('dealership performance deduplicates multi-model clients and counts ticket outcomes without writes',async()=>{
+      await db.exec('begin');
+      try {
+        await db.query("update test_drive_entries set status=case when id=$1 then 'done' else 'no_show' end where queue_run_id=$2",[first.entries[0].entryId,run.id]);
+        await db.query("update sheet_sync_jobs set payload_snapshot=jsonb_set(payload_snapshot,'{se}', '{\"dealership\":\"  Original   Dealer  \"}'::jsonb) where registration_id=$1",[first.registrationId]);
+        const before=(await db.query('select * from test_drive_entries order by id')).rows;
+        const data=await rpc('tdqsys_dealership_performance',[A,run.id]);
+        assert.deepEqual(data,[{dealership:'Original Dealer',clients:1,tickets:2,done:1,noShow:1}]);
+        assert.deepEqual((await db.query('select * from test_drive_entries order by id')).rows,before);
+        await db.query('delete from sheet_sync_jobs where registration_id=$1',[first.registrationId]);
+        assert.equal((await rpc('tdqsys_dealership_performance',[A,run.id]))[0].dealership,'Toyota');
+        const newer=await rpc('tdqsys_open_queue_run',[A,today,'Analytics history test','staff']);
+        assert.deepEqual(await rpc('tdqsys_dealership_performance',[A,newer.id]),[]);
+        assert.equal((await rpc('tdqsys_dealership_performance',[A,run.id]))[0].tickets,2);
+      }finally{await db.exec('rollback');}
+      await assert.rejects(rpc('tdqsys_dealership_performance',[B,run.id]),/run not found/);
+      for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'tdqsys_dealership_performance(text,uuid)','execute') allowed",[role])).rows[0].allowed,false);
+    });
     await check('same name and models return existing unpassed ticket numbers', async () => {
       const second = await rpc('tdqsys_submit_registration', args('request-0002'));
       assert.ok(second.entries.every(e => e.existing && e.queueNumber === 1));

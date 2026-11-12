@@ -102,6 +102,13 @@ Deno.serve(async (req) => {
         :body.action==='dashboard-snapshot'?{p_instance_id:instanceId,p_run_id:body.runId || null}:{p_instance_id:instanceId};
       const {data,error}=await admin.rpc(rpc,args);
       if(error)return Response.json({error:error.message},{status:error.code==='P0001'?409:503,headers:cors});
+      if(body.action==='dashboard-snapshot') {
+        const {data:dealerships,error:performanceError}=data.run?.id
+          ? await admin.rpc('tdqsys_dealership_performance',{p_instance_id:instanceId,p_run_id:data.run.id})
+          : {data:[],error:null};
+        if(performanceError)return Response.json({error:'Dealership performance is temporarily unavailable.'},{status:503,headers:cors});
+        return Response.json({...data,dealerships},{headers:cors});
+      }
       return Response.json(data,{headers:cors});
     }
     if(['cleanup-preview','cleanup-apply'].includes(body.action)) {
@@ -213,13 +220,13 @@ Deno.serve(async (req) => {
       }
       const seCheckins = [];
       if (body.includeSalesExecutives === true) {
-        let query = admin.from('se_daily_checkins').select('id,operating_day,expires_at,revoked_at,code_ciphertext,sales_executives(name,dealership)').eq('instance_id',instanceId);
+        let query = admin.from('se_daily_checkins').select('id,operating_day,expires_at,revoked_at,code_ciphertext,sales_executives(name,dealership,contact_number)').eq('instance_id',instanceId);
         if (body.salesHistory !== true) query = query.eq('operating_day',run.operating_day).is('revoked_at',null);
         const { data: checkins, error: checkinError } = await query.order('issued_at',{ascending:false});
         if (checkinError) throw checkinError;
         for (const checkin of checkins || []) {
           const active = !checkin.revoked_at && new Date(checkin.expires_at).getTime() > Date.now();
-          seCheckins.push({id:checkin.id,name:checkin.sales_executives?.name,dealership:checkin.sales_executives?.dealership,
+          seCheckins.push({id:checkin.id,name:checkin.sales_executives?.name,dealership:checkin.sales_executives?.dealership,contactNumber:checkin.sales_executives?.contact_number || '',
             operatingDay:checkin.operating_day,expiresAt:checkin.expires_at,revokedAt:checkin.revoked_at,code:active ? await decryptSeCode(checkin.code_ciphertext,Deno.env.get('TEST_DRIVE_CODE_ENCRYPTION_KEY')) : null});
         }
       }

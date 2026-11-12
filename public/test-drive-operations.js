@@ -199,7 +199,7 @@
     const sorted=sortedRows(checkins,byId('sales-sort')?.value,byId('sales-direction')?.value,(item,key)=>key==='status' ? item.revokedAt?'Reset':item.code?'Active':'Expired':item[key]);
     for (const checkin of sorted.filter(item => `${item.name} ${item.dealership}`.toLocaleLowerCase().includes(query))) {
       const row = document.createElement('tr');
-      cell(row,checkin.code || 'Expired'); cell(row,checkin.name); cell(row,checkin.dealership);
+      cell(row,checkin.code || 'Expired'); cell(row,checkin.name); cell(row,checkin.contactNumber || 'Not recorded'); cell(row,checkin.dealership);
       cell(row,checkin.operatingDay); cell(row,new Date(checkin.expiresAt).toLocaleString()); cell(row,checkin.revokedAt ? 'Reset' : checkin.code ? 'Active' : 'Expired');
       const action=document.createElement('td');
       if(checkin.code) {
