@@ -1,9 +1,10 @@
 {
-  "version": "1.1.28",
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.28/tdqsys-setup-1.1.28.exe",
-  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.28/tdqsys-setup-1.1.28.exe",
-  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.28/tdqsys-portable-1.1.28.exe",
-  "size": 225640281,
-  "installerBytes": 225640281,
-  "notes": "TDQSYS 1.1.28: Settings no longer uses Windows dialogs for unchanged saves or relocking, preventing the delayed input focus issue. Licence revocation and reinstatement now refresh Settings immediately."
+  "version": "1.1.29",
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.29/tdqsys-setup-1.1.29.exe",
+  "installer": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.29/tdqsys-setup-1.1.29.exe",
+  "portable": "https://github.com/epiparilla/tdqsys/releases/download/v1.1.29/tdqsys-portable-1.1.29.exe",
+  "size": 225640730,
+  "installerBytes": 225640730,
+  "sha256": "ce07c549629e35cadec8fa1cabbd9c30941fb56a9ebae1327a7e7ce24da40b68",
+  "notes": "TDQSYS 1.1.29: media audio lowers during announcements and restores its previous volume afterward. Stable queue, registration and speech behavior is unchanged."
 }

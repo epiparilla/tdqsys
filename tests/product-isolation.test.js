@@ -32,8 +32,8 @@ test('v2 never discovers a v1 or unrelated uninstaller',()=>{
  assert.equal(findOwnUninstaller(exe,p=>p===path.join('separate','Uninstall tdqsys-v2.exe')),path.join('separate','Uninstall tdqsys-v2.exe'));
  assert.equal(findOwnUninstaller(exe,p=>p===path.join('separate','Uninstall TDQSYS.exe')),null);
 });
-test('v1 feed remains frozen and v2 feed is not controlled by cloudBase or backup',()=>{
- assert.equal(JSON.parse(read('public/version.json')).version,'1.1.28');
+test('v1 feed remains isolated and v2 feed is not controlled by cloudBase or backup',()=>{
+ assert.equal(JSON.parse(read('public/version.json')).version,'1.1.29');
  assert.equal(PRODUCT.updateUrl,'https://tdqsys-v2.pages.dev/version.json');
  const feed=JSON.parse(read('releases/v2/version.json'));
  assert.equal(feed.enabled,true);

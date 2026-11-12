@@ -15,9 +15,9 @@ const { PUBLIC, read, readPublic, appVersion } = require('./helpers');
 const manifest = JSON.parse(readPublic('version.json'));
 const pkgVersion = appVersion();
 
-test('legacy manifest stays frozen while v2 has its own bootstrap manifest', () => {
+test('v1 and v2 release manifests retain their separate versions', () => {
   assert.equal(
-    manifest.version, '1.1.28',
+    manifest.version, '1.1.29',
     `version.json says ${manifest.version} but app/package.json says ${pkgVersion}. ` +
     'The app compares these and will offer an update to its own version.'
   );

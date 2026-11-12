@@ -1,10 +1,10 @@
 {
   "productId": "com.tdqsys.queue.v2",
   "channel": "v2",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "enabled": true,
-  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.4/tdqsys-v2-setup-2.0.4.exe",
-  "size": 232870126,
-  "sha256": "e39b58d1515cb735d4fb4d3b11661b1b612f9ca266d91e84e9d11e265b640e0d",
-  "notes": "TDQSYS v2.0.4 removes the printed-waiver signing checkbox and its submission requirement. Normal waiver, Terms and Data Privacy acceptance remain unchanged."
+  "url": "https://github.com/epiparilla/tdqsys/releases/download/v2.0.5/tdqsys-v2-setup-2.0.5.exe",
+  "size": 232871599,
+  "sha256": "79ad4c8aa7cf37774beb639588b0b4311a92be7b37bca8effbc0bafa5d5f1793",
+  "notes": "TDQSYS v2.0.5: media audio lowers during announcements and Call Back clips and restores afterward. No queue, registration, printing or speech-timing changes."
 }
