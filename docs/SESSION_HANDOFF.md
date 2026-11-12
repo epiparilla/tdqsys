@@ -5,6 +5,14 @@ not a verbatim transcript.
 
 ## Resume here
 
+## 12 November v1 manual video-mute build
+
+Added the same Settings > video ads checkbox as v2: "Mute video audio (announcements and callbacks remain audible)". Saves `config.ads.muted`, default false. Packaged TV/viewer video players apply mute on initial load and state polling; speech playback and Windows volume are untouched. Announcements finishing cannot unmute a muted video. Disable and save to restore video sound with normal ducking.
+
+V1 manual installer: `app/dist-test-drive-v1-video-mute-20261112/tdqsys-setup-1.1.29.exe`, copied to the same relative folder under TDQSYS v1. Version stays 1.1.29; separate manual build, not an OTA release. Built from the preserved v1.1.29 release staging with main.js, preload.js, engine, licence module and TTS executable byte-identical. Only four server resources change: settings.html, media-ducking.js, display_with_ads.html and client.html. V1 source keeps its existing License wording; the installer retains stable Licence wording.
+
+Verification: 216 v1 tests passing / 8 optional skips, including mute/save/hydration/ducking tests. Physical audio/UI acceptance pending. No app was installed or restarted, no saved live configuration/queue records changed, and no website or OTA feed published. Public hosted viewers need a later explicit Pages publication to gain this option.
+
 ## 12 November v2 video-audio mute option
 
 Settings > video ads now includes "Mute video audio (announcements and callbacks remain audible)". Saved as `config.ads.muted`, default false for existing setups. TV and remote viewer apply it at initial display load and subsequent state polls without restarting video playback. Only the ad-video element is muted; browser/native speech and system volume are untouched. Muting remains effective when announcement ducking ends; disabling it restores the prior video volume and normal ducking behavior.
