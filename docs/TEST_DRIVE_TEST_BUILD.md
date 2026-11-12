@@ -1,5 +1,39 @@
 # Test-drive manual-test build
 
+## 12 November media audio ducking - local test builds
+
+Media ad volume drops to 10% of its pre-announcement level while announcement
+or Call Back speech plays, then restores that exact level. Existing mute and
+Windows master-volume settings are untouched. Queued speech stays ducked;
+duplicate/reentrant completion and playback errors cannot restore it early.
+
+V1 uses the display/viewer Audio lifecycle. V2 also signals native desktop
+speech before enqueue, then tracks its existing private FIFO status locally
+until two idle checks. Service failures release ducking instead of leaving
+media permanently quiet. Reloaded local displays resynchronize active state;
+page navigation does not stop native playback. No TTS binary changes.
+
+V1 tests: 210 pass / 12 skipped. V2: 413 pass / 3 skipped.
+Targeted tests cover queue overlap, failures, muted/zero volume, prior-volume
+restoration, stale initial activity, native FIFO and Ongoing/Call Back paths.
+Packaged source checked; physical listening acceptance remains pending.
+No live announcements, registrations, resets or installations were triggered.
+
+Local manual test installers (NOT published, no version/OTA changes):
+V1: app/dist-test-drive-v1-ducking-20261112/tdqsys-v1-ducking-setup-1.1.28.exe
+225640845 bytes; SHA256:
+2fbbeb4637fbb2a0ab00d94e2d62aeb729cbb742083ff2ce273466e5359bbcb2
+V2: app/dist-test-drive-v2-ducking-20261112/tdqsys-v2-setup-2.0.4.exe
+232871593 bytes; SHA256:
+1f63d8969e01db1bb6fb6f58ced906a2d600b0c36927722b31f48825b062da77
+V1 test package retains the existing stable app.asar, speech executable and
+engine byte-for-byte; only reviewed display/viewer/helper assets changed.
+It is not a rebuild of the older v1 worktree main.js. Stable original build
+and published assets are retained. A future publish needs separate bumped
+v1/v2 releases; do not overwrite current versioned GitHub assets.
+
+
+
 ## 12 November v2.0.4 removes printed-waiver agreement
 
 Removed the "I agree to sign a printed copy of this waiver" checkbox.

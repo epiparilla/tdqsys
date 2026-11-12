@@ -2,6 +2,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('afDesktop', {
+    speechActivity: () => ipcRenderer.invoke('af:speechActivity'),
+    onSpeechActivity: (callback) => {
+        const listener=(_event,active)=>callback(active);
+        ipcRenderer.on('af:speech-activity',listener);
+        return ()=>ipcRenderer.removeListener('af:speech-activity',listener);
+    },
     testDrive: (request) => ipcRenderer.invoke('af:testDrive', request),
     onLocalQueueChanged: (callback) => {
         const listener=()=>callback();

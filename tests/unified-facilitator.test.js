@@ -318,7 +318,7 @@ test('client labels use complete prefixed numbers and the same large-code layout
 
 test('desktop queues ticket speech through its private local service instead of a renderer Audio element',async()=>{
   let sent;
-  const context={TTS_PORT:9000,TTS_PLAYBACK_TOKEN:'private-test',AbortSignal,fetch:async(url,options)=>{sent={url,options};return Response.json({queued:true,cacheReady:true});}};
+  const context={getSpeechDucker:()=>({begin:()=>()=>{}}),TTS_PORT:9000,TTS_PLAYBACK_TOKEN:'private-test',AbortSignal,fetch:async(url,options)=>{sent={url,options};return Response.json({queued:true,cacheReady:true});}};
   vm.createContext(context);vm.runInContext(extractFunction(main,'queueTicketSpeech'),context);
   const result=await context.queueTicketSpeech('callback',{brand_key:'toyota',unit_index:1},7);
   assert.equal(result.speechQueued,true);assert.equal(sent.options.headers['X-TDQSYS-Playback'],'private-test');assert.equal(JSON.parse(sent.options.body).number,7);

@@ -867,7 +867,35 @@ function cleanup() {
     }
 }
 
+let speechDucker=null;
+function getSpeechDucker() {
+    if(!speechDucker) {
+        const {createSpeechDucker}=require(path.join(RES_SERVER,'shared','media-speech-duck.js'));
+        speechDucker=createSpeechDucker({
+            read:async()=>{
+                const response=await fetch(`http://127.0.0.1:${TTS_PORT}/api/speech-status`,{
+                    signal:AbortSignal.timeout(1000),headers:{'X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN}
+                });
+                if(!response.ok)throw Error('Speech activity unavailable.');
+                return response.json();
+            },
+            publish:active=>{
+                for(const win of BrowserWindow.getAllWindows())try {
+                    const url=new URL(win.webContents.getURL());
+                    if(url.origin===`http://localhost:${PORT}` && ['/display_with_ads.html','/client.html'].includes(url.pathname))win.webContents.send('af:speech-activity',active);
+                }catch{}
+            }
+        });
+    }
+    return speechDucker;
+}
+ipcMain.handle('af:speechActivity',event=>{
+    const url=new URL(event.senderFrame.url);
+    if(url.origin!==`http://localhost:${PORT}` || !['/display_with_ads.html','/client.html'].includes(url.pathname))throw Error('Open the local display.');
+    return {active:getSpeechDucker().active()};
+});
 async function queueTicketSpeech(kind, model, number) {
+    const releaseDucking=getSpeechDucker().begin();
     try {
         const response=await fetch(`http://127.0.0.1:${TTS_PORT}/api/play-ticket`,{
             method:'POST',signal:AbortSignal.timeout(2000),headers:{'Content-Type':'application/json','X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN},
@@ -877,6 +905,7 @@ async function queueTicketSpeech(kind, model, number) {
         const speech=await response.json();
         return {speechQueued:!!speech.queued,speechPreparing:!speech.cacheReady};
     } catch(error) {return {speechQueued:false,speechError:error.message};}
+    finally {releaseDucking();}
 }
 
 let localQueueTimer=null;

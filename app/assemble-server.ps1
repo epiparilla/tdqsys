@@ -20,6 +20,7 @@ Copy-Item (Join-Path $root 'shared\facilitator-theme.js') (Join-Path $stage 'sha
 Copy-Item (Join-Path $root 'shared\test-drive-local.js') (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'shared\history-cleanup.js') (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'shared\registration-simulator.js') (Join-Path $stage 'shared')
+Copy-Item (Join-Path $root 'shared\media-speech-duck.js') (Join-Path $stage 'shared')
 Copy-Item (Join-Path $root 'public')               (Join-Path $stage 'public') -Recurse
 Remove-Item (Join-Path $stage 'public\.wrangler') -Recurse -Force -ErrorAction SilentlyContinue
 # downloads/ = installer/portable binaries for the update-check page; they are
