@@ -46,7 +46,7 @@ test('the portable build exists for the current version', (t) => {
 
 test('the NSIS block map was produced alongside the installer', (t) => {
   if (!fs.existsSync(DIST)) { t.skip('dist-installer not present'); return; }
-  assert.ok(fs.existsSync(path.join(DIST, `TDQSYS Setup ${VERSION}.exe.blockmap`)),
+  assert.ok(fs.existsSync(path.join(DIST, `tdqsys-setup-${VERSION}.exe.blockmap`)),
     'no blockmap - electron-builder did not finish the NSIS build');
 });
 
