@@ -5,6 +5,50 @@ not a verbatim transcript.
 
 ## Resume here
 
+## 12 November media ducking OTA publication
+
+User authorized OTA publication of the media-volume-only change while live.
+Versions: v1.1.29 and v2.0.5. No running app was stopped or updated by the agent.
+Updates remain operator-initiated; installation closes/restarts the chosen app.
+
+V1 release uses the deployed stable v1.1.28 main.js, preload.js, engine and
+TTS binary unchanged; only reviewed media display assets and version metadata
+changed. The original stable installer remains retained. Stable core came from
+app/dist-installer/win-unpacked, not the older v1 worktree main.js.
+V1 website is staged from exact production commit 2544c0ee7e83e2fca5c34430a55b0ae163a02ce8,
+deployment 3681ed22, production branch main. All 52 other site/backend files
+were verified unchanged; only client.html, display_with_ads.html, version.json
+and the new media-ducking.js differ. Do not deploy the old v1 checkout wholesale.
+V2 retains its separate product ID, profile, endpoints, installer and feed.
+No database, registration, printing, queue, wording or speech timing changes.
+
+V1 source: 29b5b45aa20a61c2f91c972af3408a753264e8e4; v2 source:
+2f79fca8c0d1ea8b1627e731b7960969aa6376ac.
+V1 checks before publication: 212 passing / 10 optional network skips.
+V2 checks: 413 passing / 3 skipped. Physical listening is still pending.
+
+V1 installer: app/dist-test-drive-v1-1.1.29-20261112/tdqsys-setup-1.1.29.exe
+225640730 bytes; SHA256:
+ce07c549629e35cadec8fa1cabbd9c30941fb56a9ebae1327a7e7ce24da40b68
+V1 portable: 225360412 bytes; SHA256:
+505be42564e2b9d60a9fd182c1e7c67575609db21ea901b216fc105a9ff32b11
+V2 installer: app/dist-v2-2.0.5-20261112/tdqsys-v2-setup-2.0.5.exe
+232871599 bytes; SHA256:
+79ad4c8aa7cf37774beb639588b0b4311a92be7b37bca8effbc0bafa5d5f1793
+V2 portable is built locally only, not required by its OTA feed.
+Do not overwrite any previously published same-version artifact.
+
+OTA publication verified: both releases are public; uploaded digests and byte
+counts match local artifacts. All three public download HEAD checks are HTTP 200.
+Live v1 feed is 1.1.29 (deployment 896f2ec6); live v2 feed is 2.0.5, enabled=true
+(deployment b03bddfa). Display/helper assets verified on both production hosts.
+Protected v1 af.js and style.css still match the prior production baseline.
+GitHub stable Latest is v1.1.29; v2 remains a separate prerelease/OTA channel.
+Final isolated checks: v1 214 pass / 8 skips; v2 413 pass / 3 skips.
+No live application was installed or restarted. Physical listening acceptance
+remains pending. Operators should install only during a suitable pause.
+
+
 ## 12 November media audio ducking - local test builds
 
 Media ad volume drops to 10% of its pre-announcement level while announcement
