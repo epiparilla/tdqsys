@@ -32,6 +32,7 @@
     </div>
 
     <script src="af.js"></script>
+    <script src="media-ducking.js"></script>
     <script>
         // --------- CONFIG DRIVEN STATE ---------
         let dataStore = null;
@@ -53,23 +54,22 @@
         }
 
         function playNextAudio() {
-            if (isPlaying || audioQueue.length === 0) {
-                if (audioQueue.length === 0) {
-                    const videoPlayer = document.getElementById('ad-video');
-                    if (videoPlayer) videoPlayer.volume = 1.0;
-                }
+            if (isPlaying) return;
+            if (audioQueue.length === 0) {
+                TdqMediaDucking.set(false);
                 return;
             }
 
             isPlaying = true;
-            const videoPlayer = document.getElementById('ad-video');
-            if (videoPlayer) videoPlayer.volume = 0.1;
+            TdqMediaDucking.set(true);
 
             const url = audioQueue.shift();
             const audio = new Audio(url);
-            audio.onended = () => { isPlaying = false; playNextAudio(); };
-            audio.onerror = () => { console.error("Failed to play local AI voice"); isPlaying = false; playNextAudio(); };
-            audio.play().catch(err => { console.error("Playback prevented:", err); isPlaying = false; playNextAudio(); });
+            let finished=false;
+            const done=()=>{if(finished)return;finished=true;isPlaying=false;playNextAudio();};
+            audio.onended = done;
+            audio.onerror = () => { console.error("Failed to play local AI voice"); done(); };
+            audio.play().catch(err => { console.error("Playback prevented:", err); done(); });
         }
 
         // --------- BUILD DOM FROM CONFIG ---------

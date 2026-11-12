@@ -1,5 +1,23 @@
 # TDQSYS Future Improvements
 
+## 12 November media audio ducking
+
+Display and viewer now lower ad audio to 10% of its previous volume during
+speech and restore that same volume after the speech queue finishes.
+Reentrant calls and failed/rejected playback cannot restore volume too early.
+Announcement text, scheduling, queue controls and master volume are unchanged.
+Tests: 210 pass / 12 skipped. Physical listening test remains pending.
+
+Local test installer is in the canonical tdqsys folder:
+app/dist-test-drive-v1-ducking-20261112/tdqsys-v1-ducking-setup-1.1.28.exe
+225640845 bytes; SHA256:
+2fbbeb4637fbb2a0ab00d94e2d62aeb729cbb742083ff2ce273466e5359bbcb2
+The package reuses the actual stable v1 core/app.asar, engine and TTS binary,
+with only the reviewed display/viewer/helper files replaced. No published
+asset, OTA manifest, version or live record changed. No install was performed.
+
+
+
 This document records approved future-feature ideas. It is not a change to the current production release.
 #### Phase 1
 
