@@ -1,9 +1,13 @@
 # TDQSYS session handoff
 
-Updated 12 November 2026, Asia/Manila. This is a conversation handoff summary,
+Updated 15 November 2026, Asia/Manila. This is a conversation handoff summary,
 not a verbatim transcript.
 
 ## Resume here
+
+## 15 November documentation-only roadmap review
+
+Added a source-reviewed implemented checklist and separate planned/partial items to FUTURE_IMPROVEMENTS.md and its identical .txt mirror. Planned desktop-only Agent contact correction includes an 11-digit replacement, reason/old-new confirmation, location authentication, optimistic concurrency, atomic update/audit and refresh/error handling. No contact-edit feature was implemented. Corrected stale whole-sentence-cache, current-installer, optional-consent, Sheets setup location and dashboard totals/page descriptions. Historical verification notes remain historical; no physical acceptance was inferred. No app, installer, release, live Settings or database changes were made in this documentation-only turn. Keep local TDQSYS v2 guides synchronized; do not merge v2 product requirements into the v1-only branch.
 
 ## 12 November v1 manual video-mute build
 

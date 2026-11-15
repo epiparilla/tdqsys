@@ -1,5 +1,53 @@
 # TDQSYS Future Improvements
 
+## Status review — 15 November 2026
+
+Documentation-only review against the current v2 source and existing build/test records. Checked items mean implemented in code, not proof that every installed location has that build or that physical/operator acceptance is complete. Historical dated notes below remain evidence of their own point in time; this status review supersedes conflicting older wording.
+
+### Implemented
+
+- [x] Independent v1/v2 application identities, data profiles, installers and update channels. Latest manual builds remain v1.1.29 and v2.0.5; no new release is authorized by this documentation update.
+- [x] Location-scoped Agent/client QR registration, daily unique Agent codes, code validation and midnight expiry, multi-model client tickets, duplicate handling and submission idempotency.
+- [x] Required Agent/client contact-number validation, required client Data Privacy Consent, and configurable Waiver/Terms that are hidden when blank. The separate printed-waiver-signature checkbox was removed.
+- [x] Agent terminology throughout the UI; Agents page phone-number display, sorting, history, code reprint and dedicated confirmed code reset.
+- [x] Unified per-model Queue Board, separate Master Table/Print Queue/Event Setup pages, enabled-only Brand 2 board, three-column maximum and seamless horizontal looping.
+- [x] Local-first Ongoing/Call Back, one ongoing client per model, background cloud synchronization, day-rollover display reset, Done/No Show confirmation, and durable Ongoing undo/redo.
+- [x] Per-model ticket printing, installed-printer selection, direct Master Table reprint/reissue, add/change model, search/sort, print-job cancellation and recovery, plus bundled NIIMBOT driver setup.
+- [x] Fixed 50 mm x 30 mm tickets with configurable font formatting/live preview, auto-fit Agent/model headers and complete prefixed queue numbers.
+- [x] Dealership options and complete vehicle-list import; printable shortname and pronunciation configuration; bundled display fonts, brand logos and display scaling.
+- [x] Desktop Event Setup/QR links and Google Sheets destination setup; per-location daily tabs and immutable raw client rows with background retry while the desktop is running.
+- [x] Giveaways page, multiple distinct items per client, inventory opening/replenishment history, run-scoped balances and audited giveaway/opening-balance corrections.
+- [x] Live Dashboard with current/history run totals and charts, including unique clients, per-model outcomes, giveaway stock and per-dealership performance.
+- [x] Safe run deletion / clean slate with backup and explicit confirmation, preserving configured Google Sheets and keeping destructive cleanup separate from operational resets.
+- [x] Built-in 2–3 minute registration simulation for operator testing, isolated behind its explicit test-run workflow.
+- [x] Whole-sentence Kokoro clip caching/preparation for Ongoing and Call Back; packaged speech-process shutdown handling. Pocket TTS remains an isolated audition, not the production engine.
+- [x] Media audio ducking in v1/v2. Video-only mute is included in both latest manual installers; announcements/callbacks remain audible. Those manual mute builds have not been published through OTA or Pages.
+- [x] Compact table/page typography and frozen controls, initial brand-accent bootstrap and frozen-header underlayer fix, plus updated client presentation material.
+
+Implementation references include `public/facilitator-shell.js`, `public/test-drive-operations.js`, `public/live-dashboard.*`, `public/giveaways.js`, `public/giveaway-corrections.js`, `public/history-cleanup-ui.js`, `public/settings*.js`, `public/media-ducking.js`, `tts_server.py`, the private operations endpoint and corresponding migrations/tests. See the dated sections and `TEST_DRIVE_TEST_BUILD.md` for build-specific verification; no test suite or physical acceptance was rerun for this documentation-only review.
+
+### Planned — desktop Agent contact-number correction
+
+- [ ] Add **Edit contact** beside each Agent on the desktop Agents page only; do not expose correction on the public form.
+- [ ] Show Agent name, dealership and existing contact number in a correction dialog; enter the replacement as text so a leading zero is preserved.
+- [ ] Validate exactly 11 numeric digits in the desktop and private backend. Require a correction reason and explicit confirmation showing old number -> new number before saving.
+- [ ] Authenticate the existing location/writer identity and scope the target Agent to that location. Use the expected previous number to reject a stale edit if another operator has already changed it.
+- [ ] Commit the contact update and audit record atomically. Record Agent/registration references, before/after number, timestamp, reason and available authenticated operator identity; do not invent a named-user identity for the shared laptop.
+- [ ] Refresh the table after confirmed save. If offline or unsuccessful, show a retryable error and do not display an unconfirmed correction as saved.
+- [ ] Change only the Agent contact number and correction metadata; preserve codes, check-ins, client registrations, queue numbers, statuses, raw Google Sheets rows and print history. The number belongs to the shared Agent identity, so explain that linked historical Agent views can show the corrected contact too.
+- [ ] Add tests for valid/invalid numbers, leading zeroes, cancel/no-op, wrong-location access, stale edits, failure/rollback, audit persistence and refreshed desktop display. Deliver in a future installer after testing; no implementation is authorized yet.
+
+The support correction discussed on 15 November was a one-off backend edit, not an implemented desktop correction feature. Do not include private Agent details in this roadmap.
+
+### Still pending / partial
+
+- [ ] Complete the model-retirement backup/confirmation flow and broader configuration/export auditing; existing soft retirement and backup support do not prove the whole workflow is complete.
+- [ ] Verify startup/model-availability gates and administrator-facing configuration-sync failure reporting end to end.
+- [ ] Extend the Master Table beyond its same-day history filter if prior-day client lookup/export is required; Live Dashboard run history and Agent history do not replace that client workflow.
+- [ ] Add a dedicated full raw-registration/consent detail view and additional languages if required. Giveaways already shows raw form fields; Application/Reservation remain optional data, not queue actions.
+- [ ] Add an independently scheduled cloud Sheets worker if needed; current automatic delivery requires the desktop app to be running.
+- [ ] Confirm installed-location coverage and remaining physical printer, speech-fluency/background-load, three-location and operator-driven OTA acceptance. Do not mark these complete from source or unit tests alone.
+
 ## 12 November v1 manual video-mute build
 
 Added the same Settings > video ads checkbox as v2: "Mute video audio (announcements and callbacks remain audible)". Saves `config.ads.muted`, default false. Packaged TV/viewer video players apply mute on initial load and state polling; speech playback and Windows volume are untouched. Announcements finishing cannot unmute a muted video. Disable and save to restore video sound with normal ducking.
@@ -1099,13 +1147,13 @@ EX listening follow-up: user heard "LI EKS". Focused comparison at `outputs/tdqs
 
 5 November update: the user approved an **isolated Pocket TTS audition**, not an engine replacement. The separate loopback tester is on port 8012, with a comparison page and 14 verified WAV files in `outputs/tdqsys-voice-audition-20261105/`. Six full sentences compare Pocket Marius (1.07-1.37 s per clip) with Kokoro am_liam (5.79-7.12 s); two additional Pocket Alba clips are included. Timings include complete HTTP generation, not just the first streamed chunk; different voices and uncontrolled background load prevent treating this as a quality or universal speed verdict. No TDQSYS production source/settings/cache/installer changed. Launch/stop controls passed; fluency and background-load acceptance remain pending. See `SESSION_HANDOFF.md` and the local audition README for pinned assets, the preset-shortcut workaround and voice credits.
 
-The user confirmed that live announcements are now instant after the local-first change. The remaining speech priority is fluent whole-sentence intonation without audible segment boundaries. Full-sentence caching was discussed but is **not implemented or approved for implementation yet**; the current installer still stitches cached segments.
+Historical 3–5 November feedback: the user confirmed instant live announcements after local-first operation and requested fluent whole-sentence intonation. **Implemented subsequently:** v2 now uses whole-sentence Kokoro caching for Ongoing and Call Back (`SentenceCache`, `sentences-v1` in `tts_server.py`). The earlier unimplemented segmented-only description is superseded. Physical fluency and background-load acceptance remain separate checks.
 
-A six-sample full-sentence synthesis benchmark using the laptop's saved `am_liam` voice averaged 7.088 seconds per clip (6.576-7.631 seconds). It did not play audio or change Settings. Proposed recordings would be two per ticket/model (Ongoing and Call Back). About 16 clips fit in two minutes; preparing 50 numbers for seven models would take approximately 83 minutes, or 142 minutes for 12 models. These are extrapolations, not measured bulk-generation guarantees. A small initial buffer and prioritized rolling preparation appear more practical for 20-30 minute drives. Keep old voice/text caches reusable. Before implementation, settle readiness/cold-clip handling and verify background CPU load and cached-playback independence; do not regress instant announcements.
+Historical six-sample synthesis benchmark: the laptop's saved `am_liam` voice averaged 7.088 seconds per full-sentence clip (6.576-7.631 seconds). The derived 16 clips/two minutes, 83 minutes for 50 numbers/seven models, and 142 minutes for 12 models were extrapolations, not measured bulk-generation guarantees. Two clips per ticket/model (Ongoing and Call Back) are now implemented. Readiness/cold-clip and background preparation are implemented; background CPU load, listening fluency and cached-playback independence still require operator acceptance. Retain voice/text-specific caches and do not equate generation/assembly timing with audible speaker latency.
 
 The requested 3 November simulation completed 10 SE registrations, 20 client registrations and 27 tickets. All 20 client rows were verified exactly once in `TDQSYS Reg 11/03/2026`. Preserve the records for testing and do not restart the simulation automatically. Local private output and the full continuation notes are referenced in `SESSION_HANDOFF.md`.
 
-The current manual installer is `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe`. The restorable production checkpoint is commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, with branch `backup/v1.1.28-pre-test-drive`; the released installer remains in `app/dist-installer/`.
+The latest manual installers are the separate v1 video-mute 1.1.29 and v2 video-mute 2.0.5 builds listed at the top of this file. `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe` is a historical test build, not the current installer. Preserve the original production checkpoint commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, branch `backup/v1.1.28-pre-test-drive` and retained released assets.
 
 | Area | Current manual-build status |
 | --- | --- |
@@ -1155,7 +1203,7 @@ Physical labels, a clean-machine NIIMBOT installation, the installed-app visual 
 - Verify the startup/model-availability gate and clear administrator-facing reporting when registration configuration cannot sync. Automatic Settings synchronization currently retries in the desktop background.
 - Extend authorized historical browsing/export beyond the Master Table's current **Earlier runs today** view if prior-day lead lookup is required in the app. Database records remain retained.
 - Complete the export/confirmation flow around retiring models with registrants and the broader settings/export audit requirements. Soft retirement and CSV backup are present; the full acceptance flow remains pending.
-- The header currently reports overall **ticket** count; per-model counts use distinct registrations. An overall distinct-client total remains a separate acceptance item.
+- Implemented in Live Dashboard: separate overall New registrations / Queued clients / Tickets issued totals, plus per-model distinct registrations. The Queue Board header still reports ticket count; do not describe it as unique clients.
 - Full raw-data/consent detail viewing and additional languages remain future work; Application/Reservation fields remain optional raw-data fields without queue behavior.
 - An independently scheduled cloud Sheets worker is future work. The implemented worker requires the desktop app to be running.
 
@@ -1238,9 +1286,9 @@ must not be linked from the public hub.
 
 Each installation/location has its own client-form QR link, SE-form QR link,
 and Google Sheets destination, all scoped by its installation identity. The
-facilitator configures that location's Sheet in desktop Settings: create an
+facilitator configures that location's Sheet on desktop Event Setup / QR Codes: create an
 empty tracking sheet, share it as Editor with the displayed connection-account
-email, paste its URL, test the connection, then save Settings. The desktop
+email, paste its URL, test the connection, then save the destination. The desktop
 automatically syncs saved configuration; Event Setup also provides **Sync saved Settings now**. The
 initial server Google account is configured once; adding another location
 must not require another Cloud project, JSON key, code change, or web deploy.
@@ -1254,7 +1302,7 @@ date's tab. Other tabs and their contents must remain untouched.
 
 In the vehicle configuration table, add a **Printable shortname** column beside each vehicle model's full name. The shortname is configured by the test-drive administrator and must fit the 50 mm × 30 mm queue-ticket header. It is the `[Header]` printed above the assigned queue number; the full vehicle name remains available in the registration form, dashboard, master table, and audit history.
 
-Add two facilitator-editable Settings fields: **Waiver statement** and **Terms and Conditions**. Both are shown in the client form's Consent step and their exact saved versions are recorded with each accepted registration. Seed each field with Lorem Ipsum placeholder text so the public web form never presents an empty waiver or Terms and Conditions statement. The facilitator must replace the placeholders with approved dealership wording before event use.
+Implemented: two facilitator-editable Settings fields, **Waiver statement** and **Terms and Conditions**, initially seeded with Lorem Ipsum. An operator may deliberately clear either field; its corresponding question is then hidden and no acknowledgement is required for that empty statement. Non-empty statements require acknowledgement, with exact versions retained in the registration. Replace any retained placeholders with approved wording before event use. The former printed-copy-signature checkbox has been removed.
 
 ### Operating day and daily queue numbers
 
@@ -1284,7 +1332,7 @@ A client completes the web form in this sequence:
 
 1. **Client details:** Email Address (valid email), Name (Firstname Lastname; letters), City Address (letters and numbers), and Contact No. (numbers). All are required. The client selects **Next**.
 2. **Test-drive choices:** Unit(s) to Test Drive, populated from the active test-drive models in Settings using their full vehicle names. At least one model is required and multiple models may be selected. **For Application?** and **For Reservation?** are optional. The client selects **Next**.
-3. **Consent:** Waiver and Terms and Conditions. Required acknowledgement of each is stored with the accepted document version and timestamp. The client selects **Next**.
+3. **Consent:** Non-empty Waiver and Terms and Conditions are shown and require acknowledgement, stored with the accepted document version and timestamp. Empty statements are omitted. The client selects **Next**. Required Data Privacy Consent is collected in the first Details step independently of these optional statements.
 4. **SE validation:** The accompanying SE's unique four-digit code. Once validated, the SE name and dealership are pre-filled; they are not selectable from a public dropdown. The client selects **Submit**.
 
 On submission, validate all required fields, the active SE code, and at least one selected vehicle model. Before creating each test-drive entry, search the database for the same client name and vehicle model. If an existing matching entry has not passed, do not create another entry; show **“You are already registered for this car model, your queue number is [queue number].”** If the matching entry has passed, create a new entry and issue a new queue number. A successful submission displays the assigned queue number(s) and **“Registration received—please collect your printed queue number from the facilitator.”**
@@ -1341,7 +1389,9 @@ Each vehicle model may have one `ongoing` test-drive entry at a time. Different 
 | Brand 2 Queue Board | `dashboard-brand2.html`; linked when Brand 2 is enabled. Each board filters its own models and uses its saved brand accent. |
 | Master Table | `master-table.html`; agent name/code, current-run search, earlier same-day history, compact reprint/reissue and add/change model actions. |
 | Print Queue | `print-queue.html`; printer selection, queue numbers or SE codes in the first column, print attempts and recovery. |
-| Registered Sales Exec Master List | `sales-executives.html`; name/dealership search, active codes, expiry, history, active-code reprint and a dedicated confirmed SE reset. |
+| Agents | `sales-executives.html`; name, phone number, dealership, search/sort, active codes, expiry, history, active-code reprint and a dedicated confirmed Agent reset. Contact correction is planned, not implemented. |
+| Giveaways | `giveaways.html`; original form fields, multi-item claims, stock checks and audited corrections. |
+| Live Dashboard | `live-dashboard.html`; current/history run registration, ticket, per-model, giveaway and dealership performance figures. |
 | Event Setup / QR Codes | `event-setup.html`; both registration QR codes, manual Settings sync, CSV backup and queue-run reset. |
 | Compatibility address | `test-drive-operations.html` redirects to the Facilitator Dashboard. |
 
@@ -1461,7 +1511,7 @@ The preferred default is to close the current operating day while retaining hist
 31. Reset to Zero records a reason, including Testing, and a timestamp before opening the new queue run.
 32. The Master Table defaults to the active run and permits earlier same-day runs to be searched for audit or lookup only; reissue creates a new active-run entry.
 33. Each active vehicle model has an administrator-configured printable shortname used as the bold ticket header, while the client form and operational records retain the full vehicle name.
-34. Settings provides non-empty Waiver statement and Terms and Conditions fields, seeded with Lorem Ipsum placeholders; each accepted registration records the exact versions shown to the client.
+34. Settings initially seeds Waiver and Terms with Lorem Ipsum, but permits either to be blank. The client form hides an empty statement and requires acknowledgement only for non-empty statements; each accepted registration records the exact versions. Data Privacy Consent remains required independently. No printed-copy-signature checkbox is shown.
 35. A daily SE code is generated only after checking issued codes and enforcing database uniqueness for that location and operating day; the successful SE page shows the code and directs the SE to collect the printed slip.
 36. A successful client submission displays every assigned queue number and directs the client to collect the printed queue number from the facilitator.
 37. Before issuing a duplicate name-and-model entry, the server checks whether an existing number has passed. An unpassed entry is shown to the client; a passed entry allows a new number. Email address and contact number do not block another registration.
