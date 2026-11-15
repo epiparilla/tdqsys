@@ -352,6 +352,17 @@
             <p class="hint">Announcement and Call Back previews use the same cached whole-sentence audio as live playback, with sample queue number 01 and no segment joins. Unsaved edits affect this preview only; save Settings to prepare matching clips for live announcements. Each vehicle starts with numbers 01–50 for both actions; the next 50 are prepared halfway through the current batch. A new voice or wording needs preparation time; already cached tickets play locally without rendering.</p>
             <p id="speech-test-status" class="hint" role="status"></p>
             <p id="speech-cache-status" class="hint" role="status"></p>
+            <h3>Client-name announcements (optional)</h3>
+            <label class="check-label"><input type="checkbox" id="named-enabled"> Use client name when its clip is ready; otherwise use ticket number</label>
+            <p class="hint">Applies to Ongoing and Call Back on this desktop. {name} is the registered client name; {ticket}, {counter} and {service} retain their existing meanings. Fallback clips are prepared first. A call chooses one clip and never repeats automatically when the name clip becomes ready. A new voice or wording may also require preparation of the fallback. Named speech is generated and cached locally; names are not added to public display data.</p>
+            <div class="field"><label for="named-nameTemplate">Ongoing: preferred name wording</label><input id="named-nameTemplate" maxlength="600"></div>
+            <div class="field"><label for="named-fallbackTemplate">Ongoing: ticket fallback wording</label><input id="named-fallbackTemplate" maxlength="600"></div>
+            <div class="field"><label for="named-callbackNameTemplate">Call Back: preferred name wording</label><input id="named-callbackNameTemplate" maxlength="600"></div>
+            <div class="field"><label for="named-callbackFallbackTemplate">Call Back: ticket fallback wording</label><input id="named-callbackFallbackTemplate" maxlength="600"></div>
+            <button type="button" id="named-test-ongoing-name" class="btn-ghost settings-btn">Test name announcement</button>
+            <button type="button" id="named-test-ongoing-ticket" class="btn-ghost settings-btn">Test ticket fallback</button>
+            <button type="button" id="named-test-callback-name" class="btn-ghost settings-btn">Test name call-back</button>
+            <button type="button" id="named-test-callback-ticket" class="btn-ghost settings-btn">Test call-back fallback</button>
         </div>
         <div class="settings-card">
             <h2>Test-drive configuration for this location</h2>
@@ -1127,6 +1138,7 @@ function renderLicence(st) {
             set('cfg-callback-suffix', c.testDrive?.callbackSuffix || 'please stand by, you are next in line to test');
             set('cfg-terms', c.testDrive?.terms ?? 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
             const speechConfig = TdqSpeech.normalize(c.announcements);
+            window.TdqNamedSettings?.hydrate(c.namedAnnouncements);
             set('cfg-voice', speechConfig.voice);
             set('cfg-speech-prefix', speechConfig.prefix);
             set('cfg-speech-template', speechConfig.template);
@@ -1189,6 +1201,7 @@ function renderLicence(st) {
                 config.testDrive = { ...(stateDoc.config.testDrive || {}), waiver, terms, callbackPrefix, callbackSuffix, dealerships, ...window.TdqGiveawayStock.collect() };
             }
             config.announcements = TdqSpeech.validate({voice:val('cfg-voice') || 'af_heart',prefix:val('cfg-speech-prefix'),template:val('cfg-speech-template'),suffix:val('cfg-speech-suffix')});
+            if(window.TdqNamedSettings)config.namedAnnouncements=window.TdqNamedSettings.collect();
             config.ticketPrinting = window.TdqTicketPrint.collect();
 
             document.querySelectorAll('.brand-block').forEach(block => {
@@ -1718,6 +1731,7 @@ if (!afIsLocal()) { alert('Reset requires being on the local machine.'); return;
         boot();
     </script>
     <script src="settings-speech.js"></script>
+    <script src="named-announcements.js"></script><script src="settings-named-speech.js"></script>
     <script src="speech-cache-status.js"></script>
     <script src="giveaway-corrections.js"></script>
     <script src="giveaway-stock-settings.js"></script>

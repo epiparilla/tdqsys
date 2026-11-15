@@ -36,6 +36,12 @@ def preview_plan(body):
               'callbackSuffix':field(body,'callbackSuffix',400,'please stand by, you are next in line to test')}}
     if body.get('kind','ongoing') == 'callback' and not all(config['testDrive'].values()):
         raise ValueError('Call-back prefix and suffix cannot be blank.')
+    if 'namedAnnouncements' in body:
+        from named_speech import named_plan
+        config['namedAnnouncements'] = body['namedAnnouncements']
+        if body.get('namedVariant') not in ('name', 'ticket'):
+            raise ValueError('Select name or ticket preview.')
+        return named_plan(config,'preview',1,body.get('number',1),body.get('kind','ongoing'),body.get('clientName','') if body['namedVariant']=='name' else '')
     return ticket_plan(config,'preview',1,body.get('number',1),body.get('kind','ongoing'))
 
 

@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 from speech_segments import ticket_plan
+from named_speech import named_plan, registration_warmup
 
 
 def sentence_warmup(config, queues):
@@ -20,7 +21,8 @@ def sentence_warmup(config, queues):
         for brand, unit, first, last in vehicles:
             if first + offset <= last:
                 for kind in ('ongoing', 'callback'):
-                    yield ticket_plan(config, brand, unit, first + offset, kind)
+                    planner = named_plan if (config.get('namedAnnouncements') or {}).get('enabled') is True else ticket_plan
+                    yield planner(config, brand, unit, first + offset, kind)
 
 
 class DesktopSpeech:
@@ -42,6 +44,17 @@ class DesktopSpeech:
 
     def plan(self, body):
         state = self.get_state()
+        config = state.get('config') or {}
+        if (config.get('namedAnnouncements') or {}).get('enabled') is True:
+            args = (config, body.get('brandKey'), body.get('unit'), body.get('number'), body.get('kind', 'ongoing'))
+            name = body.get('clientName') or ''
+            if name:
+                preferred, voice = named_plan(*args, name)
+                voice = self.resolve_voice(voice)
+                if self.cache.ready(preferred, voice):
+                    return preferred, voice
+            fallback, voice = named_plan(*args)
+            return fallback, self.resolve_voice(voice)
         parts, voice = ticket_plan(state.get('config') or {}, body.get('brandKey'), body.get('unit'), body.get('number'), body.get('kind', 'ongoing'))
         return parts, self.resolve_voice(voice)
 
@@ -126,7 +139,12 @@ class DesktopSpeech:
                 state = self.get_state()
                 signature = self._sentence_signature(state)
                 if signature != previous:
-                    plans = list(sentence_warmup(state.get('config') or {}, state.get('queues') or {}))
+                    config = state.get('config') or {}
+                    plans = []
+                    if (config.get('namedAnnouncements') or {}).get('enabled') is True:
+                        plans.extend(registration_warmup(config, state.get('namedTickets') or []))
+                    plans.extend(sentence_warmup(config, state.get('queues') or {}))
+                    plans = list({(tuple(parts), voice): (parts, voice) for parts, voice in plans}.values())
                     self.warming = True
                     self.prepared, self.prepare_total = 0, len(plans)
                     for parts, voice in plans:
@@ -151,4 +169,5 @@ class DesktopSpeech:
         buckets = {brand:{unit:(int(number) + 25) // 50 for unit, number in slots.items()}
                    for brand, slots in (state.get('queues') or {}).items()}
         return hashlib.sha256(json.dumps([config.get('brands'), config.get('announcements'),
-            callback.get('callbackPrefix'), callback.get('callbackSuffix'), buckets], sort_keys=True).encode()).hexdigest()
+            callback.get('callbackPrefix'), callback.get('callbackSuffix'), config.get('namedAnnouncements'),
+            state.get('namedTickets') if (config.get('namedAnnouncements') or {}).get('enabled') is True else None, buckets], sort_keys=True).encode()).hexdigest()

@@ -61,6 +61,7 @@
             await audio.play();$('speech-test-status').textContent='Playing whole-sentence preview (sample queue number 01).';
         }catch(error){$('speech-test-status').textContent=error.message;}
     }
+    window.TdqSpeechPreview=announcementPreview;
     $('speech-test-voice').onclick = () => play('This is a test of the selected announcement voice.');
     $('speech-test-announcement').onclick = () => playAnnouncement('ongoing');
     $('speech-test-callback').onclick = () => {

@@ -894,12 +894,12 @@ ipcMain.handle('af:speechActivity',event=>{
     if(url.origin!==`http://localhost:${PORT}` || !['/display_with_ads.html','/client.html'].includes(url.pathname))throw Error('Open the local display.');
     return {active:getSpeechDucker().active()};
 });
-async function queueTicketSpeech(kind, model, number) {
+async function queueTicketSpeech(kind, model, number, clientName='') {
     const releaseDucking=getSpeechDucker().begin();
     try {
         const response=await fetch(`http://127.0.0.1:${TTS_PORT}/api/play-ticket`,{
             method:'POST',signal:AbortSignal.timeout(2000),headers:{'Content-Type':'application/json','X-TDQSYS-Playback':TTS_PLAYBACK_TOKEN},
-            body:JSON.stringify({kind,brandKey:model.brand_key,unit:model.unit_index,number})
+            body:JSON.stringify({kind,brandKey:model.brand_key,unit:model.unit_index,number,clientName})
         });
         if(!response.ok)throw Error('Speech service is not ready. Use Call Back to retry the announcement.');
         const speech=await response.json();
@@ -1042,7 +1042,7 @@ async function localQueueAction(request,cfg) {
     let result={entry:ticket.entry,model:ticket.model};
     if(request.action!=='callback')result=queue.commit(request);
     if(request.action==='ongoing')await applyLocalDisplay(queue);
-    if(['ongoing','callback'].includes(request.action))Object.assign(result,await queueTicketSpeech(request.action,ticket.model,ticket.entry.queue_number));
+    if(['ongoing','callback'].includes(request.action))Object.assign(result,await queueTicketSpeech(request.action,ticket.model,ticket.entry.queue_number,ticket.entry.registrations?.full_name || ''));
     setTimeout(()=>localQueueTick(),0);
     notifyLocalQueueChanged();
     return {ok:true,...result,localSaved:request.action!=='callback',localSnapshot:decorateLocalSnapshot(queue.view(),cfg)};

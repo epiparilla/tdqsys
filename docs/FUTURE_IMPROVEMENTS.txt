@@ -1,5 +1,19 @@
 # TDQSYS Future Improvements
 
+## 15 November optional client-name announcements — manual trial
+
+Built installer verified against packaged source and speech executable: 232882864 bytes; SHA256 `3d4bc637e908847856d24180213767f031296b29e0231768f3f74c32a301fd38`.
+
+V2 Settings > Local announcement voice and wording includes an opt-in client-name mode, disabled by default. It provides separate preferred-name and ticket-fallback templates for Ongoing and Call Back, with {name}, {ticket}, {counter} and {service}. Defaults use the requested "Test driver, {name}, you may now approach the registration area to test drive the {counter}" and corresponding {ticket} fallback. Dedicated preview buttons use synthetic Juan Dela Cruz and ticket 01 without saving or calling a live client. Existing announcement wording/mode is unchanged while the option is off.
+
+The private speech worker reads only the configured location's active-run waiting/ongoing entries from the existing local queue journal, verifies vehicle mapping, and prepares registered-ticket fallbacks before named clips. It also maintains the existing rolling generic fallback batch. At button press it checks whether that exact name/voice/wording clip is cached; otherwise it selects the ticket fallback immediately. The selected utterance is fixed when queued: finishing a name render never interrupts or repeats an existing call. Already cached fallback playback does not wait for the background name-render lock. Cold fallback clips still need initial generation; changing voice/wording also needs preparation. FIFO wait behind an existing announcement remains intentional. Names missing from a ticket use the fallback.
+
+Generation/caching and private playback requests remain local. Names are never added to public display state or QR URLs. No database/schema, registration, printing, operational queue semantics, Google Sheets or v1 changes. Named audio is retained in the existing local hashed sentences-v1 cache. Save validation rejects unsupported placeholders, missing {name}/{ticket}, oversized wording, and fallbacks that require a name.
+
+Manual trial installer: `app/dist-test-drive-v2-named-speech-20261115/tdqsys-v2-setup-2.0.5.exe` (same version, separate local build; not OTA). Includes prior Agent phones, dealership analytics and video mute. Enable the checkbox, save, wait for fallback preparation, then use the new preview buttons or existing registered clients to compare early ticket fallback and later name playback. Check pronunciation and first-call fluency physically. Leave disabled to preserve the previous mode.
+
+Verification: 420 Node tests pass / 3 optional skips; 22 Python speech tests pass. Tests cover blocked name generation with cached fallback, no automatic repeat, next-call use of ready name audio, missing name, disabled mode, voice invalidation, preview agreement, private journal scope/model mapping, template validation, Settings round-trip and save rejection without changing queues. The rebuilt speech executable's isolated synthetic-journal probe prepared four whole-sentence clips, queued a cached fallback in approximately 2 ms, then used different named audio without an automatic repeat. This is HTTP enqueue timing, not physical speaker latency; playback was suppressed. The probe's sandbox-denied shutdown was resolved by explicitly stopping only its verified .dev-db executable processes; live speech was untouched. The prior local TTS build is backed up at `.dev-db/tts_server-before-named-20261115.exe`. Physical listening/UI acceptance remains pending. No running app was installed/restarted, no live Settings or records changed, and no Pages/OTA publication is authorized by this trial.
+
 ## Status review — 15 November 2026
 
 Documentation-only review against the current v2 source and existing build/test records. Checked items mean implemented in code, not proof that every installed location has that build or that physical/operator acceptance is complete. Historical dated notes below remain evidence of their own point in time; this status review supersedes conflicting older wording.
@@ -21,6 +35,7 @@ Documentation-only review against the current v2 source and existing build/test 
 - [x] Safe run deletion / clean slate with backup and explicit confirmation, preserving configured Google Sheets and keeping destructive cleanup separate from operational resets.
 - [x] Built-in 2–3 minute registration simulation for operator testing, isolated behind its explicit test-run workflow.
 - [x] Whole-sentence Kokoro clip caching/preparation for Ongoing and Call Back; packaged speech-process shutdown handling. Pocket TTS remains an isolated audition, not the production engine.
+- [x] Optional client-name Ongoing/Call Back with separate preferred/fallback templates and local registered-client preparation. Included in the 15 November manual trial only; default off, physical acceptance pending.
 - [x] Media audio ducking in v1/v2. Video-only mute is included in both latest manual installers; announcements/callbacks remain audible. Those manual mute builds have not been published through OTA or Pages.
 - [x] Compact table/page typography and frozen controls, initial brand-accent bootstrap and frozen-header underlayer fix, plus updated client presentation material.
 
@@ -1153,7 +1168,7 @@ Historical six-sample synthesis benchmark: the laptop's saved `am_liam` voice av
 
 The requested 3 November simulation completed 10 SE registrations, 20 client registrations and 27 tickets. All 20 client rows were verified exactly once in `TDQSYS Reg 11/03/2026`. Preserve the records for testing and do not restart the simulation automatically. Local private output and the full continuation notes are referenced in `SESSION_HANDOFF.md`.
 
-The latest manual installers are the separate v1 video-mute 1.1.29 and v2 video-mute 2.0.5 builds listed at the top of this file. `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe` is a historical test build, not the current installer. Preserve the original production checkpoint commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, branch `backup/v1.1.28-pre-test-drive` and retained released assets.
+The latest manual installers are the v1 video-mute 1.1.29 build and v2 client-name 2.0.5 trial listed at the top of this file; the earlier v2 video-mute installer is retained. `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe` is a historical test build, not the current installer. Preserve the original production checkpoint commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, branch `backup/v1.1.28-pre-test-drive` and retained released assets.
 
 | Area | Current manual-build status |
 | --- | --- |

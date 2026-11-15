@@ -471,7 +471,18 @@ def resolve_voice(requested=''):
 
 def _desktop_state():
     with open(DATA_FILE, 'r', encoding='utf-8-sig') as stream:
-        return json.load(stream)
+        state = json.load(stream)
+    config = state.get('config') or {}
+    if (config.get('namedAnnouncements') or {}).get('enabled') is True:
+        from named_speech import private_tickets
+        instance = config.get('instanceId', '')
+        if re.fullmatch(r'[0-9a-f-]{1,64}', instance):
+            try:
+                with open(os.path.join(os.path.dirname(DATA_FILE), 'test-drive-' + instance + '.json'), 'r', encoding='utf-8-sig') as stream:
+                    state['namedTickets'] = private_tickets(state, json.load(stream))
+            except (OSError, ValueError):
+                state['namedTickets'] = []
+    return state
 
 
 def _render_segment(text, voice, speed):

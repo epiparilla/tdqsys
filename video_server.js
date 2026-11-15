@@ -291,6 +291,7 @@ const server = http.createServer((req, res) => {
                 if (incoming && incoming.queues && incoming.config) {
                     normalizeConfig(incoming.config);
                     if (incoming.config.announcements) speech.validate(incoming.config.announcements);
+                    if (incoming.config.namedAnnouncements) require('./public/named-announcements').validate(incoming.config.namedAnnouncements);
                     if (incoming.config.ticketPrinting) require('./public/print-label').validate(incoming.config.ticketPrinting);
                     for (const brand of incoming.config.brands || []) if (brand.display !== undefined) require('./public/display-branding').validate(brand.display);
                     // Full state doc: keep incoming config too (settings/wizard save)
@@ -348,6 +349,7 @@ const server = http.createServer((req, res) => {
                 if (incoming.expectedInstanceId !== localData.config.instanceId) throw new Error('Destination identity changed. Please reopen Restore.');
                 const restored = prepareRestoredState(incoming.state, localData);
                 if (restored.config.announcements) speech.validate(restored.config.announcements);
+                if (restored.config.namedAnnouncements) require('./public/named-announcements').validate(restored.config.namedAnnouncements);
                 if (restored.config.ticketPrinting) require('./public/print-label').validate(restored.config.ticketPrinting);
                 for (const brand of restored.config.brands || []) if (brand.display !== undefined) require('./public/display-branding').validate(brand.display);
                 const backupFile = `data.before-restore-${Date.now()}.json`;
