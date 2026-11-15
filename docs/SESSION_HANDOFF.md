@@ -5,6 +5,12 @@ not a verbatim transcript.
 
 ## Resume here
 
+## 15 November v2.0.6 OTA release preparation
+
+User authorized publishing the named-speech trial through the v2 OTA channel. Version bumped from 2.0.5 to 2.0.6 in app/package.json and lockfile. Installer: `app/dist-v2-2.0.6-20261115/tdqsys-v2-setup-2.0.6.exe`, 232882818 bytes, SHA256 `6cf09490b777266f13712a0be8ae08f0ef6308a6b7e10e17d80c5313f73781cd`. Release includes optional client-name speech with ticket fallback (default off), video-only mute, Agent phone display and dealership performance. Agent contact editing remains planned. The matching enabled manifest is staged in releases/v2/version.json; do not deploy the feed until the GitHub installer is fully uploaded and verified.
+
+Release-scope review preserved private outputs, .dev-db and backups; no cleanup/refactor was performed. Production-dependency audit reports zero advisories (does not certify bundled Electron or development dependencies). Speech tests: 22 passing. Final app/artifact checks and publication verification are recorded below when complete. V1.1.29 feed/assets remain untouched. No live app installation, restart, Settings change or data reset is performed by publication; operators choose when to Update. Physical listening acceptance remains pending.
+
 ## 15 November optional client-name announcements — manual trial
 
 Built installer verified against packaged source and speech executable: 232882864 bytes; SHA256 `3d4bc637e908847856d24180213767f031296b29e0231768f3f74c32a301fd38`.
