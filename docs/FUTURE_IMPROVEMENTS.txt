@@ -1,10 +1,12 @@
 # TDQSYS Future Improvements
 
-## 15 November v2.0.6 OTA release preparation
+## 15 November v2.0.6 OTA publication verified
 
-User authorized publishing the named-speech trial through the v2 OTA channel. Version bumped from 2.0.5 to 2.0.6 in app/package.json and lockfile. Installer: `app/dist-v2-2.0.6-20261115/tdqsys-v2-setup-2.0.6.exe`, 232882818 bytes, SHA256 `6cf09490b777266f13712a0be8ae08f0ef6308a6b7e10e17d80c5313f73781cd`. Release includes optional client-name speech with ticket fallback (default off), video-only mute, Agent phone display and dealership performance. Agent contact editing remains planned. The matching enabled manifest is staged in releases/v2/version.json; do not deploy the feed until the GitHub installer is fully uploaded and verified.
+User authorized publishing the named-speech trial through the v2 OTA channel. Version 2.0.6 is published as GitHub prerelease `v2.0.6`, source commit `04365d0`, and enabled on https://tdqsys-v2.pages.dev/version.json (Pages deployment `f6ee0b53`). Installer: `app/dist-v2-2.0.6-20261115/tdqsys-v2-setup-2.0.6.exe`, 232882818 bytes, SHA256 `6cf09490b777266f13712a0be8ae08f0ef6308a6b7e10e17d80c5313f73781cd`. Matching installers/source/guides are synchronized to the TDQSYS v2 local folder. Portable built locally only: 226556692 bytes; the OTA asset is the NSIS installer.
 
-Release-scope review preserved private outputs, .dev-db and backups; no cleanup/refactor was performed. Production-dependency audit reports zero advisories (does not certify bundled Electron or development dependencies). Speech tests: 22 passing. Final app/artifact checks and publication verification are recorded below when complete. V1.1.29 feed/assets remain untouched. No live app installation, restart, Settings change or data reset is performed by publication; operators choose when to Update. Physical listening acceptance remains pending.
+Release includes optional client-name speech with ticket fallback (default off), video-only mute, Agent phone display and dealership performance. Agent contact editing remains planned. GitHub uploaded digest/size, public download HEAD (200), packaged version/main/pages/speech binary and the live enabled manifest were verified. Settings, Agents and Live Dashboard remain blocked on the public v2 site. V1 live feed and GitHub stable Latest remain 1.1.29; no v1 project/assets were deployed.
+
+Release-scope review preserved private outputs, .dev-db and backups; no unrelated cleanup/refactor was performed. Production-dependency audit reports zero advisories (does not certify bundled Electron or development dependencies). Final tests: 420 Node passing / 3 optional skips; 22 Python speech passing. The installer/portable tests pass after both artifacts finished building. No live app installation, restart, Settings change or data reset was performed; operators choose when to Update. Physical pronunciation/listening and actual OTA install/restart acceptance remain pending.
 
 ## 15 November optional client-name announcements — manual trial
 
@@ -26,7 +28,7 @@ Documentation-only review against the current v2 source and existing build/test 
 
 ### Implemented
 
-- [x] Independent v1/v2 application identities, data profiles, installers and update channels. Latest manual builds remain v1.1.29 and v2.0.5; no new release is authorized by this documentation update.
+- [x] Independent v1/v2 application identities, data profiles, installers and update channels. Latest releases: v1.1.29 and v2.0.6; see the verified 15 November publication above. The status review itself was documentation-only.
 - [x] Location-scoped Agent/client QR registration, daily unique Agent codes, code validation and midnight expiry, multi-model client tickets, duplicate handling and submission idempotency.
 - [x] Required Agent/client contact-number validation, required client Data Privacy Consent, and configurable Waiver/Terms that are hidden when blank. The separate printed-waiver-signature checkbox was removed.
 - [x] Agent terminology throughout the UI; Agents page phone-number display, sorting, history, code reprint and dedicated confirmed code reset.
@@ -41,8 +43,8 @@ Documentation-only review against the current v2 source and existing build/test 
 - [x] Safe run deletion / clean slate with backup and explicit confirmation, preserving configured Google Sheets and keeping destructive cleanup separate from operational resets.
 - [x] Built-in 2–3 minute registration simulation for operator testing, isolated behind its explicit test-run workflow.
 - [x] Whole-sentence Kokoro clip caching/preparation for Ongoing and Call Back; packaged speech-process shutdown handling. Pocket TTS remains an isolated audition, not the production engine.
-- [x] Optional client-name Ongoing/Call Back with separate preferred/fallback templates and local registered-client preparation. Included in the 15 November manual trial only; default off, physical acceptance pending.
-- [x] Media audio ducking in v1/v2. Video-only mute is included in both latest manual installers; announcements/callbacks remain audible. Those manual mute builds have not been published through OTA or Pages.
+- [x] Optional client-name Ongoing/Call Back with separate preferred/fallback templates and local registered-client preparation. Published in v2.0.6 after the 15 November manual trial; default off, physical acceptance pending.
+- [x] Media audio ducking in v1/v2. Video-only mute keeps announcements/callbacks audible; published through v2.0.6 OTA/Pages. The v1 mute build remains manual-only; v1 OTA/Pages still carries its earlier ducking-only release.
 - [x] Compact table/page typography and frozen controls, initial brand-accent bootstrap and frozen-header underlayer fix, plus updated client presentation material.
 
 Implementation references include `public/facilitator-shell.js`, `public/test-drive-operations.js`, `public/live-dashboard.*`, `public/giveaways.js`, `public/giveaway-corrections.js`, `public/history-cleanup-ui.js`, `public/settings*.js`, `public/media-ducking.js`, `tts_server.py`, the private operations endpoint and corresponding migrations/tests. See the dated sections and `TEST_DRIVE_TEST_BUILD.md` for build-specific verification; no test suite or physical acceptance was rerun for this documentation-only review.
@@ -1174,7 +1176,7 @@ Historical six-sample synthesis benchmark: the laptop's saved `am_liam` voice av
 
 The requested 3 November simulation completed 10 SE registrations, 20 client registrations and 27 tickets. All 20 client rows were verified exactly once in `TDQSYS Reg 11/03/2026`. Preserve the records for testing and do not restart the simulation automatically. Local private output and the full continuation notes are referenced in `SESSION_HANDOFF.md`.
 
-The latest manual installers are the v1 video-mute 1.1.29 build and v2 client-name 2.0.5 trial listed at the top of this file; the earlier v2 video-mute installer is retained. `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe` is a historical test build, not the current installer. Preserve the original production checkpoint commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, branch `backup/v1.1.28-pre-test-drive` and retained released assets.
+The latest v2 installer is the published 2.0.6 build listed at the top; the v1 video-mute 1.1.29 manual build and earlier v2 2.0.5 trial installers are retained. `app/dist-test-drive/tdqsys-test-drive-1.1.28.exe` is a historical test build, not the current installer. Preserve the original production checkpoint commit `90d0ee7`, tag `checkpoint-v1.1.28-pre-test-drive`, branch `backup/v1.1.28-pre-test-drive` and retained released assets.
 
 | Area | Current manual-build status |
 | --- | --- |

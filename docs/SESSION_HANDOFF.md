@@ -5,11 +5,13 @@ not a verbatim transcript.
 
 ## Resume here
 
-## 15 November v2.0.6 OTA release preparation
+## 15 November v2.0.6 OTA publication verified
 
-User authorized publishing the named-speech trial through the v2 OTA channel. Version bumped from 2.0.5 to 2.0.6 in app/package.json and lockfile. Installer: `app/dist-v2-2.0.6-20261115/tdqsys-v2-setup-2.0.6.exe`, 232882818 bytes, SHA256 `6cf09490b777266f13712a0be8ae08f0ef6308a6b7e10e17d80c5313f73781cd`. Release includes optional client-name speech with ticket fallback (default off), video-only mute, Agent phone display and dealership performance. Agent contact editing remains planned. The matching enabled manifest is staged in releases/v2/version.json; do not deploy the feed until the GitHub installer is fully uploaded and verified.
+User authorized publishing the named-speech trial through the v2 OTA channel. Version 2.0.6 is published as GitHub prerelease `v2.0.6`, source commit `04365d0`, and enabled on https://tdqsys-v2.pages.dev/version.json (Pages deployment `f6ee0b53`). Installer: `app/dist-v2-2.0.6-20261115/tdqsys-v2-setup-2.0.6.exe`, 232882818 bytes, SHA256 `6cf09490b777266f13712a0be8ae08f0ef6308a6b7e10e17d80c5313f73781cd`. Matching installers/source/guides are synchronized to the TDQSYS v2 local folder. Portable built locally only: 226556692 bytes; the OTA asset is the NSIS installer.
 
-Release-scope review preserved private outputs, .dev-db and backups; no cleanup/refactor was performed. Production-dependency audit reports zero advisories (does not certify bundled Electron or development dependencies). Speech tests: 22 passing. Final app/artifact checks and publication verification are recorded below when complete. V1.1.29 feed/assets remain untouched. No live app installation, restart, Settings change or data reset is performed by publication; operators choose when to Update. Physical listening acceptance remains pending.
+Release includes optional client-name speech with ticket fallback (default off), video-only mute, Agent phone display and dealership performance. Agent contact editing remains planned. GitHub uploaded digest/size, public download HEAD (200), packaged version/main/pages/speech binary and the live enabled manifest were verified. Settings, Agents and Live Dashboard remain blocked on the public v2 site. V1 live feed and GitHub stable Latest remain 1.1.29; no v1 project/assets were deployed.
+
+Release-scope review preserved private outputs, .dev-db and backups; no unrelated cleanup/refactor was performed. Production-dependency audit reports zero advisories (does not certify bundled Electron or development dependencies). Final tests: 420 Node passing / 3 optional skips; 22 Python speech passing. The installer/portable tests pass after both artifacts finished building. No live app installation, restart, Settings change or data reset was performed; operators choose when to Update. Physical pronunciation/listening and actual OTA install/restart acceptance remain pending.
 
 ## 15 November optional client-name announcements — manual trial
 
