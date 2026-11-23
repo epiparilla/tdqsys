@@ -1,8 +1,8 @@
 # Test-drive manual-test build
 
-## 23 November v2.0.7 release preparation
+## 23 November v2.0.7 OTA publication verified
 
-Current installer: `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe` (232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`). User authorized v2 OTA publication. The previous same-version manual build below remains available as historical test output. Release checks: full Node suite, PostgreSQL integration checks, 22 Python speech tests, packaged code/version equality, exact asset size/hash, product/channel isolation, public feed/asset reachability. Never overwrite the stable v1 feed. Actual update installation and native Save/Excel pivot acceptance remain operator checks.
+Published installer: `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe` (232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`), also available under the same relative path in TDQSYS v2. GitHub prerelease `v2.0.7`, source `e3fbbdf`; enabled v2 feed verified on Pages deployment `56828848`. Settings > Check for Updates should offer 2.0.7 to older v2 installations. Operator chooses when to update; installation closes/restarts the app. No running app was updated by the agent. Stable v1 remains 1.1.29. 425 Node tests pass / 3 optional skips; 48 PostgreSQL checks and 22 Python speech tests pass. Public asset size/digest/download and private page/public form boundaries verified. Actual OTA installation and native Save/Excel pivot acceptance remain operator checks. Previous manual-build sections below are historical.
 
 ## 23 November issued-ticket reporting — manual test build
 

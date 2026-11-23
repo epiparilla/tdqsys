@@ -5,9 +5,11 @@ not a verbatim transcript.
 
 ## Resume here
 
-## 23 November v2.0.7 release preparation
+## 23 November v2.0.7 OTA publication verified
 
-User authorized OTA publication of the reporting feature. App/lockfile/manifest version is 2.0.7; installer `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe` is 232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`. Separate v2 GitHub prerelease and `tdqsys-v2` Pages channel only; leave v1 and GitHub stable Latest unchanged. Keep private `.dev-db` and `outputs/` out of commits/publication. Actual update installation remains operator-initiated. Publication verification is recorded after checking remote assets and manifest.
+User-authorized reporting release is published as GitHub prerelease `v2.0.7`, source commit `e3fbbdf`, and enabled at https://tdqsys-v2.pages.dev/version.json (Pages deployment `56828848`). Installer `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe`: 232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`. Matching source/guides and local installer/portable are synchronized to TDQSYS v2; portable is not published. Existing untracked fonts and private `.dev-db`/`outputs/` preserved, not committed. V1 feed and GitHub stable Latest remain 1.1.29.
+
+Verification: 425 Node tests passing / 3 optional skips, 48 PostgreSQL integration checks, 22 Python speech tests; packaged version/source and unchanged speech executable; uploaded GitHub asset state/size/digest; enabled public feed/update detection from 2.0.6; installer HEAD 200 with exact content length; desktop-only settings/dashboard 404 and public forms 200. The standard GitHub CLI asset upload twice timed out and was retried with an explicit Content-Length HTTP connection; completed digest matches. Public Node fetch checks required IPv4 HTTPS; no system network setting was changed. No live app installed/restarted, no record reset, no OTA installation triggered. Native Save dialog/Excel pivot and actual OTA install acceptance remain operator work.
 
 ## 23 November issued-ticket reporting manual build
 

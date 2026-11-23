@@ -1,8 +1,8 @@
 # TDQSYS Future Improvements
 
-## 23 November v2.0.7 release preparation
+## 23 November v2.0.7 OTA publication verified
 
-User authorized publishing the reporting feature through the separate v2 OTA channel. Version 2.0.7 installer: `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe`, 232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`. The manifest is `releases/v2/version.json`; never replace the v1 `public/version.json`. Existing installed apps remain running until their operator chooses Update. Native Save dialog and end-user Excel pivot acceptance remain manual checks. Publication verification is recorded separately after asset/feed checks.
+Published GitHub prerelease `v2.0.7` from source commit `e3fbbdf` and enabled the v2 OTA feed at https://tdqsys-v2.pages.dev/version.json (Pages deployment `56828848`). Installer: `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe`, 232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`. GitHub digest/state/size, public download HEAD (200), enabled feed and update detection from 2.0.6 verified. Stable v1 feed/GitHub Latest remain 1.1.29; desktop-only pages return 404 and public registration pages remain available. Source, guides and installer/portable files synchronized to the local TDQSYS v2 folder; private exports and existing untracked fonts preserved. Portable remains local-only. 425 Node tests pass / 3 optional skips, 48 PostgreSQL checks pass and 22 Python speech tests pass. No running app installed or restarted; actual OTA installation, native Save dialog and Excel pivot acceptance remain operator checks.
 
 ## 23 November issued-ticket reporting — implemented for manual testing
 
