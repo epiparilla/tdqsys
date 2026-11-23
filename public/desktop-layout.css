@@ -44,9 +44,11 @@ body[data-view] thead th,body.settings thead th{position:sticky;top:0;z-index:2;
 .desktop-table-panel > details{flex:none;max-height:30vh;overflow:auto;padding-top:6px}
 .desktop-table-tools > p{font-size:11px;line-height:1.35;margin:3px 0 5px}
 #live-dashboard .table-scroll{max-height:45vh;overflow:auto}
+.report-toolbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.report-toolbar label{margin:4px 0;display:flex;flex-direction:column;gap:4px}.report-toolbar input,.report-toolbar select,.report-toolbar button{font:inherit;background:#181818;color:#fff;border:1px solid #555;border-radius:5px;padding:8px}.report-toolbar #report-export{background:var(--brand-accent);color:#fff;font-weight:bold;margin-left:auto}.report-toolbar button:disabled{opacity:.5;cursor:not-allowed}#report-runs{display:flex;flex-direction:column;gap:3px;max-height:200px;overflow:auto}#report-run-review,.report-legacy{padding:10px;border:1px solid #444;border-radius:7px;margin:10px 0}#report-status{color:#ddd;font-size:12px}#report-cards{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}#ticket-report td:not(:first-child),#ticket-report th:not(:first-child){text-align:right}#ticket-report tbody tr:last-child{font-weight:bold;background:#202020}.report-daily{grid-column:1/-1}
 .analytics-cards{gap:8px;margin:10px 0}
 .analytics-cards strong{font-size:26px;margin-top:6px}
 .analytics-grid{gap:12px}.analytics-grid>section{padding:10px}
+#ticket-report .analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:900px){#ticket-report .analytics-grid{grid-template-columns:1fr}}
 .analytics-chart{margin:12px 0}
 body.settings{height:auto;min-height:100dvh;overflow-y:auto;scroll-padding-top:var(--desktop-top-height)}
 .settings .desktop-top .lock-banner{font-size:11px;padding:5px;margin:5px 0}

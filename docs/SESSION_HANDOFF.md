@@ -1,9 +1,21 @@
 # TDQSYS session handoff
 
-Updated 15 November 2026, Asia/Manila. This is a conversation handoff summary,
+Updated 23 November 2026, Asia/Manila. This is a conversation handoff summary,
 not a verbatim transcript.
 
 ## Resume here
+
+## 23 November v2.0.7 release preparation
+
+User authorized OTA publication of the reporting feature. App/lockfile/manifest version is 2.0.7; installer `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe` is 232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`. Separate v2 GitHub prerelease and `tdqsys-v2` Pages channel only; leave v1 and GitHub stable Latest unchanged. Keep private `.dev-db` and `outputs/` out of commits/publication. Actual update installation remains operator-initiated. Publication verification is recorded after checking remote assets and manifest.
+
+## 23 November issued-ticket reporting manual build
+
+Implemented date/range and explicit run inclusion/exclusion in Live Dashboard, independent leads/queued-registration/ticket counts, all ticket statuses and dealership/model/day summaries. Excel/CSV export uses the same frozen report snapshot with one row per issued ticket, original client details, actual vehicle/status, operating day/run and ticket timestamp. Added models/reissues remain separate; registration IDs omitted; CSV formula injection prevented and XLSX uses literal text/typed dates. Confirmed test exclusion is manual, never inferred from the reset reason “Testing”. Existing single-run giveaway/history panels remain available.
+
+New private read-only RPC `tdqsys_ticket_report(text,date,date)` and authenticated Edge Function action deployed additively. Prior backend source/helpers were downloaded and compared: existing operational handlers/helpers unchanged. Reporting does not call daily rollover or modify records. Main-process exports use native Save dialog, reject unsynced local actions, bind snapshots to desktop frame/location/token and expire after ten minutes. No Pages/OTA publication, version bump, installation or live restart performed.
+
+Manual installer: `app/dist-test-drive-v2-reporting-20261123/tdqsys-v2-setup-2.0.6.exe` (232890424 bytes; SHA256 `19ffa799c516325e1373f3846c3a069e5a0ab55fdd493ab02d607f3eb26d6632`). Source version stays 2.0.6; the original published installer/feed remain untouched. Node 425 passing/3 optional skips; PostgreSQL 48 checks passing. Excel synthetic round trip, isolated Electron rendering and packaged source/speech equality verified; manual native Save/Excel-pivot acceptance pending. Live report authentication works and unauthorized requests get 401. Current local identity has no November 12–15 records; on-site totals were checked against the earlier extract in isolation, not through this local identity. Client data remains private in ignored .dev-db and untracked outputs, never commit it.
 
 ## 15 November v2.0.6 OTA publication verified
 

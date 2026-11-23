@@ -1,5 +1,21 @@
 # Test-drive manual-test build
 
+## 23 November v2.0.7 release preparation
+
+Current installer: `app/dist-v2-2.0.7-20261123/tdqsys-v2-setup-2.0.7.exe` (232890508 bytes, SHA256 `e48ebbbc9de311e646952da92cd88c800badd37f229ccbdcf2131d9467220e1d`). User authorized v2 OTA publication. The previous same-version manual build below remains available as historical test output. Release checks: full Node suite, PostgreSQL integration checks, 22 Python speech tests, packaged code/version equality, exact asset size/hash, product/channel isolation, public feed/asset reachability. Never overwrite the stable v1 feed. Actual update installation and native Save/Excel pivot acceptance remain operator checks.
+
+## 23 November issued-ticket reporting — manual test build
+
+Installer: `app/dist-test-drive-v2-reporting-20261123/tdqsys-v2-setup-2.0.6.exe`. This is a separate same-version manual build; the published v2.0.6 OTA asset/feed is unchanged.
+
+In Live Dashboard, choose From/To and Apply period. Open Review included runs and uncheck confirmed tests. Do not automatically exclude a run because its reset reason says Testing: that can be an official run opened after a test. Leads count every saved form, queued clients are distinct registrations with tickets, and issued tickets count every entry including reissues/model changes. Dealership, model and daily status tables share the export scope. The existing single-run/giveaway dashboard remains below the report.
+
+Select Excel/CSV, click Export issued tickets and save privately. Export includes client personal data. Use Operating day and count rows in Excel pivots. The vehicle is the ticket's actual vehicle, not necessarily what the client initially selected. Registration IDs are not exported. Status cells contain only the saved ticket status. Excel also includes Report scope metadata; CSV contains ticket rows only.
+
+Acceptance: Lynk & Co 12–15 November, excluding 12 November Run 1: 251 leads, 250 queued registrations, 338 tickets; daily tickets 64/83/85/106; Done 280, No Show 26, Cancelled 31, Waiting 1. Geely: 544 tickets. Confirm native Save dialog cancellation, leading-zero phone numbers, sortable dates, grouped/ungrouped colors, empty dates, pending-sync export refusal and preserved queue/TV/audio behavior. On an offline request old figures remain labelled stale and cannot be exported. No Excel installation is required to produce the workbook.
+
+Automated verification: 425 Node tests passing / 3 optional skips; 48 PostgreSQL integration checks passing. Synthetic XLSX round-trip and isolated Electron report rendering verified. Live authenticated reporting and unauthenticated 401 verified; the current local identity has no November 12–15 historical data, so the live check covers the empty-period case, not on-site location totals. Packaged code and unchanged speech binary match source. Installer size 232890424 bytes; SHA256 `19ffa799c516325e1373f3846c3a069e5a0ab55fdd493ab02d607f3eb26d6632`. Manual installed-app and Excel pivot checks remain pending. No live app was installed or restarted.
+
 ## 15 November v2.0.6 OTA publication verified
 
 User authorized publishing the named-speech trial through the v2 OTA channel. Version 2.0.6 is published as GitHub prerelease `v2.0.6`, source commit `04365d0`, and enabled on https://tdqsys-v2.pages.dev/version.json (Pages deployment `f6ee0b53`). Installer: `app/dist-v2-2.0.6-20261115/tdqsys-v2-setup-2.0.6.exe`, 232882818 bytes, SHA256 `6cf09490b777266f13712a0be8ae08f0ef6308a6b7e10e17d80c5313f73781cd`. Matching installers/source/guides are synchronized to the TDQSYS v2 local folder. Portable built locally only: 226556692 bytes; the OTA asset is the NSIS installer.

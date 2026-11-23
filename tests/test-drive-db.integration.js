@@ -35,6 +35,7 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
     await db.exec('alter default privileges grant execute on functions to anon,authenticated;');
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611060001_giveaways.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611060002_inventory_dashboard.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/202611230001_ticket_reporting.sql'), 'utf8'));
     const today = (await db.query("select to_char(now() at time zone 'Asia/Manila','YYYY-MM-DD') as day")).rows[0].day;
     const models = [{ fullName: 'RAV4', shortname: 'RAV4', brandKey: 'brand1', unit: 1 }, { fullName: 'Camry', shortname: 'CAMRY', brandKey: 'brand1', unit: 2 }];
     await rpc('tdqsys_configure_registration', [A, JSON.stringify(models), 'Approved waiver', 'Approved terms','',JSON.stringify(['Toyota'])]);
@@ -53,6 +54,27 @@ const A = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', B = '11111111-2222-4333-8444-5
       assert.equal((await db.query('select count(*)::int as n from registrations')).rows[0].n, 1);
     });
     await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/202611120001_dealership_performance.sql'),'utf8'));
+    await check('ticket report reads all submitted leads and individual tickets without rollover or cross-location access',async()=>{
+      await db.exec('begin');
+      try {
+        const before=(await db.query('select * from queue_runs order by id')).rows;
+        const duplicate=await rpc('tdqsys_submit_registration',args('report-duplicate'));
+        assert.ok(duplicate.entries.every(e=>e.existing));
+        let data=await rpc('tdqsys_ticket_report',[A,today,today]);
+        assert.equal(data.leads.length,2);assert.equal(data.tickets.length,2);
+        assert.ok(data.leads.every(l=>l.runId===run.id));
+        assert.ok(data.tickets.every(e=>e.contactNumber==='09170000000'&&e.agent==='SE One'));
+        assert.equal((await rpc('tdqsys_ticket_report',[B,today,today])).tickets.length,0);
+        assert.deepEqual((await db.query('select * from queue_runs order by id')).rows,before);
+        const newer=await rpc('tdqsys_open_queue_run',[A,today,'Official run','staff']);
+        const newArgs=args('report-new-run');newArgs[1]='New Client';newArgs[2]='new client';
+        await rpc('tdqsys_submit_registration',newArgs);
+        data=await rpc('tdqsys_ticket_report',[A,today,today]);assert.equal(data.tickets.length,4);assert.equal(data.leads.length,3);
+        assert.equal(data.leads.filter(l=>l.runId===run.id).length,2);assert.equal(data.leads.filter(l=>l.runId===newer.id).length,1);
+        for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'tdqsys_ticket_report(text,date,date)','execute') allowed",[role])).rows[0].allowed,false);
+        await db.exec('savepoint bad_report');await assert.rejects(()=>rpc('tdqsys_ticket_report',[A,'2026-11-15','2026-11-12']),/reporting period/);await db.exec('rollback to savepoint bad_report');
+      }finally{await db.exec('rollback');}
+    });
     await check('dealership performance deduplicates multi-model clients and counts ticket outcomes without writes',async()=>{
       await db.exec('begin');
       try {

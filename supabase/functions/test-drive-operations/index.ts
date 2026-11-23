@@ -24,6 +24,13 @@ Deno.serve(async (req) => {
     const { data: revoked, error: revocationError } = await admin.from('revoked_licenses').select('instance_id').eq('instance_id', instanceId).maybeSingle();
     if (revocationError) throw revocationError;
     if (revoked) return Response.json({ error: 'license_revoked' }, { status: 403, headers: cors });
+    if(body.action==='ticket-report') {
+      if((body.from!=null && (typeof body.from!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(body.from))) ||
+         (body.to!=null && (typeof body.to!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(body.to))))return Response.json({error:'Invalid reporting dates.'},{status:400,headers:cors});
+      const {data,error}=await admin.rpc('tdqsys_ticket_report',{p_instance_id:instanceId,p_from:body.from||null,p_to:body.to||null});
+      if(error)return Response.json({error:error.message},{status:error.code==='P0001'?400:503,headers:cors});
+      return Response.json(data,{headers:cors});
+    }
     if(body.action==='simulation-open') {
       if(body.confirm!==true)return Response.json({error:'Confirm a test run first.'},{status:400,headers:cors});
       const {data,error}=await admin.rpc('tdqsys_open_simulation_run',{p_instance_id:instanceId});

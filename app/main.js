@@ -1090,6 +1090,7 @@ function getHistoryCleanup(cfg) {
     return historyCleanupOwner;
 }
 // IPC for settings page (native dialogs / file ops live here, not in browser JS).
+const ticketReportSnapshots=new Map();
 ipcMain.handle('af:testDrive', async (event, request) => {
     try {
         const sender = new URL(event.senderFrame.url);
@@ -1101,6 +1102,7 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         }
         const actions = ['snapshot', 'ongoing', 'undo-ongoing', 'redo-ongoing', 'status', 'reset', 'reset-sales-executives', 'reprint-se-code', 'configure', 'printers', 'claim-print', 'print-result', 'cancel-print', 'print', 'reissue', 'sync-sheets', 'callback', 'export-local-queue', 'archive-local-conflicts', 'retry-local-sync', 'giveaway-snapshot', 'set-giveaway', 'issue-giveaways', 'dashboard-snapshot', ...settingsActions];
         if(sender.pathname==='/event-setup.html')actions.push('history-list','history-preview','history-backup','history-delete','history-resume');
+        if(sender.pathname==='/live-dashboard.html')actions.push('ticket-report','export-ticket-report');
         if (!request || !actions.includes(request.action)) throw new Error('Unsupported operation.');
         if(request.action.startsWith('simulation-')){
             if(sender.pathname!=='/settings.html')throw Error('Open the simulation controls in desktop Settings.');
@@ -1124,6 +1126,27 @@ ipcMain.handle('af:testDrive', async (event, request) => {
         }
         const state = JSON.parse(fs.readFileSync(path.join(BASE_DIR, 'data.json'), 'utf8'));
         const cfg = state.config || {};
+        if(['ticket-report','export-ticket-report'].includes(request.action)) {
+            const queue=getLocalQueue(cfg),pending=()=>queue.state.outbox.length;
+            const owner=`${event.sender.id}:${event.senderFrame.routingId}`;
+            if(request.action==='ticket-report') {
+                const report=await remoteQueueOperation({action:'ticket-report',from:request.from||null,to:request.to||null},cfg.instanceId);
+                if(localConfig().instanceId!==cfg.instanceId)throw Error('Location changed. Refresh the report.');
+                const token=crypto.randomUUID();
+                ticketReportSnapshots.set(owner,{token,instanceId:cfg.instanceId,report,createdAt:Date.now()});
+                return {ok:true,...report,token,pending:pending()};
+            }
+            const saved=ticketReportSnapshots.get(owner);
+            if(!saved || saved.token!==request.token || saved.instanceId!==cfg.instanceId || Date.now()-saved.createdAt>600000)throw Error('Report expired or changed. Refresh before exporting.');
+            if(pending())throw Error('Local queue changes are still awaiting synchronization. Resolve sync warnings, then refresh the report before exporting.');
+            if(!['xlsx','csv'].includes(request.format))throw Error('Choose Excel or CSV.');
+            const {buildExport}=require(path.join(RES_SERVER,'shared','ticket-export.js'));
+            const content=buildExport(saved.report,request.excludedRunIds||[],request.format,cfg.brands||[]);
+            const chosen=await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender),{title:'Export issued ticket data (contains client details)',defaultPath:path.join(app.getPath('documents'),`TDQSYS-issued-tickets-${saved.report.from}-to-${saved.report.to}.${request.format}`),filters:[{name:request.format==='xlsx'?'Excel workbook':'CSV data',extensions:[request.format]}]});
+            if(chosen.canceled || !chosen.filePath)return {ok:true,canceled:true};
+            await fs.promises.writeFile(chosen.filePath,content);
+            return {ok:true,filePath:chosen.filePath};
+        }
         if (request.action === 'printers') {
             return { ok: true, printers: await event.sender.getPrintersAsync() };
         }
